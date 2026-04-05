@@ -303,6 +303,8 @@
             const [selectedBook, setSelectedBook] = useState(null);
             const [viewMode, setViewMode] = useState("grid");
 
+            useEffect(() => { lucide.createIcons(); }, []);
+
             useEffect(() => {
                 const savedRead = JSON.parse(localStorage.getItem('lib-read') || '{}');
                 const savedDownload = JSON.parse(localStorage.getItem('lib-download') || '{}');
@@ -395,6 +397,8 @@
                         <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col xl:flex-row gap-6 items-center">
                             <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
                                 <button onClick={() => setViewMode('grid')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'grid' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-400'}`}>
+                                    <i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i> Catálogo
+                                </button>
                                     <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i> Catálogo
                                 </button>
                                 <button onClick={() => setViewMode('queue')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'queue' ? 'bg-[#14B8A6] text-white shadow-sm' : 'text-gray-400'}`}>
