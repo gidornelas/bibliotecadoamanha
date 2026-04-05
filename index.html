@@ -44,7 +44,7 @@
             window.signInWithPopup = signInWithPopup;
             window.signOut = signOut;
             window.onAuthStateChanged = onAuthStateChanged;
-            console.log('✅ Firebase conectado com sucesso!');
+            console.log('✅ Firebase conectado com sucesso! (EPUBs salvos no Firestore)');
         } catch (error) {
             console.warn('⚠️ Firebase não configurado. Usando apenas localStorage.', error);
             window.db = null;
@@ -129,6 +129,140 @@
             }
         };
 
+        // IndexedDB para guardar EPUBs (muito mais espaço que localStorage)
+        const initIndexedDB = async () => {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open('BibliotecaDB', 1);
+                req.onerror = () => reject(req.error);
+                req.onsuccess = () => resolve(req.result);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('epubs')) {
+                        db.createObjectStore('epubs');
+                    }
+                };
+            });
+        };
+
+        const saveEpubToIndexedDB = async (key, base64) => {
+            try {
+                const db = await initIndexedDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('epubs', 'readwrite');
+                    const store = tx.objectStore('epubs');
+                    const req = store.put(base64, key);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            } catch (err) {
+                console.warn('IndexedDB falhou, usando localStorage:', err);
+                localStorage.setItem(key, base64);
+            }
+        };
+
+        const getEpubFromIndexedDB = async (key) => {
+            try {
+                const db = await initIndexedDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('epubs', 'readonly');
+                    const store = tx.objectStore('epubs');
+                    const req = store.get(key);
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => reject(req.error);
+                });
+            } catch (err) {
+                console.warn('IndexedDB falhou, tentando localStorage:', err);
+                return localStorage.getItem(key);
+            }
+        };
+
+        const downloadEpubByKey = async (epubKey, fileName) => {
+            try {
+                const base64 = await getEpubFromIndexedDB(epubKey);
+                if (!base64) {
+                    console.error('EPUB não encontrado no IndexedDB');
+                    alert('EPUB não encontrado. Tente enviar novamente.');
+                    return;
+                }
+                
+                // Converte data URL para blob
+                const response = await fetch(base64);
+                const blob = await response.blob();
+                
+                // Cria link de download e simula clique
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName || 'livro.epub';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error('Erro ao baixar EPUB:', err);
+                alert('Erro ao baixar EPUB: ' + err.message);
+            }
+        };
+
+        const deleteEpubFromIndexedDB = async (epubKey) => {
+            try {
+                const db = await initIndexedDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction('epubs', 'readwrite');
+                    const store = tx.objectStore('epubs');
+                    const req = store.delete(epubKey);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            } catch (err) {
+                console.warn('Erro ao deletar EPUB do IndexedDB:', err);
+                localStorage.removeItem(epubKey);
+            }
+        };
+
+        const uploadEpubToCloud = async (bookId, file) => {
+            if (!window.auth?.currentUser || !file) {
+                throw new Error('Utilizador não autenticado.');
+            }
+            const isEpub = (file.type === 'application/epub+zip') || /\.epub$/i.test(file.name || '');
+            if (!isEpub) {
+                throw new Error('Arquivo inválido. Envie apenas arquivos .epub');
+            }
+            const maxSizeBytes = 5 * 1024 * 1024; // 5MB limite
+            if (file.size > maxSizeBytes) {
+                throw new Error('Arquivo muito grande. Limite de 5MB para EPUBs.');
+            }
+            
+            try {
+                // Converte arquivo para base64 de forma não-bloqueante
+                const timeout = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout ao processar EPUB. Arquivo muito grande ou sistema lento.')), 20000)
+                );
+                
+                const readPromise = new Promise((resolve, reject) => {
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+                        reader.onprogress = (e) => console.log(`Lendo EPUB: ${Math.round((e.loaded/e.total)*100)}%`);
+                        reader.readAsDataURL(file);
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+                
+                const base64 = await Promise.race([readPromise, timeout]);
+                
+                // Guarda em IndexedDB (muito mais espaço)
+                const epubKey = `epub_${window.auth.currentUser.uid}_${bookId}`;
+                await saveEpubToIndexedDB(epubKey, base64);
+                
+                return { url: null, fileName: file.name || 'livro.epub', epubKey };
+            } catch (error) {
+                throw new Error(error?.message || 'Falha ao processar EPUB.');
+            }
+        };
+
         const loadFromCloud = async (key, defaultValue = {}, setSyncStatus) => {
             try {
                 if (!window.db) {
@@ -166,12 +300,14 @@
 
         function getGenreStyles(genre) {
             switch (genre) {
-                case "Fantasia": return { text: "text-[#14B8A6]", bg: "bg-teal-50", border: "border-teal-100", gradient: "from-teal-100 to-[#14B8A6]/20" };
-                case "Romantasy": return { text: "text-[#7C3AED]", bg: "bg-purple-50", border: "border-purple-100", gradient: "from-purple-100 to-[#7C3AED]/20" };
-                case "Ficção Científica": return { text: "text-[#1E3A5F]", bg: "bg-slate-100", border: "border-slate-200", gradient: "from-slate-200 to-[#1E3A5F]/20" };
-                case "Thriller": return { text: "text-[#EF4444]", bg: "bg-red-50", border: "border-red-100", gradient: "from-red-100 to-red-200" };
-                case "Romance Contemporâneo": return { text: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100", gradient: "from-rose-100 to-rose-200" };
-                default: return { text: "text-gray-600", bg: "bg-gray-50", border: "border-gray-100", gradient: "from-gray-100 to-gray-200" };
+                case "Fantasia": return { text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", gradient: "from-emerald-100 to-emerald-200" };
+                case "Romantasy": return { text: "text-cyan-700", bg: "bg-cyan-50", border: "border-cyan-200", gradient: "from-cyan-100 to-cyan-200" };
+                case "Ficção Científica": return { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", gradient: "from-blue-100 to-blue-200" };
+                case "Thriller": return { text: "text-teal-700", bg: "bg-teal-50", border: "border-teal-200", gradient: "from-teal-100 to-teal-200" };
+                case "Romance Contemporâneo": return { text: "text-sky-700", bg: "bg-sky-50", border: "border-sky-200", gradient: "from-sky-100 to-sky-200" };
+                case "Ficção Literária": return { text: "text-green-700", bg: "bg-green-50", border: "border-green-200", gradient: "from-green-100 to-green-200" };
+                case "Distopia": return { text: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", gradient: "from-violet-100 to-violet-200" };
+                default: return { text: "text-teal-700", bg: "bg-teal-50", border: "border-teal-200", gradient: "from-teal-100 to-teal-200" };
             }
         }
 
@@ -198,7 +334,8 @@
                 grid: (<><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></>),
                 plus: <path d="M12 5v14M5 12h14" />,
                 trash: <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />,
-                bookMarked: <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                bookMarked: <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />,
+                edit: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
             };
             return (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -278,6 +415,9 @@
             const [amazonMessage, setAmazonMessage] = useState("");
             const [searchResults, setSearchResults] = useState([]);
             const [selectedResultId, setSelectedResultId] = useState(null);
+            const [epubFile, setEpubFile] = useState(null);
+            const [isUploadingEpub, setIsUploadingEpub] = useState(false);
+            const [epubMessage, setEpubMessage] = useState("");
 
             useEffect(() => {
                 if (!initialBook) return;
@@ -297,6 +437,7 @@
                     isBrazilianAuthor: !!initialBook.isBrazilianAuthor,
                     isDistopia: !!initialBook.isDistopia
                 });
+                setEpubMessage(initialBook.epubFileName ? `Arquivo atual: ${initialBook.epubFileName}` : "");
             }, [initialBook]);
 
             const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
@@ -628,16 +769,45 @@
                 }
             };
 
-            const submit = (e) => {
+            const submit = async (e) => {
                 e.preventDefault();
                 if (!form.title.trim() || !form.author.trim()) return;
 
                 const parsedTotalVolumes = Number(form.totalVolumes) || 0;
                 const parsedVolume = Number(form.volume) || 0;
                 const isBookInSeries = !!form.isSeries && parsedTotalVolumes > 1;
+                const bookId = initialBook?.id || Date.now();
+
+                let epubUrl = initialBook?.epubUrl || "";
+                let epubFileName = initialBook?.epubFileName || "";
+                const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
+                    promise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), ms))
+                ]);
+
+                if (epubFile) {
+                    try {
+                        setIsUploadingEpub(true);
+                        setEpubMessage("A carregar EPUB...");
+                        const uploaded = await withUiTimeout(
+                            uploadEpubToCloud(bookId, epubFile),
+                            30000,
+                            'Upload sem resposta. Verifique regras do Storage e conexão.'
+                        );
+                        epubUrl = uploaded.url;
+                        epubFileName = uploaded.fileName;
+                        setEpubMessage("EPUB enviado com sucesso.");
+                    } catch (error) {
+                        console.error(error);
+                        setEpubMessage(error?.message || "Não foi possível enviar o EPUB. Verifique login e Firebase Storage.");
+                        return;
+                    } finally {
+                        setIsUploadingEpub(false);
+                    }
+                }
 
                 onSave({
-                    id: initialBook?.id || Date.now(),
+                    id: bookId,
                     title: form.title.trim(),
                     author: form.author.trim(),
                     genre: form.genre,
@@ -650,6 +820,8 @@
                     volume: isBookInSeries ? parsedVolume : 0,
                     totalVolumes: isBookInSeries ? parsedTotalVolumes : 0,
                     isSeries: isBookInSeries,
+                    epubUrl,
+                    epubFileName,
                     isBrazilianAuthor: !!form.isBrazilianAuthor,
                     isDistopia: !!form.isDistopia
                 });
@@ -728,13 +900,35 @@
                         </div>
                         <textarea className="mt-4 w-full px-4 py-3 border border-gray-200 rounded-xl" rows="4" placeholder="Sinopse" value={form.synopsis} onChange={(e) => setField('synopsis', e.target.value)} />
                         <input className="mt-4 w-full px-4 py-3 border border-gray-200 rounded-xl" placeholder="Tags separadas por vírgula" value={form.tags} onChange={(e) => setField('tags', e.target.value)} />
+                        <div className="mt-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                            <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black mb-2">Arquivo do Livro (EPUB)</p>
+                            <input
+                                type="file"
+                                accept=".epub,application/epub+zip"
+                                onChange={(e) => {
+                                    try {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            // Apenas guarda arquivo, não lê
+                                            setEpubFile(file);
+                                            setEpubMessage(`✅ ${file.name} selecionado (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                                        }
+                                    } catch (err) {
+                                        console.error('Erro ao selecionar arquivo:', err);
+                                        setEpubMessage(`❌ Erro: ${err.message}`);
+                                    }
+                                }}
+                                className="w-full text-sm"
+                            />
+                            {epubMessage && <p className="mt-2 text-xs text-gray-600">{epubMessage}</p>}
+                        </div>
                         <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
                             <label className="flex items-center gap-2"><input type="checkbox" checked={form.isBrazilianAuthor} onChange={(e) => setField('isBrazilianAuthor', e.target.checked)} /> Etiqueta Nacional (autor brasileiro)</label>
                             <label className="flex items-center gap-2"><input type="checkbox" checked={form.isDistopia} onChange={(e) => setField('isDistopia', e.target.checked)} /> Distopia</label>
                         </div>
                         <div className="mt-6 flex gap-3 justify-end">
                             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-500 font-semibold">Cancelar</button>
-                            <button type="submit" className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold">{initialBook ? 'Salvar Alterações' : 'Salvar no Banco'}</button>
+                            <button type="submit" disabled={isUploadingEpub} className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold disabled:opacity-60">{isUploadingEpub ? 'Enviando EPUB...' : (initialBook ? 'Salvar Alterações' : 'Salvar no Banco')}</button>
                         </div>
                     </form>
                 </div>
@@ -796,7 +990,7 @@
                     <div className="relative aspect-[3/4.2] overflow-hidden bg-gray-50">
                         <img src={coverUrl} alt={book.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" onError={(e) => { e.target.src='https://via.placeholder.com/300x450?text=Sem+Capa'; }} />
                         <div className="absolute top-3 left-3 right-3 flex flex-col gap-1.5 pointer-events-none z-10">
-                            {book.isDistopia && <span className="bg-[#EF4444] text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider w-fit">DISTOPIA</span>}
+                            {book.isDistopia && <span className="bg-violet-600 text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider w-fit">DISTOPIA</span>}
                             {book.isBrazilianAuthor && (
                                 <span className="bg-[#14B8A6] text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider w-fit flex items-center gap-1.5 shadow-md">
                                     <span className="text-[11px]">🇧🇷</span> NACIONAL
@@ -815,24 +1009,53 @@
                     <div className="p-4 flex-1 flex flex-col bg-white">
                         <h3 className="font-bold text-[13px] md:text-sm leading-[1.4] line-clamp-2 mb-1 group-hover:text-[#14B8A6] transition-colors">{book.title}</h3>
                         <p className="text-gray-400 text-[10px] md:text-[11px] font-medium truncate mb-3">{book.author}</p>
-                        <div className="flex flex-wrap gap-1 mt-auto">
+                        <div className="flex items-center justify-between gap-2 mt-auto">
                             <span 
                                 onClick={(e) => { e.stopPropagation(); onGenreClick(book.genre); }}
                                 className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border cursor-pointer hover:shadow-sm transition-all ${styles.bg} ${styles.text} ${styles.border}`}
                             >
                                 {book.genre}
                             </span>
+                            {!!book.epubKey && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        downloadEpubByKey(book.epubKey, book.epubFileName);
+                                    }}
+                                    title={book.epubFileName ? `Baixar ${book.epubFileName}` : 'Baixar EPUB'}
+                                    className="inline-flex items-center justify-center w-6 h-6 rounded-md text-emerald-600 hover:bg-emerald-50"
+                                >
+                                    <Icon name="download" className="w-3.5 h-3.5" />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
             );
         }
 
-        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onGenreClick }) {
+        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick }) {
             const styles = getGenreStyles(book.genre);
             const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+            const [isConfirmingDeleteEpub, setIsConfirmingDeleteEpub] = useState(false);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
+            const [isUploadingEpub, setIsUploadingEpub] = useState(false);
+            const [uploadMessage, setUploadMessage] = useState("");
+
+            const handleDeleteEpub = async () => {
+                try {
+                    await deleteEpubFromIndexedDB(book.epubKey);
+                    setUploadMessage("✅ EPUB removido com sucesso");
+                    setTimeout(() => {
+                        onDeleteEpub(book.id);
+                        setIsConfirmingDeleteEpub(false);
+                    }, 500);
+                } catch (err) {
+                    console.error('Erro ao deletar EPUB:', err);
+                    setUploadMessage("❌ Erro ao deletar EPUB");
+                }
+            };
 
             return (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 overflow-hidden animate-fade-in">
@@ -862,9 +1085,84 @@
                                                 <Icon name="download" className="w-3.5 h-3.5" /> Baixado
                                             </button>
                                         </div>
+                                        {book.epubKey && (
+                                            <button
+                                                onClick={() => downloadEpubByKey(book.epubKey, book.epubFileName)}
+                                                className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                            >
+                                                <Icon name="download" className="w-3.5 h-3.5" />
+                                                Baixar EPUB {book.epubFileName ? `(${book.epubFileName})` : ''}
+                                            </button>
+                                        )}
+                                        {!book.epubKey && (
+                                            <>
+                                                <label htmlFor={`epub-upload-${book.id}`} className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer">
+                                                    <Icon name="bookMarked" className="w-3.5 h-3.5" />
+                                                    {isUploadingEpub ? 'Enviando EPUB...' : 'Enviar EPUB'}
+                                                </label>
+                                                <input
+                                                    id={`epub-upload-${book.id}`}
+                                                    type="file"
+                                                    accept=".epub,application/epub+zip"
+                                                    className="hidden"
+                                                    disabled={isUploadingEpub}
+                                                    onChange={(e) => {
+                                                        try {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+
+                                                            // Apenas guarda arquivo, processa no próximo evento
+                                                            setTimeout(async () => {
+                                                                const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
+                                                                    promise,
+                                                                    new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), ms))
+                                                                ]);
+                                                                try {
+                                                                    setIsUploadingEpub(true);
+                                                                    setUploadMessage('A carregar EPUB...');
+                                                                    await withUiTimeout(
+                                                                        onUploadEpub(file),
+                                                                        30000,
+                                                                        'Upload sem resposta. Verifique regras do Storage e conexão.'
+                                                                    );
+                                                                    setUploadMessage(`✅ EPUB enviado: ${file.name}`);
+                                                                } catch (error) {
+                                                                    console.error(error);
+                                                                    setUploadMessage(`❌ ${error?.message || 'Falha ao enviar EPUB.'}`);
+                                                                } finally {
+                                                                    setIsUploadingEpub(false);
+                                                                    e.target.value = '';
+                                                                }
+                                                            }, 0);
+                                                        } catch (err) {
+                                                            console.error('Erro ao selecionar arquivo:', err);
+                                                            setUploadMessage(`❌ Erro: ${err.message}`);
+                                                        }
+                                                    }}
+                                                />
+                                            </>
+                                        )}
+                                        {uploadMessage && <p className="text-[10px] text-gray-500">{uploadMessage}</p>}
+                                        {book.epubKey && (
+                                            <>
+                                                {!isConfirmingDeleteEpub ? (
+                                                    <button onClick={() => setIsConfirmingDeleteEpub(true)} className="w-full mt-2 py-2 text-[10px] font-bold text-red-300 uppercase tracking-widest hover:text-red-500 flex items-center justify-center gap-2 transition-colors">
+                                                        <Icon name="trash" className="w-3.5 h-3.5" /> Remover EPUB
+                                                    </button>
+                                                ) : (
+                                                    <div className="bg-red-50 p-3 rounded-xl animate-fade-in mt-2">
+                                                        <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2">Confirmar remoção do EPUB?</p>
+                                                        <div className="flex gap-2 w-full">
+                                                            <button onClick={handleDeleteEpub} className="flex-1 py-2 bg-red-500 text-white rounded-lg text-[9px] font-bold uppercase tracking-widest">Sim</button>
+                                                            <button onClick={() => setIsConfirmingDeleteEpub(false)} className="flex-1 py-2 bg-white text-gray-400 border border-gray-200 rounded-lg text-[9px] font-bold uppercase tracking-widest">Não</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
                                         <div className="mt-2 pt-4 border-t border-gray-100 text-center">
                                             <button onClick={onEdit} className="w-full py-2 mb-2 text-[10px] font-bold text-[#1E3A5F] uppercase tracking-widest hover:text-[#14B8A6] flex items-center justify-center gap-2 transition-colors">
-                                                <Icon name="bookMarked" className="w-3.5 h-3.5" /> Editar Obra
+                                                <Icon name="edit" className="w-3.5 h-3.5" /> Editar Obra
                                             </button>
                                             {!isConfirmingDelete ? (
                                                 <button onClick={() => setIsConfirmingDelete(true)} className="w-full py-2 text-[10px] font-bold text-gray-300 uppercase tracking-widest hover:text-red-400 flex items-center justify-center gap-2 transition-colors">
@@ -1051,6 +1349,22 @@
                 setShowAddBook(false);
                 setEditingBook(null);
                 setSelectedBook(null);
+            }, []);
+
+            const handleUploadEpubForBook = useCallback(async (bookId, file) => {
+                const uploaded = await uploadEpubToCloud(bookId, file);
+                // Guarda APENAS a chave, não o base64 inteiro (evita Firestore quota)
+                setCustomBooks(prev => prev.map(book => (
+                    book.id === bookId
+                        ? { ...book, epubKey: uploaded.epubKey, epubFileName: uploaded.fileName, epubUrl: null }
+                        : book
+                )));
+                setSelectedBook(prev => (
+                    prev && prev.id === bookId
+                        ? { ...prev, epubKey: uploaded.epubKey, epubFileName: uploaded.fileName, epubUrl: null }
+                        : prev
+                ));
+                return uploaded;
             }, []);
 
             const handleToggleRead = useCallback((id) => setReadStatus(p => ({ ...p, [id]: !p[id] })), []);
@@ -1254,6 +1568,22 @@
                             onRemoveCover={(id) => setCustomCovers(p => { const n = { ...p }; delete n[id]; return n; })} 
                             hasCustomCover={!!customCovers[selectedBook.id]}
                             onEdit={() => { setEditingBook(selectedBook); setShowAddBook(true); }}
+                            onUploadEpub={(file) => handleUploadEpubForBook(selectedBook.id, file)}
+                            onDeleteEpub={(bookId) => {
+                                const updatedBooks = customBooks.map(b => (
+                                    b.id === bookId
+                                        ? { ...b, epubKey: null, epubFileName: null }
+                                        : b
+                                ));
+                                setCustomBooks(updatedBooks);
+                                setSelectedBook(prev => (
+                                    prev && prev.id === bookId
+                                        ? { ...prev, epubKey: null, epubFileName: null }
+                                        : prev
+                                ));
+                                // Salva no Firestore imediatamente
+                                saveToCloud('libdb-custom-v1', updatedBooks);
+                            }}
                             onDelete={() => deleteBookFromCatalog(selectedBook.id)}
                             onGenreClick={handleGenreFilter}
                         />
