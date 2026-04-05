@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca do Amanhã | By Meiyka</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- React & Babel for CDN usage -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-serif { font-family: 'Playfair Display', serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Custom Animations */
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .animate-slide-up { animation: slideUp 0.4s ease-out; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    </style>
+</head>
+<body class="bg-[#F8F9FB] text-[#111827]">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- DATA: 45 Livros ---
+        const BOOKS_DATA = [
+            { id: 1, title: "Para não acabar tão cedo", author: "Clarice Freire", publisher: "Record", pages: 216, genre: "Ficção Literária", isBrazilianAuthor: true, isbn: "9788501920508", coverUrl: "https://m.media-amazon.com/images/I/918m27U289L.jpg", synopsis: "Duas irmãs idosas — Augusta e Lia — acordam com os corpos rejuvenescidos. O narrador da história é o próprio Tempo, que provocou essa viravolta. Augusta, guardiã e controladora; Lia, rebelde e sedenta de vida. Um romance sobre envelhecimento, ciclos e o que significa aproveitar o tempo.", tags: ["literatura brasileira", "narrativa experimental", "narrador: o Tempo", "relações entre irmãs", "rejuvenescimento"] },
+            { id: 2, title: "Jogando com a Verdade", author: "Dri Satys", publisher: "Independente", pages: 572, genre: "Romance Contemporâneo", isBrazilianAuthor: true, series: "Irmãos Raffiti", volume: 1, isSeries: true, totalVolumes: 2, isbn: "9786501004129", coverUrl: "https://m.media-amazon.com/images/I/71rubAS37ZL._UF1000,1000_QL80_.jpg", synopsis: "Nicole Palazzini vai passar uma temporada com a melhor amiga — e descobre que o irmão dela, Xavier Raffiti, jogador de futebol famoso por quem sempre foi apaixonada, vai dividir o mesmo espaço. Convivência forçada, sentimentos antigos e muita verdade no jogo entre os dois.", tags: ["romance contemporâneo", "comédia romântica", "futebol", "irmão da melhor amiga", "proximidade forçada"] },
+            { id: 3, title: "Interion: As Crônicas de Júpiter", author: "Patrícia Criado", publisher: "Independente", pages: 1200, genre: "Fantasia", isBrazilianAuthor: true, series: "As Crônicas de Júpiter", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9786585460125", coverUrl: "https://m.media-amazon.com/images/I/81c3ciDan+L._UF1000,1000_QL80_.jpg", synopsis: "Em Interion, há mais de 500 anos mulheres com poderes foram escravizadas. Seus descendentes ainda lutam para acabar com essa tirania. Kyller, uma feérica curandeira, é salva pelo general Zion Voluz e forçada a se casar com ele para ser aceita. Anos depois, Zion retorna como professor da Academia Militar.", tags: ["alta fantasia", "feéricos", "professor e aluna", "guerra", "casamento forçado"] },
+            { id: 4, title: "Flores para Algernon", author: "Daniel Keyes", publisher: "Aleph", pages: 284, genre: "Ficção Científica", isbn: "9788576573937", coverUrl: "https://m.media-amazon.com/images/I/71VrMtcmE9L.jpg", synopsis: "Charlie Gordon tem 32 anos e QI 68. Uma cirurgia experimental aumenta sua inteligência além dos próprios médicos. Narrado pelos relatórios de progresso de Charlie, o livro acompanha sua transformação — e o que o conhecimento revela sobre as pessoas ao seu redor.", tags: ["clássica", "ética na ciência", "narrativa em diário"] },
+            { id: 5, title: "Recursão", author: "Blake Crouch", publisher: "Intrínseca", pages: 330, genre: "Ficção Científica", isbn: "9788551005149", coverUrl: "https://m.media-amazon.com/images/I/61IcrwpeLUL.jpg", synopsis: "Barry Sutton é policial que investiga a misteriosa Síndrome da Falsa Memória — uma doença em que as pessoas acordam com memórias de vidas que nunca viveram. Ao cruzar com uma cientista que trabalha com viagem no tempo via memória, as linhas entre passado e realidade começam a se apagar.", tags: ["ficção científica", "viagem no tempo", "memória falsa", "thriller científico"] },
+            { id: 6, title: "A Quinta Estação", author: "N.K. Jemisin", publisher: "Morro Branco", pages: 560, genre: "Ficção Científica", isDistopia: true, series: "A Terra Partida", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9788592795238", synopsis: "Em um único dia catastrófico: uma mãe descobre que o marido matou o filho e sequestrou a filha; o maior império do mundo colapsa; e uma fenda rasga o coração do único continente. No mundo da Quietude, os orogenes — que controlam a terra — são os mais temidos.", tags: ["distopia", "pós-apocalíptico", "poderes elementais", "crítica social"] },
+            { id: 7, title: "Fúria Vermelha", author: "Pierce Brown", publisher: "Globo Alt", pages: 468, genre: "Ficção Científica", isDistopia: true, series: "Red Rising", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9788525058225", coverUrl: "https://m.media-amazon.com/images/I/81htNBU7jiL.jpg", synopsis: "Marte colonizado. A sociedade é dividida em castas por cor. Darrow, um minerador, descobre que o mundo em que vive é uma grande mentira. Com a ajuda de rebeldes, infiltra-se na elite dos Ouros para destruir o sistema de dentro.", tags: ["distopia", "ficção científica", "Marte", "castas genéticas", "vingança"] },
+            { id: 8, title: "Elite de Prata", author: "Dani Francis", publisher: "Paralela", pages: 464, genre: "Ficção Científica", isDistopia: true, series: "Silver Elite", volume: 1, isSeries: true, totalVolumes: 3, isBrazilianAuthor: true, isbn: "9788584394791", synopsis: "No Continente, poderes psíquicos são sentença de morte. Wren Darlington é uma Modificada que vive escondida, ajudando a Rebelião em segredo. Forçada a entrar no programa Elite Prata, seu superior é o irresistível e arrogante Cross Redden.", tags: ["distopia", "romance", "poderes psíquicos", "enemies to lovers"] },
+            { id: 9, title: "A Sombra dos Deuses", author: "John Gwynne", publisher: "Trama", pages: 576, genre: "Fantasia", series: "Bloodsworn", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9786589132516", coverUrl: "https://m.media-amazon.com/images/I/81bqTipxCPL._AC_UF1000,1000_QL80_.jpg", synopsis: "Um século após os deuses se exterminarem, seus ossos erguem montanhas. Três destinos se entrelaçam: Orka, a guerreira que queria paz; Varg, o ex-escravo; e Elvar, que persegue a glória. Fantasia nórdica brutal.", tags: ["fantasia épica", "mitologia nórdica", "pós-Ragnarök", "dark fantasy"] },
+            { id: 10, title: "Um Estranho Sonhador", author: "Laini Taylor", publisher: "Universo dos Livros", pages: 480, genre: "Fantasia", series: "Estranha o Sonhador", volume: 1, isSeries: true, totalVolumes: 2, isbn: "9788550302485", coverUrl: "https://m.media-amazon.com/images/I/81uxiFkiJvL._AC_UF1000,1000_QL80_.jpg", synopsis: "Lazlo Estranho é um bibliotecário órfão obcecado pela cidade mítica de Lamento. Quando uma expedição parte em busca dela, Lazlo finalmente encontra respostas — e uma deusa de pele azul que aparece em seus sonhos.", tags: ["fantasia", "cidade perdida", "sonhos e magia", "escrita lírica"] },
+            { id: 11, title: "A Rebelde do Deserto", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 312, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9788565765992", synopsis: "Amani Al'Hiza é uma atiradora infalível. Ao fugir de um casamento forçado, é lançada numa rebelião contra o sultão, entre djinnis reais, poder e o destino de um povo.", tags: ["fantasia YA", "mitologia árabe", "faroeste", "djinnis"] },
+            { id: 12, title: "A Traidora do Trono", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 384, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 2, isSeries: true, totalVolumes: 3, isbn: "9788555340321", coverUrl: "https://m.media-amazon.com/images/I/91HhIrpcQuL._AC_UF1000,1000_QL80_.jpg", synopsis: "Sequência direta de A Rebelde do Deserto. Amani agora está no coração da rebelião.", tags: ["fantasia", "rebelião"] },
+            { id: 13, title: "A Heroína da Alvorada", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 344, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 3, isSeries: true, totalVolumes: 3, isbn: "9788555340574", coverUrl: "https://images-na.ssl-images-amazon.com/images/I/A13Nj5VetZL._AC_UL900_SR615,900_.jpg", synopsis: "A conclusão épica da trilogia A Rebelde do Deserto.", tags: ["fantasia", "conclusão"] },
+            { id: 14, title: "Nevernight: A Sombra do Corvo", author: "Jay Kristoff", publisher: "Plataforma 21", pages: 540, genre: "Fantasia", series: "As Crônicas da Quasinoite", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9788592783235", coverUrl: "https://images.tcdn.com.br/img/img_prod/971248/nevernight_a_sombra_do_corvo_nova_edicao_1105_1_8381b37499c94f4a111422d575270974.jpg", synopsis: "Mia Corvere começa o treinamento para se tornar uma assassina da Igreja Vermelha — único caminho para a vingança. Em um mundo com três sóis, Mia comanda as sombras.", tags: ["fantasia sombria", "escola de assassinos", "vingança", "spicy"] },
+            { id: 15, title: "A Guerra da Papoula", author: "R.F. Kuang", publisher: "HarperCollins", pages: 528, genre: "Fantasia", series: "A Guerra da Papoula", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9786555604344", synopsis: "Rin é uma órfã que luta na respeitada academia militar do Império Nikara. Ao conseguir, descobre poderes xamânicos através do ópio. Aborda as atrocidades da guerra.", tags: ["fantasia épica", "China", "xamanismo", "+18"] },
+            { id: 16, title: "A Cidade de Bronze", author: "S.A. Chakraborty", publisher: "Morro Branco", pages: 608, genre: "Fantasia", series: "Trilogia de Daevabad", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9788592795429", coverUrl: "https://m.media-amazon.com/images/I/91JQ7RcYcrL._UF1000,1000_QL80_.jpg", synopsis: "Nahri é uma golpista no Cairo. Sem querer, convoca Dara, um guerreiro djinn, e descobre que está ligada ao mundo mágico. Juntos fogem até Daevabad, a lendária Cidade de Bronze.", tags: ["fantasia épica", "mitologia islâmica", "djinns", "política"] },
+            { id: 17, title: "Mistborn: O Império Final", author: "Brandon Sanderson", publisher: "Trama", pages: 672, genre: "Fantasia", series: "Mistborn", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9786581339180", coverUrl: "https://m.media-amazon.com/images/I/91U6rc7u0yL._AC_UF1000,1000_QL80_.jpg", synopsis: "Em um mundo de cinzas governado por um deus imortal, um grupo de ladrões plota a maior revolução da história. Vin descobre poderes de queimar metais.", tags: ["fantasia épica", "alomância", "heist mágico", "Cosmere"] },
+            { id: 20, title: "O Caminho dos Reis", author: "Brandon Sanderson", publisher: "Trama", pages: 1056, genre: "Fantasia", series: "Os Relatos da Guerra das Tempestades", volume: 1, isSeries: true, totalVolumes: 10, isbn: "9786589132684", coverUrl: "https://m.media-amazon.com/images/I/91gtaGEonIL._UF1000,1000_QL80_.jpg", synopsis: "Em Roshar, mundo devastado por tempestades mágicas, múltiplos personagens convergem para um conflito épico. A saga mais ambiciosa do Cosmere.", tags: ["fantasia épica", "Cosmere", "múltiplos POVs", "calhamaço"] },
+            { id: 21, title: "Foundryside", author: "Robert Jackson Bennett", publisher: "Morro Branco", pages: 640, genre: "Fantasia", series: "Os Fundadores", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9786586015232", coverUrl: "https://m.media-amazon.com/images/I/81KV69mVmQL.jpg", synopsis: "Em Tevanne, a magia é industrializada: inscrições em objetos alteram a realidade. Sancia é uma ladra que rouba um artefato capaz de reescrever a realidade.", tags: ["fantasia épica", "magia industrializada", "cyberpunk elements", "heist"] },
+            { id: 22, title: "Divinos Rivais", author: "Rebecca Ross", publisher: "Alt", pages: 368, genre: "Romantasy", series: "Letters of Enchantment", volume: 1, isSeries: true, totalVolumes: 2, isbn: "9786585348164", coverUrl: "https://m.media-amazon.com/images/I/81UkZV9mfEL.jpg", synopsis: "Os deuses voltaram à guerra. Iris Winnow escreve cartas para o irmão desaparecido que misteriosamente vão parar nas mãos de Roman Kitt, seu rival.", tags: ["romantasy", "enemies to lovers", "cartas mágicas", "deuses em guerra"] },
+            { id: 23, title: "Alchemised", author: "SenLinYu", publisher: "Planeta Minotauro", pages: 954, genre: "Romantasy", isbn: "9780241714331", coverUrl: "https://m.media-amazon.com/images/I/91G2hnAVQgL._AC_UF1000,1000_QL80_.jpg", synopsis: "Helena Marino era uma alquimista promissora até perder seus poderes. Agora é prisioneira de guerra em Paladia, mantida em cativeiro por Ferron.", tags: ["romantasy", "dark fantasy", "alquimia", "slow burn"] },
+            { id: 24, title: "Nona Casa", author: "Leigh Bardugo", publisher: "Planeta Minotauro", pages: 442, genre: "Romantasy", series: "Trilogia Alex Stern", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9786555351460", coverUrl: "https://m.media-amazon.com/images/I/7190YwrFfuS.jpg", synopsis: "Alex Stern enxerga fantasmas. Sobrevivente de um massacre, recebe uma bolsa para Yale para monitorar as sociedades secretas que praticam magia real.", tags: ["fantasia adulta", "sociedades secretas", "Yale", "mistério"] },
+            { id: 25, title: "Quicksilver", author: "Callie Hart", publisher: "Rocco", pages: 560, genre: "Romantasy", series: "Magia e Alquimia", volume: 1, isSeries: true, totalVolumes: 5, isbn: "9786555326635", coverUrl: "https://m.media-amazon.com/images/I/71PJVodvO-L.jpg", synopsis: "Saeris Fane é uma ladra com o poder proibido de manipular metais. Transportada para Yvelia, reino dos feéricos, é ligada ao guerreiro Kingfisher.", tags: ["romantasy", "feéricos", "portal entre mundos", "spicy"] },
+            { id: 26, title: "O Livro de Azrael", author: "Amber V. Nicole", publisher: "Independente", pages: 640, genre: "Romantasy", series: "Deuses e Monstros", volume: 1, isSeries: true, totalVolumes: 3, isbn: "9786585086325", coverUrl: "https://m.media-amazon.com/images/I/91hl43KH-QL.jpg", synopsis: "Dianna serve a Kaden e é enviada para roubar uma relíquia das mãos de Samkiel — o Arauto do Fim. Eles são forçados a trabalhar juntos.", tags: ["dark romantasy", "deuses e imortais", "enemies to lovers", "dual POV"] },
+            { id: 27, title: "Uma Janela Sombria", author: "Rachel Gillig", publisher: "Alt", pages: 424, genre: "Romantasy", series: "O Rei Pastor", volume: 1, isSeries: true, totalVolumes: 2, isbn: "9786588131978", coverUrl: "https://m.media-amazon.com/images/I/81UUGTUvPKL.jpg", synopsis: "Elspeth sobreviveu à febre mágica com a ajuda de um monstro em sua mente — o Pesadelo. Para salvar o reino, ela precisa das doze Cartas da Providência.", tags: ["fantasia gótica", "sistema de magia em cartas", "enemies to lovers"] },
+            { id: 28, title: "Duas Coroas Retorcidas", author: "Rachel Gillig", publisher: "Alt", pages: 448, genre: "Romantasy", series: "O Rei Pastor", volume: 2, isSeries: true, totalVolumes: 2, isbn: "9786555323948", coverUrl: "https://m.media-amazon.com/images/I/91I5pEHHpNL.jpg", synopsis: "O Pesadelo tomou a cabeça de Elspeth. Só ele sabe onde encontrar a última Carta da Providência. A conclusão épica da duologia.", tags: ["dark fantasy", "conclusão", "múltiplos POVs"] },
+            { id: 29, title: "Despertar da Chama Eterna", author: "Penn Cole", publisher: "Independente", pages: 384, genre: "Fantasia", series: "Chama Eterna", volume: 1, isSeries: true, totalVolumes: 4, isbn: "9786555657784", coverUrl: "https://m.media-amazon.com/images/I/8160XsjSJoL.jpg", synopsis: "Diem Bellator é curandeira num mundo governado por Descendentes dos deuses. O príncipe Luther a observa enquanto ela entra num mundo sombrio.", tags: ["romantasy", "enemies to lovers", "intrigas políticas", "realeza"] },
+            { id: 30, title: "Magia Oculta (Metal Slinger)", author: "Rachel Schneider", publisher: "Independente", pages: 520, genre: "Fantasia", series: "Fogo e Metal", volume: 1, isSeries: true, totalVolumes: 2, isbn: "9798324986469", coverUrl: "https://m.media-amazon.com/images/I/81K7kIHIr4L._UF1000,1000_QL80_.jpg", synopsis: "Brynn vive exilada no mar. Ao partir para o Mercado anual, um conflito com o soldado Acker revela um mundo de magia que ela não conhecia.", tags: ["romantasy", "fated mates", "proximidade forçada", "plot twist"] },
+            { id: 31, title: "A Paciente Silenciosa", author: "Alex Michaelides", publisher: "Intrínseca", pages: 350, genre: "Thriller", isbn: "9788551004654", coverUrl: "https://m.media-amazon.com/images/I/91R8S52UP6L._AC_UF1000,1000_QL80_.jpg", synopsis: "Alicia Berenson matou o marido com cinco tiros e nunca mais disse uma palavra. O psicoterapeuta Theo Faber está determinado a fazê-la falar.", tags: ["thriller psicológico", "narrador não confiável", "plot twist", "psiquiatria"] },
+            { id: 32, title: "O Massacre da Família Hope", author: "Riley Sager", publisher: "Intrínseca", pages: 400, genre: "Thriller", isbn: "9788551009857", coverUrl: "https://m.media-amazon.com/images/I/81asVXUBKkL._UF1000,1000_QL80_.jpg", synopsis: "Em 1929, toda a família Hope foi assassinada. Décadas depois, uma cuidadora é designada para a idosa Lenora, que se comunica por máquina de escrever.", tags: ["suspense gótico", "crime histórico", "mansão assombrada", "passado e presente"] },
+            { id: 33, title: "Nada Disso é Verdade", author: "Lisa Jewell", publisher: "Record", pages: 352, genre: "Thriller", isbn: "9788501306356", coverUrl: "https://m.media-amazon.com/images/I/81+NaEnPEtL._AC_UF1000,1000_QL80_.jpg", synopsis: "Uma podcaster aceita transformar a vida de uma estranha em episódio. Quando a mulher desaparece, Alix descobre que se tornou o tema do próprio podcast.", tags: ["thriller psicológico", "true crime", "obsessão", "podcast"] },
+            { id: 34, title: "Pactos Mortais", author: "Steve Cavanagh", publisher: "Intrínseca", pages: 336, genre: "Thriller", isbn: "9788551009130", coverUrl: "https://m.media-amazon.com/images/I/71F87OecVmL._AC_UF1000,1000_QL80_.jpg", synopsis: "Duas estranhas em Nova York descobrem que têm o mesmo desejo de vingança. O pacto? Eu mato o seu, você mata o meu. O plano perfeito que desmorona.", tags: ["vingança", "thriller jurídico", "múltiplas perspectivas", "crime planejado"] },
+            { id: 35, title: "Com Amor, Mamãe", author: "Iliana Xander", publisher: "Independente", pages: 336, genre: "Thriller", isbn: "9786555656244", coverUrl: "https://m.media-amazon.com/images/I/71DA+TIIuFL.jpg", synopsis: "Após a morte misteriosa da mãe, Mackenzie recebe cartas assinadas 'Com amor, mamãe'. O que ela descobre sobre o passado da família é perturbador.", tags: ["segredos de família", "cartas misteriosas", "morte suspeita", "investigação"] },
+            { id: 36, title: "Tudo em Família", author: "John Marrs", publisher: "Independente", pages: 352, genre: "Thriller", isbn: "9788501305410", coverUrl: "https://m.media-amazon.com/images/I/81kHv-wBb3L._AC_UF1000,1000_QL80_.jpg", synopsis: "Mia e Finn compram uma casa abandonada. Durante a reforma, encontram uma frase escrita: 'EU VOU SALVAR ELAS DO SÓTÃO'.", tags: ["thriller doméstico", "horror psicológico", "casa com história"] },
+            { id: 37, title: "Oceano entre Nós", author: "Tahereh Mafi", publisher: "Universo dos Livros", pages: 304, genre: "Romance Contemporâneo", isbn: "9788550304380", coverUrl: "https://m.media-amazon.com/images/I/71MYkfZvNPS._UF1000,1000_QL80_.jpg", synopsis: "Shirin é uma muçulmana de 16 anos que constrói muros para se proteger do preconceito, até que Ocean James aparece querendo conhecê-la.", tags: ["romance YA", "slow burn", "islamofobia", "identidade cultural"] },
+            { id: 38, title: "Uma Questão de Química", author: "Bonnie Garmus", publisher: "Intrínseca", pages: 384, genre: "Romance Contemporâneo", isbn: "9788551008676", coverUrl: "https://m.media-amazon.com/images/I/71-JwZqx+mL._AC_UF1000,1000_QL80_.jpg", synopsis: "Elizabeth Zott é uma química brilhante nos anos 60 que se torna estrela de um programa de culinária para ensinar mulheres a pensar por si mesmas.", tags: ["ficção histórica", "feminismo", "anos 60", "mulher na ciência"] },
+            { id: 39, title: "Conversas entre Amigos", author: "Sally Rooney", publisher: "Companhia das Letras", pages: 320, genre: "Romance Contemporâneo", isbn: "9788535929652", coverUrl: "https://m.media-amazon.com/images/I/717zKKQ5UkL.jpg", synopsis: "Frances e Bobbi são melhores amigas cujas vidas se entrelaçam com um casal mais velho, Nick e Melissa, em relações de poder e desejo.", tags: ["romance literário", "Millennial", "relações de poder", "bisexualidade"] },
+            { id: 40, title: "Terra Partida", author: "Clare Leslie Hall", publisher: "Independente", pages: 320, genre: "Romance Contemporâneo", isbn: "9786586015003", coverUrl: "https://m.media-amazon.com/images/I/9150j9tc+6L._AC_UF1000,1000_QL80_.jpg", synopsis: "O amor da juventude de Beth volta à cidade com um filho que lembra o dela, que morreu. A atração reaviva segredos perigosos.", tags: ["triângulo amoroso", "luto", "segredos de casamento", "vida no campo"] },
+            { id: 41, title: "Binding 13", author: "Chloe Walsh", publisher: "Seguinte", pages: 704, genre: "Romance Contemporâneo", series: "Os Garotos de Tommen", volume: 1, isSeries: true, totalVolumes: 4, isbn: "9788555342899", coverUrl: "https://m.media-amazon.com/images/I/81qgQ2eFh3L._AC_UF1000,1000_QL80_.jpg", synopsis: "Johnny é a estrela do rúgbi com uma lesão secreta. Shannon é a nova aluna invisível. Um encontro improvável os une.", tags: ["slow burn", "romance esportivo", "dual POV", "trauma"] },
+            { id: 42, title: "Despertar da Chama Eterna", author: "Penn Cole", publisher: "Independente", pages: 384, genre: "Fantasia", series: "Chama Eterna", volume: 1, isSeries: true, totalVolumes: 4, isbn: "9786555657784", coverUrl: "https://m.media-amazon.com/images/I/8160XsjSJoL.jpg", synopsis: "Diem Bellator é curandeira num mundo de deuses. O desaparecimento da mãe a lança num mundo sombrio de realeza.", tags: ["romantasy", "enemies to lovers", "slow burn", "realeza"] },
+            { id: 43, title: "Uma Janela Sombria", author: "Rachel Gillig", publisher: "Alt", pages: 424, genre: "Romantasy", series: "O Rei Pastor", volume: 1, isSeries: true, totalVolumes: 2, isbn: "9786588131978", coverUrl: "https://m.media-amazon.com/images/I/81UUGTUvPKL.jpg", synopsis: "Para quebrar a maldição do reino, Elspeth precisa confiar no monstro em sua mente e nas Cartas da Providência.", tags: ["fantasia gótica", "sistema de magia", "dark romantasy"] },
+            { id: 44, title: "Duas Coroas Retorcidas", author: "Rachel Gillig", publisher: "Alt", pages: 448, genre: "Romantasy", series: "O Rei Pastor", volume: 2, isSeries: true, totalVolumes: 2, isbn: "9786555323948", coverUrl: "https://m.media-amazon.com/images/I/91I5pEHHpNL.jpg", synopsis: "O Pesadelo tomou a cabeça de Elspeth. A conclusão da duologia do Rei Pastor e a busca pela última carta.", tags: ["dark fantasy", "conclusão", "dual POV"] },
+            { id: 45, title: "Magia Oculta (Metal Slinger)", author: "Rachel Schneider", publisher: "Independente", pages: 520, genre: "Fantasia", series: "Fogo e Metal", volume: 1, isSeries: true, totalVolumes: 2, isbn: "9798324986469", coverUrl: "https://m.media-amazon.com/images/I/81K7kIHIr4L._UF1000,1000_QL80_.jpg", synopsis: "Brynn descobre ter poderes raros de manipulação de metal e se envolve num conflito com soldados inimigos.", tags: ["fantasia", "xamanismo", "plot twist", "powers proibidos"] }
+        ];
+
+        const GENRES = ["Todos", "Fantasia", "Romantasy", "Ficção Científica", "Thriller", "Romance Contemporâneo", "Ficção Literária", "Distopia", "Autores Brasileiros"];
+
+        const getSeriesLabel = (total) => {
+            if (total === 2) return "Duologia";
+            if (total === 3) return "Trilogia";
+            if (total === 4) return "Tetralogia";
+            if (total > 4) return `Série (${total} vols)`;
+            return "Série";
+        };
+
+        // --- COMPONENTS ---
+
+        const AnimatedStatCard = ({ label, value }) => {
+            const [displayValue, setDisplayValue] = useState(value);
+            useEffect(() => {
+                let start = displayValue;
+                const end = value;
+                if (start === end) return;
+                const timer = setInterval(() => {
+                    if (start < end) start += 1;
+                    else if (start > end) start -= 1;
+                    setDisplayValue(start);
+                    if (start === end) clearInterval(timer);
+                }, 20);
+                return () => clearInterval(timer);
+            }, [value]);
+            return (
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 p-4 md:p-5 rounded-3xl flex flex-col items-center justify-center min-w-[90px] md:min-w-[140px] transition-transform hover:scale-105 duration-300">
+                    <span className="text-2xl md:text-5xl font-serif font-bold text-[#14B8A6] leading-none mb-2">{displayValue}</span>
+                    <span className="text-[9px] md:text-[11px] uppercase tracking-widest text-white/40 font-bold text-center">{label}</span>
+                </div>
+            );
+        };
+
+        const BookCard = ({ book, isRead, isDownloaded, coverUrl, onClick, getGenreColor, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue }) => {
+            const styles = getGenreColor(book.genre);
+            
+            if (isQueueMode) {
+                return (
+                    <div className="bg-white p-4 rounded-[28px] border border-gray-100 flex items-center gap-4 md:gap-6 shadow-sm hover:shadow-md transition-all group animate-fade-in">
+                        <div className="text-xl md:text-2xl font-serif font-black text-gray-200 group-hover:text-[#14B8A6] transition-colors w-6 md:w-8 text-center">{queueIndex + 1}</div>
+                        <div className="w-12 h-18 md:w-16 md:h-24 rounded-lg overflow-hidden shrink-0 shadow-md">
+                            <img src={coverUrl} className="w-full h-full object-cover" alt={book.title} />
+                        </div>
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
+                            <h4 className="font-bold text-sm text-[#1E3A5F] truncate">{book.title}</h4>
+                            <p className="text-xs text-gray-400 truncate">{book.author}</p>
+                            <span className={`inline-block mt-2 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
+                        </div>
+                        <div className="flex items-center gap-1 md:gap-2">
+                            <div className="flex flex-col gap-1">
+                                <button onClick={() => onMove(queueIndex, -1)} disabled={queueIndex === 0} className="p-1.5 md:p-2 bg-gray-50 rounded-lg text-gray-400 hover:text-[#14B8A6] disabled:opacity-20"><i data-lucide="chevron-up" className="w-4 h-4"></i></button>
+                                <button onClick={() => onMove(queueIndex, 1)} disabled={queueIndex === totalInQueue - 1} className="p-1.5 md:p-2 bg-gray-50 rounded-lg text-gray-400 hover:text-[#14B8A6] disabled:opacity-20"><i data-lucide="chevron-down" className="w-4 h-4"></i></button>
+                            </div>
+                            <button onClick={onRemoveFromQueue} className="p-2 md:p-3 bg-red-50 text-red-400 rounded-xl hover:bg-red-100 transition-colors"><i data-lucide="trash-2" className="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div onClick={onClick} className="group relative bg-white rounded-[24px] overflow-hidden border border-transparent hover:border-[#14B8A6] hover:shadow-2xl hover:shadow-[#14B8A6]/10 transform hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col h-full animate-fade-in">
+                    <div className="relative aspect-[3/4.2] overflow-hidden bg-gray-50">
+                        {coverUrl ? (
+                            <img src={coverUrl} alt={book.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-gray-100 to-gray-200">
+                                <i data-lucide="book-marked" className="w-12 h-12 text-gray-300 mb-4"></i>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-center text-gray-400">{book.genre}</span>
+                            </div>
+                        )}
+                        <div className="absolute top-3 left-3 right-3 flex flex-wrap gap-1.5 pointer-events-none z-10 justify-between">
+                            <div className="flex flex-col gap-1.5">
+                                {book.isDistopia && <span className="bg-[#EF4444] text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider">DISTOPIA</span>}
+                                {book.isBrazilianAuthor && <span className="bg-[#14B8A6] text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider">NACIONAL</span>}
+                            </div>
+                            {book.isSeries && (
+                                <span className="bg-[#FAEEDA] text-[#633806] border border-[#FAC775] text-[9px] font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 h-fit">
+                                    <i data-lucide="layers" class="w-2.5 h-2.5"></i>
+                                    {getSeriesLabel(book.totalVolumes)}
+                                </span>
+                            )}
+                        </div>
+                        <div className="absolute inset-0 bg-[#1E3A5F]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px] z-20">
+                            <span className="bg-white text-[#1E3A5F] px-5 py-2.5 rounded-full text-[11px] font-black shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">VER DETALHES</span>
+                        </div>
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col bg-white">
+                        <h3 className="font-bold text-[13px] md:text-sm leading-[1.4] line-clamp-2 mb-1 group-hover:text-[#14B8A6] transition-colors">{book.title}</h3>
+                        <p className="text-gray-400 text-[10px] md:text-[11px] font-medium truncate mb-3">{book.author}</p>
+                        <div className="flex flex-wrap gap-1 mt-auto">
+                            <span className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const DetailModal = ({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onSetCover, onRemoveCover, getGenreColor, hasCustomCover }) => {
+            const styles = getGenreColor(book.genre);
+            const [isEditingCover, setIsEditingCover] = useState(false);
+            const [tempUrl, setTempUrl] = useState("");
+
+            useEffect(() => { lucide.createIcons(); }, []);
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => { onSetCover(book.id, reader.result); setIsEditingCover(false); };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleUrlSubmit = (e) => {
+                e.preventDefault();
+                if (tempUrl) { onSetCover(book.id, tempUrl); setTempUrl(""); setIsEditingCover(false); }
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 overflow-hidden animate-fade-in">
+                    <div className="absolute inset-0 bg-[#0F2240]/70 backdrop-blur-md" onClick={onClose} />
+                    <div className="relative bg-white w-full max-w-4xl max-h-[92vh] overflow-y-auto sm:rounded-[40px] rounded-t-[32px] shadow-2xl flex flex-col animate-slide-up z-10">
+                        <div className="flex justify-between items-center px-6 md:px-10 py-5 border-b border-gray-50 sticky top-0 bg-white/95 backdrop-blur-md z-20">
+                            <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Ficha Técnica</span>
+                                {book.isSeries && <span className="bg-[#FAEEDA] text-[#633806] text-[9px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">{getSeriesLabel(book.totalVolumes)}</span>}
+                            </div>
+                            <button onClick={onClose} className="p-2.5 rounded-full hover:bg-gray-100 text-gray-400 transition-all hover:rotate-90"><i data-lucide="x" class="w-5 h-5"></i></button>
+                        </div>
+
+                        <div className="px-6 py-8 md:px-14 md:py-16">
+                            <div className="flex flex-col md:flex-row gap-10 md:gap-16">
+                                <div className="w-full md:w-80 shrink-0">
+                                    <div className="relative">
+                                        <div className="aspect-[3/4.2] rounded-[32px] shadow-2xl overflow-hidden bg-gray-50 border-[10px] border-white ring-1 ring-gray-100">
+                                            <img src={coverUrl || ''} alt={book.title} className="w-full h-full object-cover" />
+                                        </div>
+                                        <button onClick={() => setIsEditingCover(!isEditingCover)} className="absolute -bottom-2 right-4 bg-white shadow-xl border border-gray-100 p-3 rounded-full text-[#1E3A5F] hover:text-[#14B8A6]"><i data-lucide="image" class="w-5 h-5"></i></button>
+                                    </div>
+
+                                    <button onClick={onToggleQueue} className={`w-full mt-6 py-4 px-6 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all border-2 ${isInQueue ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white text-gray-400 border-gray-100 hover:border-teal-200 hover:text-teal-600'}`}>
+                                        <i data-lucide="list-ordered" class="w-4 h-4"></i> {isInQueue ? 'Na Fila de Leitura' : 'Planear Leitura'}
+                                    </button>
+
+                                    {isEditingCover && (
+                                        <div className="mt-6 p-5 bg-gray-50 rounded-[24px] border border-gray-100 animate-fade-in">
+                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Atualizar Capa</h5>
+                                            <div className="flex flex-col gap-3">
+                                                <label className="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-dashed border-gray-300 text-gray-500 hover:bg-gray-100 cursor-pointer text-xs font-bold">
+                                                    <i data-lucide="upload" class="w-4 h-4"></i> Upload Arquivo
+                                                    <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                                                </label>
+                                                <form onSubmit={handleUrlSubmit} className="flex flex-col gap-2">
+                                                    <input type="url" placeholder="URL da imagem..." className="w-full px-4 py-3 bg-white rounded-xl border border-gray-200 text-xs outline-none" value={tempUrl} onChange={(e) => setTempUrl(e.target.value)} />
+                                                    <button type="submit" className="bg-[#14B8A6] text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-[#14B8A6]/20">Salvar URL</button>
+                                                </form>
+                                                {hasCustomCover && <button onClick={() => { onRemoveCover(book.id); setIsEditingCover(false); }} className="text-[10px] font-bold text-red-400 hover:text-red-600">Remover Capa</button>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-4 mt-6">
+                                        <button onClick={() => onToggleDownload(book.id)} className={`py-5 px-6 rounded-2xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-3 transition-all ${isDownloaded ? 'bg-[#14B8A6] text-white shadow-lg' : 'bg-gray-100 text-gray-400'}`}><i data-lucide="download" class="w-4.5 h-4.5"></i> {isDownloaded ? 'Baixado' : 'Baixar'}</button>
+                                        <button onClick={() => onToggleRead(book.id)} className={`py-5 px-6 rounded-2xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-3 transition-all ${isRead ? 'bg-[#1E3A5F] text-white shadow-lg' : 'bg-gray-100 text-gray-400'}`}><i data-lucide="check-circle-2" class="w-4.5 h-4.5"></i> {isRead ? 'Lido' : 'Lido?'}</button>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <div className="mb-10">
+                                        <div className="flex flex-wrap gap-2 mb-6">
+                                            <span className={`text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-full border ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
+                                            {book.isDistopia && <span className="bg-red-50 text-red-600 border border-red-100 text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-full">Distopia</span>}
+                                            {book.isBrazilianAuthor && <span className="bg-teal-50 text-[#14B8A6] border border-[#14B8A6]/20 text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-full">Nacional</span>}
+                                        </div>
+                                        <h3 className="text-3xl md:text-5xl font-serif font-bold text-[#1E3A5F] mb-4 leading-tight">{book.title}</h3>
+                                        <p className="text-xl text-gray-400 italic font-serif">por {book.author}</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mb-12">
+                                        <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Editora</span><span className="font-bold text-[#1E3A5F]">{book.publisher || "Independente"}</span></div>
+                                        <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Páginas</span><span className="font-bold text-[#1E3A5F]">{book.pages}p</span></div>
+                                        {book.isSeries && <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Série</span><span className="font-bold text-[#1E3A5F]">{book.series} vol.{book.volume}</span></div>}
+                                    </div>
+                                    <div className="mb-12 relative">
+                                        <div className={`absolute -left-6 top-0 bottom-0 w-1 rounded-full opacity-10 ${styles.text} bg-current`} />
+                                        <h4 className={`text-[10px] font-black uppercase tracking-[0.3em] ${styles.text} mb-6`}>Sinopse da Obra</h4>
+                                        <p className="text-gray-600 leading-[1.9] text-lg max-w-2xl whitespace-pre-wrap">{book.synopsis}</p>
+                                    </div>
+                                    <div className="pt-8 border-t border-gray-100 flex flex-wrap gap-2">
+                                        {book.tags?.map(tag => (
+                                            <span key={tag} className="text-[11px] font-semibold text-gray-400 lowercase bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 transition-colors hover:text-[#14B8A6]">#{tag}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+
+        const App = () => {
+            const [readStatus, setReadStatus] = useState({});
+            const [downloadStatus, setDownloadStatus] = useState({});
+            const [customCovers, setCustomCovers] = useState({});
+            const [readingOrder, setReadingOrder] = useState([]);
+            const [searchQuery, setSearchQuery] = useState("");
+            const [activeGenre, setActiveGenre] = useState("Todos");
+            const [filterRead, setFilterRead] = useState(false);
+            const [filterDownloaded, setFilterDownloaded] = useState(false);
+            const [selectedBook, setSelectedBook] = useState(null);
+            const [viewMode, setViewMode] = useState("grid");
+
+            useEffect(() => {
+                const savedRead = JSON.parse(localStorage.getItem('lib-read') || '{}');
+                const savedDownload = JSON.parse(localStorage.getItem('lib-download') || '{}');
+                const savedCovers = JSON.parse(localStorage.getItem('lib-covers') || '{}');
+                const savedQueue = JSON.parse(localStorage.getItem('lib-queue') || '[]');
+                setReadStatus(savedRead);
+                setDownloadStatus(savedDownload);
+                setCustomCovers(savedCovers);
+                setReadingOrder(savedQueue);
+                lucide.createIcons();
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('lib-read', JSON.stringify(readStatus));
+                localStorage.setItem('lib-download', JSON.stringify(downloadStatus));
+                localStorage.setItem('lib-covers', JSON.stringify(customCovers));
+                localStorage.setItem('lib-queue', JSON.stringify(readingOrder));
+                lucide.createIcons();
+            }, [readStatus, downloadStatus, customCovers, readingOrder, viewMode]);
+
+            const toggleRead = (id) => setReadStatus(prev => ({ ...prev, [id]: !prev[id] }));
+            const toggleDownload = (id) => setDownloadStatus(prev => ({ ...prev, [id]: !prev[id] }));
+            const setCustomCover = (id, url) => setCustomCovers(prev => ({ ...prev, [id]: url }));
+            const removeCustomCover = (id) => setCustomCovers(prev => { const n = { ...prev }; delete n[id]; return n; });
+            const toggleQueue = (id) => setReadingOrder(prev => prev.includes(id) ? prev.filter(bId => bId !== id) : [...prev, id]);
+            const moveInQueue = (index, dir) => {
+                const n = [...readingOrder];
+                const target = index + dir;
+                if (target < 0 || target >= n.length) return;
+                const [moved] = n.splice(index, 1);
+                n.splice(target, 0, moved);
+                setReadingOrder(n);
+            };
+
+            const filteredBooks = useMemo(() => {
+                if (viewMode === "queue") return readingOrder.map(id => BOOKS_DATA.find(b => b.id === id)).filter(Boolean);
+                return BOOKS_DATA.filter(book => {
+                    const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) || book.author.toLowerCase().includes(searchQuery.toLowerCase());
+                    let matchesGenre = true;
+                    if (activeGenre === "Autores Brasileiros") matchesGenre = book.isBrazilianAuthor;
+                    else if (activeGenre === "Distopia") matchesGenre = book.isDistopia;
+                    else if (activeGenre !== "Todos") matchesGenre = book.genre === activeGenre;
+                    const matchesRead = filterRead ? readStatus[book.id] : true;
+                    const matchesDownloaded = filterDownloaded ? downloadStatus[book.id] : true;
+                    return matchesSearch && matchesGenre && matchesRead && matchesDownloaded;
+                });
+            }, [searchQuery, activeGenre, filterRead, filterDownloaded, readStatus, downloadStatus, viewMode, readingOrder]);
+
+            const stats = {
+                total: BOOKS_DATA.length,
+                read: Object.values(readStatus).filter(Boolean).length,
+                downloaded: Object.values(downloadStatus).filter(Boolean).length
+            };
+
+            const getGenreColor = (genre) => {
+                switch (genre) {
+                    case "Fantasia": return { text: "text-[#14B8A6]", bg: "bg-teal-50", border: "border-teal-100", gradient: "from-teal-100 to-[#14B8A6]/20" };
+                    case "Romantasy": return { text: "text-[#7C3AED]", bg: "bg-purple-50", border: "border-purple-100", gradient: "from-purple-100 to-[#7C3AED]/20" };
+                    case "Ficção Científica": return { text: "text-[#1E3A5F]", bg: "bg-slate-100", border: "border-slate-200", gradient: "from-slate-200 to-[#1E3A5F]/20" };
+                    case "Thriller": return { text: "text-[#EF4444]", bg: "bg-red-50", border: "border-red-100", gradient: "from-red-100 to-red-200" };
+                    case "Romance Contemporâneo": return { text: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100", gradient: "from-rose-100 to-rose-200" };
+                    default: return { text: "text-gray-600", bg: "bg-gray-50", border: "border-gray-100", gradient: "from-gray-100 to-gray-200" };
+                }
+            };
+
+            const getCoverUrl = (book) => customCovers[book.id] || book.coverUrl || `https://covers.openlibrary.org/b/isbn/${book.isbn}-L.jpg`;
+
+            return (
+                <div className="min-h-screen">
+                    {/* Hero */}
+                    <header className="bg-[#1E3A5F] text-white pt-20 pb-16 px-6 relative overflow-hidden text-center md:text-left">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12 relative z-10">
+                            <div>
+                                <h1 className="text-5xl md:text-7xl font-serif font-bold tracking-tight leading-tight">Biblioteca do Amanhã</h1>
+                                <span className="text-[#14B8A6] text-sm md:text-lg font-medium tracking-widest uppercase italic block mt-1">By Meiyka</span>
+                                <p className="text-white/60 text-base md:text-xl font-light mt-4 max-w-lg">Catálogo pessoal de leituras e referências visuais.</p>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3 md:gap-6 w-full md:w-auto">
+                                <AnimatedStatCard label="Total" value={stats.total} />
+                                <AnimatedStatCard label="Lidos" value={stats.read} />
+                                <AnimatedStatCard label="Baixados" value={stats.downloaded} />
+                            </div>
+                        </div>
+                        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#14B8A6] rounded-full blur-[160px] opacity-[0.07] -mr-64 -mt-64"></div>
+                        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#7C3AED] rounded-full blur-[140px] opacity-[0.05] -ml-48 -mb-48"></div>
+                    </header>
+
+                    {/* Filter Bar */}
+                    <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-gray-100 shadow-sm">
+                        <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col xl:flex-row gap-6 items-center">
+                            <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
+                                <button onClick={() => setViewMode('grid')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'grid' ? 'bg-white text-[#1E3A5F] shadow-sm' : 'text-gray-400'}`}>
+
+                                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i> Catálogo
+                                </button>
+                                <button onClick={() => setViewMode('queue')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'queue' ? 'bg-[#14B8A6] text-white shadow-sm' : 'text-gray-400'}`}>
+                                    <i data-lucide="list-ordered" class="w-3.5 h-3.5"></i> Minha Fila
+                                </button>
+                            </div>
+
+                            <div className="relative w-full xl:w-80">
+                                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                                <input type="text" placeholder="Pesquisar..." className="w-full pl-11 pr-4 py-3 bg-[#F8F9FB] border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-[#14B8A6]/20 outline-none" value={searchQuery} disabled={viewMode === 'queue'} onChange={(e) => setSearchQuery(e.target.value)} />
+                            </div>
+
+                            <div className="flex overflow-x-auto w-full xl:flex-1 no-scrollbar gap-2 pb-1 items-center">
+                                {GENRES.map(genre => (
+                                    <button key={genre} onClick={() => setActiveGenre(genre)} disabled={viewMode === 'queue'} className={`px-5 py-2.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${activeGenre === genre ? "bg-[#14B8A6] text-white border-[#14B8A6]" : "bg-white text-gray-500 border-gray-200"} ${viewMode === 'queue' ? 'opacity-30' : ''}`}>{genre}</button>
+                                ))}
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Content */}
+                    <main className="max-w-7xl mx-auto px-6 py-12">
+                        {filteredBooks.length === 0 ? (
+                            <div className="text-center py-24 bg-white rounded-[32px] border border-dashed border-gray-200">
+                                <i data-lucide="library" class="w-16 h-16 mx-auto text-gray-200 mb-6"></i>
+                                <h3 className="text-xl font-serif font-bold text-gray-400">Nada por aqui...</h3>
+                            </div>
+                        ) : (
+                            <div className={viewMode === 'queue' ? "flex flex-col gap-6 max-w-3xl mx-auto" : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-8"}>
+                                {filteredBooks.map((book, index) => (
+                                    <BookCard 
+                                        key={book.id} book={book} isRead={readStatus[book.id]} isDownloaded={downloadStatus[book.id]} 
+                                        coverUrl={getCoverUrl(book)} onClick={() => setSelectedBook(book)} getGenreColor={getGenreColor}
+                                        isQueueMode={viewMode === 'queue'} queueIndex={index} totalInQueue={readingOrder.length}
+                                        onMove={moveInQueue} onRemoveFromQueue={() => toggleQueue(book.id)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </main>
+
+                    {selectedBook && (
+                        <DetailModal 
+                            book={selectedBook} onClose={() => setSelectedBook(null)} 
+                            isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id]} isInQueue={readingOrder.includes(selectedBook.id)}
+                            coverUrl={getCoverUrl(selectedBook)} onToggleRead={() => toggleRead(selectedBook.id)}
+                            onToggleDownload={() => toggleDownload(selectedBook.id)} onToggleQueue={() => toggleQueue(selectedBook.id)}
+                            onSetCover={setCustomCover} onRemoveCover={removeCustomCover} getGenreColor={getGenreColor}
+                            hasCustomCover={!!customCovers[selectedBook.id]}
+                        />
+                    )}
+
+                    <footer className="max-w-7xl mx-auto px-6 pb-20 pt-12 border-t border-gray-100 text-center">
+                        <p className="text-gray-400 text-xs tracking-widest uppercase font-semibold">Biblioteca do Amanhã &copy; 2024 • By Meiyka</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>

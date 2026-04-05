@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Firebase Auth</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8">
+    <h1 class="text-2xl mb-4">Teste do Firebase Auth</h1>
+    <div id="status">Carregando...</div>
+    <button id="loginBtn" class="bg-blue-500 text-white px-4 py-2 rounded mt-4 hidden">Login com Google</button>
+    <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded mt-4 hidden">Logout</button>
+
+    <script type="module">
+        // Teste dos imports do Firebase
+        try {
+            import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+            import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
+            document.getElementById('status').textContent = 'Firebase imports OK!';
+
+            // Configuração básica
+            const firebaseConfig = {
+                apiKey: "test",
+                authDomain: "test.firebaseapp.com",
+                projectId: "test",
+                storageBucket: "test.appspot.com",
+                messagingSenderId: "123",
+                appId: "1:123:web:abc"
+            };
+
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const provider = new GoogleAuthProvider();
+
+            document.getElementById('status').textContent = 'Firebase inicializado!';
+
+            // Funções de auth
+            window.login = () => signInWithPopup(auth, provider);
+            window.logout = () => signOut(auth);
+
+            // Monitor auth state
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    document.getElementById('status').textContent = `Logado como: ${user.email}`;
+                    document.getElementById('logoutBtn').classList.remove('hidden');
+                    document.getElementById('loginBtn').classList.add('hidden');
+                } else {
+                    document.getElementById('status').textContent = 'Não logado';
+                    document.getElementById('loginBtn').classList.remove('hidden');
+                    document.getElementById('logoutBtn').classList.add('hidden');
+                }
+            });
+
+            document.getElementById('loginBtn').addEventListener('click', window.login);
+            document.getElementById('logoutBtn').addEventListener('click', window.logout);
+
+        } catch (error) {
+            document.getElementById('status').textContent = `Erro: ${error.message}`;
+            console.error(error);
+        }
+    </script>
+</body>
+</html>
