@@ -12,6 +12,41 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Firebase -->
+    <script type="module">
+        // IMPORTANTE: Configure seu projeto Firebase em firebase-config.js
+        // e substitua as configurações abaixo pelas suas reais
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+        import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
+        // Configuração Firebase (SUBSTITUA PELAS SUAS CONFIGURAÇÕES REAIS)
+        const firebaseConfig = {
+            apiKey: "AIzaSyA6cx6vGuJHzohRyr-uda_gI7_MavD_OmU", // ← ALTERE AQUI
+            authDomain: "biblioteca-do-amanha.firebaseapp.com", // ← ALTERE AQUI
+            projectId: "biblioteca-do-amanha", // ← ALTERE AQUI
+            storageBucket: "biblioteca-do-amanha.firebasestorage.app", // ← ALTERE AQUI
+            messagingSenderId: "39485326387", // ← ALTERE AQUI
+            appId: "1:39485326387:web:84c1e13522efa7cbb1cf46" // ← ALTERE AQUI
+        };
+
+        try {
+            window.FirebaseApp = initializeApp(firebaseConfig);
+            window.db = getFirestore(window.FirebaseApp);
+            window.auth = getAuth(window.FirebaseApp);
+            window.provider = new GoogleAuthProvider();
+            window.doc = doc;
+            window.getDoc = getDoc;
+            window.setDoc = setDoc;
+            window.signInWithPopup = signInWithPopup;
+            window.signOut = signOut;
+            window.onAuthStateChanged = onAuthStateChanged;
+            console.log('✅ Firebase conectado com sucesso!');
+        } catch (error) {
+            console.warn('⚠️ Firebase não configurado. Usando apenas localStorage.', error);
+            window.db = null;
+        }
+    </script>
     
     <style>
         body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
@@ -54,6 +89,73 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback } = React;
+
+        // --- 0. CONFIGURAÇÃO DO BANCO DE DADOS NA NUVEM ---
+
+        // Funções para salvar/carregar dados do Firebase
+        const waitForDb = async () => {
+            for (let i = 0; i < 20; i += 1) {
+                if (window.db) return true;
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return false;
+        };
+
+        const saveToCloud = async (key, data, setSyncStatus) => {
+            try {
+                if (!window.db) {
+                    const ready = await waitForDb();
+                    if (!ready) {
+                        if (setSyncStatus) setSyncStatus("offline");
+                        localStorage.setItem(key, JSON.stringify(data));
+                        return;
+                    }
+                }
+
+                const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user'; // Para múltiplos usuários, use autenticação
+                await setDoc(doc(window.db, 'users', userId, 'data', key), {
+                    data: data,
+                    timestamp: new Date().toISOString()
+                });
+                if (setSyncStatus) setSyncStatus("online");
+            } catch (error) {
+                console.error('Erro ao salvar na nuvem:', error);
+                if (setSyncStatus) setSyncStatus("offline");
+                // Fallback para localStorage
+                localStorage.setItem(key, JSON.stringify(data));
+            }
+        };
+
+        const loadFromCloud = async (key, defaultValue = {}, setSyncStatus) => {
+            try {
+                if (!window.db) {
+                    const ready = await waitForDb();
+                    if (!ready) {
+                        if (setSyncStatus) setSyncStatus("offline");
+                        return defaultValue;
+                    }
+                }
+                const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user';
+                const docRef = doc(window.db, 'users', userId, 'data', key);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    if (setSyncStatus) setSyncStatus("online");
+                    return docSnap.data().data;
+                } else {
+                    if (setSyncStatus) setSyncStatus("online");
+                    // Tenta carregar do localStorage como fallback
+                    const localData = localStorage.getItem(key);
+                    return localData ? JSON.parse(localData) : defaultValue;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar da nuvem:', error);
+                if (setSyncStatus) setSyncStatus("offline");
+                // Fallback para localStorage
+                const localData = localStorage.getItem(key);
+                return localData ? JSON.parse(localData) : defaultValue;
+            }
+        };
 
         // --- 1. CONFIGURAÇÕES E HELPERS (DEFINIDOS NO TOPO) ---
 
@@ -318,29 +420,81 @@
             const [filterDownloaded, setFilterDownloaded] = useState(false);
             const [selectedBook, setSelectedBook] = useState(null);
             const [viewMode, setViewMode] = useState("grid");
+            const [isInitialized, setIsInitialized] = useState(false);
+            const [user, setUser] = useState(null);
+            const [authLoading, setAuthLoading] = useState(true);
+
+            // Monitora estado de autenticação
+            useEffect(() => {
+                if (!window.auth) {
+                    setAuthLoading(false);
+                    return;
+                }
+
+                const unsubscribe = window.onAuthStateChanged(window.auth, (user) => {
+                    setUser(user);
+                    setAuthLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            // Funções de autenticação
+            const loginWithGoogle = async () => {
+                try {
+                    await window.signInWithPopup(window.auth, window.provider);
+                } catch (error) {
+                    console.error('Erro no login:', error);
+                }
+            };
+
+            const logout = async () => {
+                try {
+                    await window.signOut(window.auth);
+                } catch (error) {
+                    console.error('Erro no logout:', error);
+                }
+            };
 
             // Carregamento inicial e Sanitização
             useEffect(() => {
-                const r = JSON.parse(localStorage.getItem('lib-read-final-v2') || '{}');
-                const d = JSON.parse(localStorage.getItem('lib-download-final-v2') || '{}');
-                const c = JSON.parse(localStorage.getItem('lib-covers-final-v2') || '{}');
-                const cb = JSON.parse(localStorage.getItem('lib-custom-final-v2') || '[]');
-                const rem = JSON.parse(localStorage.getItem('lib-removed-final-v2') || '[]');
-                const q = JSON.parse(localStorage.getItem('lib-queue-final-v2') || '[]');
-                
-                setReadStatus(r); setDownloadStatus(d); setCustomCovers(c); 
-                setCustomBooks(cb); setRemovedInitialIds(rem); setReadingOrder(q);
-            }, []);
+                if (!user) return; // Só carrega dados se estiver logado
 
-            // Persistência Automática
+                const loadData = async () => {
+                    const r = await loadFromCloud('lib-read-final-v2', {});
+                    const d = await loadFromCloud('lib-download-final-v2', {});
+                    const c = await loadFromCloud('lib-covers-final-v2', {});
+                    const cb = await loadFromCloud('lib-custom-final-v2', []);
+                    const rem = await loadFromCloud('lib-removed-final-v2', []);
+                    const q = await loadFromCloud('lib-queue-final-v2', []);
+                    
+                    setReadStatus(r); setDownloadStatus(d); setCustomCovers(c); 
+                    setCustomBooks(cb); setRemovedInitialIds(rem); setReadingOrder(q);
+                    setIsInitialized(true);
+                };
+                loadData();
+            }, [user]); // Dependência do user
+
+            // Persistência Automática (Nuvem + LocalStorage)
             useEffect(() => {
+                if (!isInitialized || !user) return; // Só salva se estiver logado e inicializado
+
+                // Salva na nuvem
+                saveToCloud('lib-read-final-v2', readStatus);
+                saveToCloud('lib-download-final-v2', downloadStatus);
+                saveToCloud('lib-covers-final-v2', customCovers);
+                saveToCloud('lib-custom-final-v2', customBooks);
+                saveToCloud('lib-removed-final-v2', removedInitialIds);
+                saveToCloud('lib-queue-final-v2', readingOrder);
+                
+                // Backup no localStorage
                 localStorage.setItem('lib-read-final-v2', JSON.stringify(readStatus));
                 localStorage.setItem('lib-download-final-v2', JSON.stringify(downloadStatus));
                 localStorage.setItem('lib-covers-final-v2', JSON.stringify(customCovers));
                 localStorage.setItem('lib-custom-final-v2', JSON.stringify(customBooks));
                 localStorage.setItem('lib-removed-final-v2', JSON.stringify(removedInitialIds));
                 localStorage.setItem('lib-queue-final-v2', JSON.stringify(readingOrder));
-            }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder]);
+            }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder, isInitialized, user]); // Adicionada dependência do user
 
             const allBooksCombined = useMemo(() => {
                 const initialVisible = INITIAL_BOOKS.filter(b => !removedInitialIds.includes(b.id));
@@ -394,17 +548,74 @@
 
             return (
                 <div className="min-h-screen">
+                    {authLoading ? (
+                        <div className="flex items-center justify-center min-h-screen">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#14B8A6] mx-auto mb-4"></div>
+                                <p className="text-gray-600">Carregando...</p>
+                            </div>
+                        </div>
+                    ) : !user ? (
+                        <div className="min-h-screen bg-[#F8F9FB] flex items-center justify-center px-6">
+                            <div className="max-w-md w-full text-center">
+                                <div className="logo-container mx-auto mb-8">
+                                    <img
+                                        src="https://i.imgur.com/FGFYV7A.png"
+                                        alt="Biblioteca do Amanhã"
+                                        className="animate-fade-in mx-auto"
+                                        referrerPolicy="no-referrer"
+                                        crossOrigin="anonymous"
+                                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/260x86/1E3A5F/FFFFFF?text=Biblioteca+do+Amanh%C3%A3'; }}
+                                    />
+                                </div>
+                                <h1 className="text-3xl font-serif font-bold text-[#1E3A5F] mb-4">Bem-vindo à Biblioteca do Amanhã</h1>
+                                <p className="text-gray-600 mb-8">Faça login para acessar sua biblioteca pessoal e sincronizar seus dados na nuvem.</p>
+                                <button onClick={loginWithGoogle} className="w-full px-6 py-3 bg-[#14B8A6] hover:bg-[#0ea5e9] text-white rounded-lg text-lg font-medium transition-all flex items-center justify-center gap-3">
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                        <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                        <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                        <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                    </svg>
+                                    Entrar com Google
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                    <>
                     <header className="bg-[#1E3A5F] text-white pt-20 pb-12 px-6 relative overflow-hidden text-center md:text-left">
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12 relative z-10">
                             <div className="logo-container">
-                                {/* Logo da Imagem Solicitada */}
-                                <img src="https://i.imgur.com/FGFYV7A.png" alt="Biblioteca do Amanhã" className="animate-fade-in" />
+                                <img
+                                    src="https://i.imgur.com/FGFYV7A.png"
+                                    alt="Biblioteca do Amanhã"
+                                    className="animate-fade-in"
+                                    referrerPolicy="no-referrer"
+                                    crossOrigin="anonymous"
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/260x86/1E3A5F/FFFFFF?text=Biblioteca+do+Amanh%C3%A3'; }}
+                                />
                             </div>
                             <div className="grid grid-cols-3 gap-3 md:gap-6 w-full md:w-auto">
                                 <AnimatedStatCard label="Total" value={stats.total} />
                                 <AnimatedStatCard label="Lidos" value={stats.read} />
                                 <AnimatedStatCard label="Baixados" value={stats.downloaded} />
                             </div>
+                            {!authLoading && (
+                                <div className="flex items-center gap-3">
+                                    {user ? (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm text-white/80">Olá, {user.displayName || user.email}</span>
+                                            <button onClick={logout} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-all">
+                                                Sair
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={loginWithGoogle} className="px-4 py-2 bg-[#14B8A6] hover:bg-[#0ea5e9] text-white rounded-lg text-sm font-medium transition-all">
+                                            Entrar com Google
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#14B8A6] rounded-full blur-[160px] opacity-[0.07] -mr-64 -mt-64"></div>
                         <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#7C3AED] rounded-full blur-[140px] opacity-[0.05] -ml-48 -mb-48"></div>
@@ -481,6 +692,8 @@
                     <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-gray-100 text-center pt-8">
                         <p className="text-gray-400 text-[10px] tracking-widest uppercase font-black">Biblioteca do Amanhã &copy; 2024</p>
                     </footer>
+                    </>
+                    )}
                 </div>
             );
         };
