@@ -255,7 +255,7 @@
         // Array vazia - todos os livros serão carregados do banco de dados
         const INITIAL_BOOKS = [];
 
-        function AddBookModal({ onClose, onSave }) {
+        function AddBookModal({ onClose, onSave, initialBook }) {
             const [form, setForm] = useState({
                 title: "",
                 author: "",
@@ -265,6 +265,10 @@
                 synopsis: "",
                 coverUrl: "",
                 tags: "",
+                series: "",
+                volume: "",
+                totalVolumes: "",
+                isSeries: false,
                 isBrazilianAuthor: false,
                 isDistopia: false
             });
@@ -274,6 +278,26 @@
             const [amazonMessage, setAmazonMessage] = useState("");
             const [searchResults, setSearchResults] = useState([]);
             const [selectedResultId, setSelectedResultId] = useState(null);
+
+            useEffect(() => {
+                if (!initialBook) return;
+                setForm({
+                    title: initialBook.title || "",
+                    author: initialBook.author || "",
+                    genre: initialBook.genre || "Fantasia",
+                    publisher: initialBook.publisher || "",
+                    pages: initialBook.pages || "",
+                    synopsis: initialBook.synopsis || "",
+                    coverUrl: initialBook.coverUrl || "",
+                    tags: Array.isArray(initialBook.tags) ? initialBook.tags.join(', ') : (initialBook.tags || ""),
+                    series: initialBook.series || "",
+                    volume: initialBook.volume || "",
+                    totalVolumes: initialBook.totalVolumes || "",
+                    isSeries: !!initialBook.isSeries,
+                    isBrazilianAuthor: !!initialBook.isBrazilianAuthor,
+                    isDistopia: !!initialBook.isDistopia
+                });
+            }, [initialBook]);
 
             const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -608,8 +632,12 @@
                 e.preventDefault();
                 if (!form.title.trim() || !form.author.trim()) return;
 
+                const parsedTotalVolumes = Number(form.totalVolumes) || 0;
+                const parsedVolume = Number(form.volume) || 0;
+                const isBookInSeries = !!form.isSeries && parsedTotalVolumes > 1;
+
                 onSave({
-                    id: Date.now(),
+                    id: initialBook?.id || Date.now(),
                     title: form.title.trim(),
                     author: form.author.trim(),
                     genre: form.genre,
@@ -618,6 +646,10 @@
                     synopsis: form.synopsis.trim() || "Sem sinopse informada.",
                     coverUrl: form.coverUrl.trim() || "https://via.placeholder.com/300x450?text=Sem+Capa",
                     tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+                    series: isBookInSeries ? form.series.trim() : "",
+                    volume: isBookInSeries ? parsedVolume : 0,
+                    totalVolumes: isBookInSeries ? parsedTotalVolumes : 0,
+                    isSeries: isBookInSeries,
                     isBrazilianAuthor: !!form.isBrazilianAuthor,
                     isDistopia: !!form.isDistopia
                 });
@@ -627,7 +659,7 @@
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
                     <div className="absolute inset-0 bg-[#0F2240]/60 backdrop-blur-sm" onClick={onClose} />
                     <form onSubmit={submit} className="relative z-10 bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-100 p-6 md:p-8 max-h-[92vh] overflow-y-auto">
-                        <h3 className="text-2xl font-serif font-bold text-[#1E3A5F] mb-6">Adicionar Livro</h3>
+                        <h3 className="text-2xl font-serif font-bold text-[#1E3A5F] mb-6">{initialBook ? 'Editar Livro' : 'Adicionar Livro'}</h3>
 
                         <div className="mb-5 p-4 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03]">
                             <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black mb-3">Assistente Amazon</p>
@@ -681,16 +713,28 @@
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Editora" value={form.publisher} onChange={(e) => setField('publisher', e.target.value)} />
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Páginas" type="number" min="0" value={form.pages} onChange={(e) => setField('pages', e.target.value)} />
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="URL da capa" value={form.coverUrl} onChange={(e) => setField('coverUrl', e.target.value)} />
+                            <label className="md:col-span-2 flex items-center gap-2 text-sm text-gray-600">
+                                <input type="checkbox" checked={form.isSeries} onChange={(e) => setField('isSeries', e.target.checked)} /> Faz parte de série
+                            </label>
+                            {form.isSeries && (
+                                <>
+                                    <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Nome da série" value={form.series} onChange={(e) => setField('series', e.target.value)} />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Volume" type="number" min="1" value={form.volume} onChange={(e) => setField('volume', e.target.value)} />
+                                        <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Total de volumes" type="number" min="2" value={form.totalVolumes} onChange={(e) => setField('totalVolumes', e.target.value)} />
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <textarea className="mt-4 w-full px-4 py-3 border border-gray-200 rounded-xl" rows="4" placeholder="Sinopse" value={form.synopsis} onChange={(e) => setField('synopsis', e.target.value)} />
                         <input className="mt-4 w-full px-4 py-3 border border-gray-200 rounded-xl" placeholder="Tags separadas por vírgula" value={form.tags} onChange={(e) => setField('tags', e.target.value)} />
                         <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
-                            <label className="flex items-center gap-2"><input type="checkbox" checked={form.isBrazilianAuthor} onChange={(e) => setField('isBrazilianAuthor', e.target.checked)} /> Autor(a) brasileiro(a)</label>
+                            <label className="flex items-center gap-2"><input type="checkbox" checked={form.isBrazilianAuthor} onChange={(e) => setField('isBrazilianAuthor', e.target.checked)} /> Etiqueta Nacional (autor brasileiro)</label>
                             <label className="flex items-center gap-2"><input type="checkbox" checked={form.isDistopia} onChange={(e) => setField('isDistopia', e.target.checked)} /> Distopia</label>
                         </div>
                         <div className="mt-6 flex gap-3 justify-end">
                             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-500 font-semibold">Cancelar</button>
-                            <button type="submit" className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold">Salvar no Banco</button>
+                            <button type="submit" className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold">{initialBook ? 'Salvar Alterações' : 'Salvar no Banco'}</button>
                         </div>
                     </form>
                 </div>
@@ -716,6 +760,8 @@
 
         function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick }) {
             const styles = getGenreStyles(book.genre);
+            const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
+            const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
             if (isQueueMode) {
                 return (
                     <div className="bg-white p-4 rounded-[28px] border border-gray-100 flex items-center gap-4 md:gap-6 shadow-sm hover:shadow-md transition-all group animate-fade-in">
@@ -726,7 +772,14 @@
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
                             <h4 className="font-bold text-sm text-[#1E3A5F] truncate">{book.title}</h4>
                             <p className="text-xs text-gray-400 truncate">{book.author}</p>
-                            <span className={`inline-block mt-2 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
+                            <div className="mt-2 flex flex-wrap gap-1">
+                                <span className={`inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
+                                {isMultiVolumeSeries && (
+                                    <span className="inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">
+                                        {seriesLabel}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex items-center gap-1 md:gap-2">
                             <div className="flex flex-col gap-1">
@@ -747,6 +800,11 @@
                             {book.isBrazilianAuthor && (
                                 <span className="bg-[#14B8A6] text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider w-fit flex items-center gap-1.5 shadow-md">
                                     <span className="text-[11px]">🇧🇷</span> NACIONAL
+                                </span>
+                            )}
+                            {isMultiVolumeSeries && (
+                                <span className="bg-amber-500 text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider w-fit">
+                                    {seriesLabel}
                                 </span>
                             )}
                         </div>
@@ -770,9 +828,11 @@
             );
         }
 
-        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onGenreClick }) {
+        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onGenreClick }) {
             const styles = getGenreStyles(book.genre);
             const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+            const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
+            const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
 
             return (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 overflow-hidden animate-fade-in">
@@ -803,6 +863,9 @@
                                             </button>
                                         </div>
                                         <div className="mt-2 pt-4 border-t border-gray-100 text-center">
+                                            <button onClick={onEdit} className="w-full py-2 mb-2 text-[10px] font-bold text-[#1E3A5F] uppercase tracking-widest hover:text-[#14B8A6] flex items-center justify-center gap-2 transition-colors">
+                                                <Icon name="bookMarked" className="w-3.5 h-3.5" /> Editar Obra
+                                            </button>
                                             {!isConfirmingDelete ? (
                                                 <button onClick={() => setIsConfirmingDelete(true)} className="w-full py-2 text-[10px] font-bold text-gray-300 uppercase tracking-widest hover:text-red-400 flex items-center justify-center gap-2 transition-colors">
                                                     <Icon name="trash" className="w-3.5 h-3.5" /> Eliminar Obra
@@ -828,6 +891,11 @@
                                                     <span>🇧🇷</span> Nacional
                                                 </span>
                                             )}
+                                            {isMultiVolumeSeries && (
+                                                <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-full shadow-sm">
+                                                    {seriesLabel}
+                                                </span>
+                                            )}
                                         </div>
                                         <h3 className="text-3xl md:text-5xl font-serif font-bold text-[#1E3A5F] mb-4 leading-tight">{book.title}</h3>
                                         <p className="text-xl text-gray-400 italic font-serif">por {book.author}</p>
@@ -835,6 +903,12 @@
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mb-12 text-sm">
                                         <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Editora</span><span className="font-bold text-[#1E3A5F]">{book.publisher || "Independente"}</span></div>
                                         <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Páginas</span><span className="font-bold text-[#1E3A5F]">{book.pages}p</span></div>
+                                        {isMultiVolumeSeries && (
+                                            <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Série</span><span className="font-bold text-[#1E3A5F]">{book.series || seriesLabel}</span></div>
+                                        )}
+                                        {isMultiVolumeSeries && (
+                                            <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Volume</span><span className="font-bold text-[#1E3A5F]">Vol. {book.volume || 1} de {book.totalVolumes}</span></div>
+                                        )}
                                     </div>
                                     <div className="mb-12 relative">
                                         <div className={`absolute -left-6 top-0 bottom-0 w-1 rounded-full opacity-10 ${styles.text} bg-current`} />
@@ -873,6 +947,7 @@
             const [user, setUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
             const [showAddBook, setShowAddBook] = useState(false);
+            const [editingBook, setEditingBook] = useState(null);
 
             // Monitora estado de autenticação
             useEffect(() => {
@@ -966,8 +1041,16 @@
             const handleAddBook = useCallback((book) => {
                 setCustomBooks(prev => [book, ...prev]);
                 setShowAddBook(false);
+                setEditingBook(null);
                 setActiveGenre("Todos");
                 setViewMode("grid");
+            }, []);
+
+            const handleEditBook = useCallback((updatedBook) => {
+                setCustomBooks(prev => prev.map(book => (book.id === updatedBook.id ? { ...book, ...updatedBook } : book)));
+                setShowAddBook(false);
+                setEditingBook(null);
+                setSelectedBook(null);
             }, []);
 
             const handleToggleRead = useCallback((id) => setReadStatus(p => ({ ...p, [id]: !p[id] })), []);
@@ -1107,7 +1190,7 @@
                                     <input type="text" placeholder="Pesquisar..." className="w-full pl-11 pr-4 py-2.5 bg-[#F8F9FB] border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-[#14B8A6]/20 outline-none" value={searchQuery} disabled={viewMode === 'queue'} onChange={(e) => setSearchQuery(e.target.value)} />
                                 </div>
                                 <div className="flex gap-2 w-full xl:w-auto">
-                                    <button onClick={() => setShowAddBook(true)} className="flex-1 xl:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all border bg-[#1E3A5F] text-white border-transparent">
+                                    <button onClick={() => { setEditingBook(null); setShowAddBook(true); }} className="flex-1 xl:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all border bg-[#1E3A5F] text-white border-transparent">
                                         + Adicionar Livro
                                     </button>
                                     <button onClick={() => setFilterRead(!filterRead)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border ${filterRead ? 'bg-[#1E3A5F] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Lido</button>
@@ -1127,7 +1210,7 @@
                         <div className={viewMode === 'queue' ? "flex flex-col gap-6 max-w-3xl mx-auto" : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-8"}>
                             {viewMode === 'grid' && !filterRead && !filterDownloaded && (
                                 <button
-                                    onClick={() => setShowAddBook(true)}
+                                    onClick={() => { setEditingBook(null); setShowAddBook(true); }}
                                     className="book-card-hover group relative rounded-[24px] border-2 border-dashed border-[#14B8A6]/35 bg-white/80 hover:bg-white cursor-pointer flex flex-col items-center justify-center min-h-[300px] md:min-h-[360px] transition-all hover:border-[#14B8A6] hover:shadow-xl"
                                 >
                                     <div className="w-14 h-14 rounded-full bg-[#14B8A6] text-white flex items-center justify-center shadow-lg shadow-[#14B8A6]/30 mb-4">
@@ -1170,13 +1253,18 @@
                             onSetCover={(id, u) => setCustomCovers(p => ({ ...p, [id]: u }))} 
                             onRemoveCover={(id) => setCustomCovers(p => { const n = { ...p }; delete n[id]; return n; })} 
                             hasCustomCover={!!customCovers[selectedBook.id]}
+                            onEdit={() => { setEditingBook(selectedBook); setShowAddBook(true); }}
                             onDelete={() => deleteBookFromCatalog(selectedBook.id)}
                             onGenreClick={handleGenreFilter}
                         />
                     )}
 
                     {showAddBook && (
-                        <AddBookModal onClose={() => setShowAddBook(false)} onSave={handleAddBook} />
+                        <AddBookModal
+                            initialBook={editingBook}
+                            onClose={() => { setShowAddBook(false); setEditingBook(null); }}
+                            onSave={editingBook ? handleEditBook : handleAddBook}
+                        />
                     )}
 
                     <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-gray-100 text-center pt-8">
