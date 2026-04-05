@@ -209,7 +209,8 @@
 
         // --- 2. BASE DE DADOS INTEGRAL COM SINOPSES COMPLETAS ---
 
-        const INITIAL_BOOKS = [
+        // Livros de seed (carregados uma vez no banco de dados)
+        const SEED_BOOKS = [
             { id: 1, title: "Para não acabar tão cedo", author: "Clarice Freire", publisher: "Record", pages: 216, genre: "Ficção Literária", isBrazilianAuthor: true, coverUrl: "https://m.media-amazon.com/images/I/918m27U289L.jpg", synopsis: "Duas irmãs idosas — Augusta e Lia — acordam com os corpos rejuvenescidos. O narrador da história é o próprio Tempo, que provocou essa viravolta. Augusta, guardiã e controladora; Lia, rebelde e sedenta de vida. Um romance sobre envelhecimento, ciclos e o que significa aproveitar o tempo.", tags: ["literatura brasileira", "narrativa experimental", "narrador: o Tempo", "relações entre irmãs", "rejuvenescimento", "romance de estreia"] },
             { id: 2, title: "Jogando com a Verdade", author: "Dri Satys", publisher: "Independente", pages: 572, genre: "Romance Contemporâneo", isBrazilianAuthor: true, series: "Irmãos Raffiti", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/71rubAS37ZL._UF1000,1000_QL80_.jpg", synopsis: "Nicole Palazzini vai passar uma temporada com a melhor amiga — e descobre que o irmão dela, Xavier Raffiti, jogador de futebol famoso por quem sempre foi apaixonada, vai dividir o mesmo espaço. Convivência forçada, sentimentos antigos e muita verdade no jogo entre os dois.", tags: ["romance contemporâneo", "comédia romântica", "futebol", "irmão da melhor amiga", "proximidade forçada", "dual POV", "autora brasileira"] },
             { id: 3, title: "Interion: As Crônicas de Júpiter", author: "Patrícia Criado", publisher: "Independente", pages: 1200, genre: "Fantasia", isBrazilianAuthor: true, series: "As Crônicas de Júpiter", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81c3ciDan+L._UF1000,1000_QL80_.jpg", synopsis: "Em Interion, há mais de 500 anos mulheres com poderes foram escravizadas. Seus descendentes ainda lutam para acabar com essa tirania. Kyller, uma feérica curandeira, é salva pelo general Zion Voluz e forçada a se casar com ele para ser aceita. Anos depois, Zion retorna como professor da Academia Militar — onde ela é aluna. Romance, fantasia e guerra em uma das maiores obras de alta fantasia nacional.", tags: ["alta fantasia", "feéricos", "professor e aluna", "guerra", "casamento forçado", "poderes mágicos", "slow burn", "literatura brasileira"] },
@@ -250,6 +251,451 @@
             { id: 40, title: "Duas Coroas Retorcidas", author: "Rachel Gillig", publisher: "Alt", pages: 448, genre: "Romantasy", series: "O Rei Pastor", volume: 2, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/91I5pEHHpNL.jpg", synopsis: "O Pesadelo tomou a cabeça de Elspeth. Não se sabe mais o que é menina e o que é monstro. Mas só ele sabe onde encontrar a última Carta da Providência — a chave para salvar o reino. A conclusão épica da duologia.", tags: ["dark fantasy", "fantasia gótica", "dual POV", "múltiplos POVs", "conclusão de duologia", "política fantástica", "romance intenso", "redenção"] },
             { id: 41, title: "Magia Oculta (Metal Slinger)", author: "Rachel Schneider", publisher: "Independente", pages: 520, genre: "Fantasia", series: "Fogo e Metal", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81K7kIHIr4L._UF1000,1000_QL80_.jpg", synopsis: "Brynn é uma guarda que vive exilada no mar. Quando parte para o Mercado anual dos inimigos do seu povo, un conflito com o soldado Acker ameaça um tratado de paz centenário — e revela um world de magia que ela não sabia que existia. Plot twist final explosivo.", tags: ["romantasy", "enemies to lovers", "slow burn", "fated mates", "proximidade forçada", "magia oculta", "plot twist explosivo", "duologia"] }
         ];
+
+        // Array vazia - todos os livros serão carregados do banco de dados
+        const INITIAL_BOOKS = [];
+
+        function AddBookModal({ onClose, onSave }) {
+            const [form, setForm] = useState({
+                title: "",
+                author: "",
+                genre: "Fantasia",
+                publisher: "",
+                pages: "",
+                synopsis: "",
+                coverUrl: "",
+                tags: "",
+                isBrazilianAuthor: false,
+                isDistopia: false
+            });
+            const [amazonQuery, setAmazonQuery] = useState("");
+            const [amazonRef, setAmazonRef] = useState("");
+            const [isLoadingAmazon, setIsLoadingAmazon] = useState(false);
+            const [amazonMessage, setAmazonMessage] = useState("");
+            const [searchResults, setSearchResults] = useState([]);
+            const [selectedResultId, setSelectedResultId] = useState(null);
+
+            const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+
+            const toHttps = (url) => (url || '').replace(/^http:\/\//i, 'https://');
+
+            const getVolumeScore = (v, query) => {
+                const q = (query || '').toLowerCase();
+                const title = (v?.title || '').toLowerCase();
+                let s = 0;
+                if (title && q && (title.includes(q) || q.includes(title))) s += 4;
+                if ((v?.language || '').toLowerCase().startsWith('pt')) s += 4;
+                if (v?.description) s += 3;
+                if (v?.pageCount) s += 2;
+                if (v?.publisher) s += 2;
+                if (v?.imageLinks?.thumbnail || v?.imageLinks?.smallThumbnail) s += 2;
+                if (Array.isArray(v?.categories) && v.categories.length) s += 1;
+                return s;
+            };
+
+            const pickTopVolumes = (items, query, limit = 5) => {
+                if (!Array.isArray(items) || !items.length) return [];
+                return items
+                    .map(item => item?.volumeInfo)
+                    .filter(Boolean)
+                    .sort((a, b) => getVolumeScore(b, query) - getVolumeScore(a, query))
+                    .slice(0, limit);
+            };
+
+            const pickBestVolume = (items, query) => {
+                const top = pickTopVolumes(items, query, 1);
+                return top[0] || null;
+            };
+
+            const mergeUniqueVolumes = (volumes) => {
+                const map = new Map();
+                for (const v of volumes) {
+                    const key = `${(v?.title || '').toLowerCase()}|${(v?.authors?.[0] || '').toLowerCase()}`;
+                    if (!key || key === "|") continue;
+                    if (!map.has(key)) map.set(key, v);
+                }
+                return Array.from(map.values());
+            };
+
+            const applyVolumeToForm = (volume) => {
+                if (!volume) return;
+                const categories = volume.categories || [];
+                const matchedGenre = GENRES.find(g => g !== "Todos" && categories.some(c => c.toLowerCase().includes(g.toLowerCase())));
+
+                setForm(prev => ({
+                    ...prev,
+                    title: volume.title || prev.title,
+                    author: volume.authors?.join(', ') || prev.author,
+                    publisher: volume.publisher || prev.publisher,
+                    pages: volume.pageCount || prev.pages,
+                    synopsis: volume.description || prev.synopsis,
+                    coverUrl: toHttps(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) || prev.coverUrl,
+                    genre: matchedGenre || prev.genre,
+                    tags: prev.tags || categories.join(', ')
+                }));
+            };
+
+            const fetchGoogleVolumePtBr = async (query, authorHint = "") => {
+                const queries = [query, `intitle:${query}`];
+                if (authorHint) queries.unshift(`intitle:${query} inauthor:${authorHint}`);
+
+                for (const q of queries) {
+                    const endpointPt = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&langRestrict=pt&country=BR&printType=books&maxResults=10&orderBy=relevance`;
+                    const endpointAny = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&printType=books&maxResults=10&orderBy=relevance`;
+
+                    const resPt = await fetch(endpointPt);
+                    const dataPt = await resPt.json();
+                    const bestPt = pickBestVolume(dataPt?.items, query);
+                    if (bestPt) return bestPt;
+
+                    const resAny = await fetch(endpointAny);
+                    const dataAny = await resAny.json();
+                    const bestAny = pickBestVolume(dataAny?.items, query);
+                    if (bestAny) return bestAny;
+                }
+
+                return null;
+            };
+
+            const fetchGoogleCandidatesPtBr = async (query, authorHint = "") => {
+                const queries = [query, `intitle:${query}`];
+                if (authorHint) queries.unshift(`intitle:${query} inauthor:${authorHint}`);
+
+                const all = [];
+                for (const q of queries) {
+                    const endpointPt = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&langRestrict=pt&country=BR&printType=books&maxResults=10&orderBy=relevance`;
+                    const endpointAny = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&printType=books&maxResults=10&orderBy=relevance`;
+
+                    const resPt = await fetch(endpointPt);
+                    const dataPt = await resPt.json();
+                    all.push(...pickTopVolumes(dataPt?.items, query, 5));
+
+                    const resAny = await fetch(endpointAny);
+                    const dataAny = await resAny.json();
+                    all.push(...pickTopVolumes(dataAny?.items, query, 5));
+                }
+
+                return mergeUniqueVolumes(all)
+                    .sort((a, b) => getVolumeScore(b, query) - getVolumeScore(a, query))
+                    .slice(0, 5);
+            };
+
+            const enrichVolumeData = async (volume, fallbackQuery) => {
+                if (!volume || !fallbackQuery) return volume;
+
+                const needExtra = !volume.description || !volume.pageCount || !volume.publisher || !(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail);
+                if (!needExtra) return volume;
+
+                const googleExtra = await fetchGoogleVolumePtBr(volume.title || fallbackQuery, (volume.authors || [])[0] || form.author || "");
+                if (googleExtra) {
+                    if (!volume.publisher && googleExtra.publisher) volume.publisher = googleExtra.publisher;
+                    if (!volume.pageCount && googleExtra.pageCount) volume.pageCount = googleExtra.pageCount;
+                    if (!volume.description && googleExtra.description) volume.description = googleExtra.description;
+                    if (!(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) && (googleExtra.imageLinks?.thumbnail || googleExtra.imageLinks?.smallThumbnail)) {
+                        volume.imageLinks = googleExtra.imageLinks;
+                    }
+                    if ((!volume.categories || !volume.categories.length) && Array.isArray(googleExtra.categories) && googleExtra.categories.length) {
+                        volume.categories = googleExtra.categories;
+                    }
+                }
+
+                const olResExtra = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(volume.title || fallbackQuery)}&author=${encodeURIComponent((volume.authors || [])[0] || '')}&limit=1`);
+                const olDataExtra = await olResExtra.json();
+                const extra = olDataExtra?.docs?.[0];
+
+                if (extra) {
+                    const extraCover = extra.cover_i ? `https://covers.openlibrary.org/b/id/${extra.cover_i}-L.jpg` : '';
+                    if (!volume.publisher && extra.publisher?.[0]) volume.publisher = extra.publisher[0];
+                    if (!volume.pageCount && extra.number_of_pages_median) volume.pageCount = extra.number_of_pages_median;
+                    if (!(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) && extraCover) {
+                        volume.imageLinks = { thumbnail: extraCover, smallThumbnail: extraCover };
+                    }
+                    if ((!volume.categories || !volume.categories.length) && extra.subject?.length) {
+                        volume.categories = extra.subject.slice(0, 5);
+                    }
+                }
+
+                return volume;
+            };
+
+            const openAmazonSearch = () => {
+                const query = (amazonQuery || form.title || form.author).trim();
+                if (!query) return;
+                window.open(`https://www.amazon.com.br/s?k=${encodeURIComponent(query)}&i=stripbooks`, '_blank');
+            };
+
+            const normalizeBookCode = (value) => {
+                const code = (value || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+                if (!code) return null;
+                if (code.length === 13 && (code.startsWith('978') || code.startsWith('979'))) return code;
+                if (code.length === 10) return code;
+                return null;
+            };
+
+            const extractBookReference = (value) => {
+                const clean = (value || '').trim();
+                if (!clean) return { code: null, queryText: '' };
+
+                const normalizeHumanQuery = (text) =>
+                    (text || '')
+                        .replace(/[-_]+/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .replace(/\b(dp|product|gp|books|asin)\b/gi, ' ')
+                        .trim();
+
+                const isbn13 = clean.match(/(?:ISBN(?:-13)?:?\s*)?(97[89][\d\s-]{10,16})/i);
+                if (isbn13) {
+                    const code = normalizeBookCode(isbn13[1]);
+                    if (code) return { code, queryText: '' };
+                }
+
+                const isbn10 = clean.match(/(?:ISBN(?:-10)?:?\s*)?([\dXx][\d\s-]{8,15})/i);
+                if (isbn10) {
+                    const code = normalizeBookCode(isbn10[1]);
+                    if (code) return { code, queryText: '' };
+                }
+
+                const directCode = normalizeBookCode(clean);
+                if (directCode) return { code: directCode, queryText: '' };
+
+                const amazonLooseMatch = clean.match(/amazon\.[^/]+\/([^?]+)/i);
+                if (amazonLooseMatch?.[1]) {
+                    const rawPath = amazonLooseMatch[1];
+                    const safeDecoded = (() => {
+                        try { return decodeURIComponent(rawPath); } catch { return rawPath; }
+                    })();
+                    const looseQuery = normalizeHumanQuery(safeDecoded);
+                    if (looseQuery) return { code: null, queryText: looseQuery };
+                }
+
+                try {
+                    const asUrl = clean.startsWith('http') ? clean : `https://${clean}`;
+                    const url = new URL(asUrl);
+                    const path = decodeURIComponent(url.pathname || '');
+
+                    const pathPatterns = [
+                        /\/(?:dp|gp\/product|product|exec\/obidos\/ASIN|asin)\/([A-Z0-9]{10,13})/i,
+                        /\/([A-Z0-9]{10,13})(?:[/?]|$)/i
+                    ];
+
+                    for (const pattern of pathPatterns) {
+                        const match = path.match(pattern);
+                        if (match) {
+                            const code = normalizeBookCode(match[1]);
+                            if (code) {
+                                const slugPart = path.split('/dp/')[0].split('/').pop() || '';
+                                const queryText = slugPart.replace(/-/g, ' ').trim();
+                                return { code, queryText };
+                            }
+                        }
+                    }
+
+                    const paramCode = normalizeBookCode(url.searchParams.get('asin') || url.searchParams.get('isbn') || '');
+                    if (paramCode) return { code: paramCode, queryText: '' };
+
+                    const paramQuery = (url.searchParams.get('k') || '').trim();
+                    if (paramQuery) return { code: null, queryText: paramQuery };
+
+                    const pathText = normalizeHumanQuery(
+                        path
+                            .split('/')
+                            .filter(Boolean)
+                            .filter(part => !/^(dp|gp|product|exec|obidos|asin)$/i.test(part))
+                            .join(' ')
+                    );
+                    if (pathText) return { code: null, queryText: pathText };
+                } catch {
+                    // Não é URL
+                }
+
+                return { code: null, queryText: clean };
+            };
+
+            const fillFromAmazonReference = async () => {
+                setAmazonMessage("");
+                setSearchResults([]);
+                setSelectedResultId(null);
+                const { code, queryText } = extractBookReference(amazonRef);
+                const sanitizedQueryFromLink = /^https?:\/\//i.test(queryText) ? '' : queryText;
+                const fallbackQuery = (amazonQuery || form.title || form.author || sanitizedQueryFromLink || '').trim();
+
+                if (!code && !fallbackQuery) {
+                    setAmazonMessage("Cole URL/ISBN da Amazon ou digite título + autor.");
+                    return;
+                }
+
+                try {
+                    setIsLoadingAmazon(true);
+                    const lookups = [];
+                    if (code) {
+                        lookups.push(`isbn:${code}`);
+                        lookups.push(code);
+                    }
+                    if (fallbackQuery) {
+                        lookups.push(`intitle:${fallbackQuery}`);
+                        lookups.push(fallbackQuery);
+                    }
+
+                    let volume = null;
+                    let candidatePool = [];
+                    for (const q of lookups) {
+                        const candidates = await fetchGoogleCandidatesPtBr(q, (form.author || '').trim());
+                        candidatePool = [...candidatePool, ...candidates];
+                        volume = await fetchGoogleVolumePtBr(q, (form.author || '').trim());
+                        if (volume) break;
+                    }
+
+                    const uniqueCandidates = mergeUniqueVolumes(candidatePool)
+                        .sort((a, b) => getVolumeScore(b, fallbackQuery) - getVolumeScore(a, fallbackQuery))
+                        .slice(0, 5);
+                    if (uniqueCandidates.length) setSearchResults(uniqueCandidates);
+
+                    if (!volume && fallbackQuery) {
+                        const olRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(fallbackQuery)}&limit=1`);
+                        const olData = await olRes.json();
+                        const doc = olData?.docs?.[0];
+                        if (doc) {
+                            const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
+                            volume = {
+                                title: doc.title,
+                                authors: doc.author_name || [],
+                                publisher: doc.publisher?.[0] || '',
+                                pageCount: doc.number_of_pages_median || '',
+                                description: '',
+                                categories: doc.subject?.slice(0, 4) || [],
+                                imageLinks: { thumbnail: cover, smallThumbnail: cover }
+                            };
+                        }
+                    }
+
+                    if (!volume && fallbackQuery) {
+                        const olResByQ = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(fallbackQuery)}&limit=1`);
+                        const olDataByQ = await olResByQ.json();
+                        const doc = olDataByQ?.docs?.[0];
+                        if (doc) {
+                            const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
+                            volume = {
+                                title: doc.title,
+                                authors: doc.author_name || [],
+                                publisher: doc.publisher?.[0] || '',
+                                pageCount: doc.number_of_pages_median || '',
+                                description: '',
+                                categories: doc.subject?.slice(0, 4) || [],
+                                imageLinks: { thumbnail: cover, smallThumbnail: cover }
+                            };
+                        }
+                    }
+
+                    if (volume && fallbackQuery) volume = await enrichVolumeData(volume, fallbackQuery);
+
+                    if (!volume) {
+                        setAmazonMessage("Não encontrei dados automáticos para este link. Preencha manualmente ou tente título + autor.");
+                        return;
+                    }
+
+                    applyVolumeToForm(volume);
+
+                    setAmazonMessage(uniqueCandidates.length > 1 ? "Ficha preenchida. Se quiser, escolha outro resultado abaixo." : "Ficha preenchida com dados do livro. Revise e salve no banco.");
+                } catch (error) {
+                    console.error(error);
+                    setAmazonMessage("Não foi possível completar automaticamente agora.");
+                } finally {
+                    setIsLoadingAmazon(false);
+                }
+            };
+
+            const submit = (e) => {
+                e.preventDefault();
+                if (!form.title.trim() || !form.author.trim()) return;
+
+                onSave({
+                    id: Date.now(),
+                    title: form.title.trim(),
+                    author: form.author.trim(),
+                    genre: form.genre,
+                    publisher: form.publisher.trim() || "Independente",
+                    pages: Number(form.pages) || 0,
+                    synopsis: form.synopsis.trim() || "Sem sinopse informada.",
+                    coverUrl: form.coverUrl.trim() || "https://via.placeholder.com/300x450?text=Sem+Capa",
+                    tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+                    isBrazilianAuthor: !!form.isBrazilianAuthor,
+                    isDistopia: !!form.isDistopia
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+                    <div className="absolute inset-0 bg-[#0F2240]/60 backdrop-blur-sm" onClick={onClose} />
+                    <form onSubmit={submit} className="relative z-10 bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-100 p-6 md:p-8 max-h-[92vh] overflow-y-auto">
+                        <h3 className="text-2xl font-serif font-bold text-[#1E3A5F] mb-6">Adicionar Livro</h3>
+
+                        <div className="mb-5 p-4 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03]">
+                            <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black mb-3">Assistente Amazon</p>
+                            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 mb-3">
+                                <input className="px-4 py-2.5 border border-gray-200 rounded-xl" placeholder="Pesquisar livro na Amazon" value={amazonQuery} onChange={(e) => setAmazonQuery(e.target.value)} />
+                                <button type="button" onClick={openAmazonSearch} className="px-4 py-2.5 rounded-xl bg-[#1E3A5F] text-white font-semibold text-sm">Abrir Amazon</button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
+                                <input className="px-4 py-2.5 border border-gray-200 rounded-xl" placeholder="Cole URL da Amazon ou ISBN" value={amazonRef} onChange={(e) => setAmazonRef(e.target.value)} />
+                                <button type="button" onClick={fillFromAmazonReference} disabled={isLoadingAmazon} className="px-4 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold text-sm disabled:opacity-60">
+                                    {isLoadingAmazon ? 'Importando...' : 'Completar Ficha'}
+                                </button>
+                            </div>
+                            {searchResults.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black">Resultados (pt-BR)</p>
+                                    {searchResults.map((result, idx) => (
+                                        <button
+                                            key={`${result.title}-${(result.authors || [])[0] || idx}`}
+                                            type="button"
+                                            onClick={async () => {
+                                                const resultId = `${result.title}-${(result.authors || [])[0] || idx}`;
+                                                setSelectedResultId(resultId);
+                                                setIsLoadingAmazon(true);
+                                                try {
+                                                    const enriched = await enrichVolumeData({ ...result }, `${result.title || ''} ${(result.authors || [])[0] || ''}`.trim());
+                                                    applyVolumeToForm(enriched);
+                                                    setAmazonMessage('Resultado aplicado na ficha.');
+                                                } finally {
+                                                    setIsLoadingAmazon(false);
+                                                }
+                                            }}
+                                            className={`w-full text-left px-3 py-2 rounded-xl border transition ${selectedResultId === `${result.title}-${(result.authors || [])[0] || idx}` ? 'border-[#14B8A6] bg-teal-50' : 'border-gray-200 bg-white hover:border-[#1E3A5F]/30'}`}
+                                        >
+                                            <p className="text-sm font-semibold text-[#1E3A5F]">{result.title || 'Sem título'}</p>
+                                            <p className="text-xs text-gray-500">{(result.authors || []).join(', ') || 'Autor não informado'}</p>
+                                            <p className="text-[11px] text-gray-400 mt-1">{result.publisher || 'Editora não informada'} {result.pageCount ? `• ${result.pageCount} págs` : ''}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {amazonMessage && <p className="mt-2 text-xs text-gray-500">{amazonMessage}</p>}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Título *" value={form.title} onChange={(e) => setField('title', e.target.value)} required />
+                            <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Autor *" value={form.author} onChange={(e) => setField('author', e.target.value)} required />
+                            <select className="px-4 py-3 border border-gray-200 rounded-xl" value={form.genre} onChange={(e) => setField('genre', e.target.value)}>
+                                {GENRES.filter(g => g !== 'Todos').map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                            <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Editora" value={form.publisher} onChange={(e) => setField('publisher', e.target.value)} />
+                            <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Páginas" type="number" min="0" value={form.pages} onChange={(e) => setField('pages', e.target.value)} />
+                            <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="URL da capa" value={form.coverUrl} onChange={(e) => setField('coverUrl', e.target.value)} />
+                        </div>
+                        <textarea className="mt-4 w-full px-4 py-3 border border-gray-200 rounded-xl" rows="4" placeholder="Sinopse" value={form.synopsis} onChange={(e) => setField('synopsis', e.target.value)} />
+                        <input className="mt-4 w-full px-4 py-3 border border-gray-200 rounded-xl" placeholder="Tags separadas por vírgula" value={form.tags} onChange={(e) => setField('tags', e.target.value)} />
+                        <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
+                            <label className="flex items-center gap-2"><input type="checkbox" checked={form.isBrazilianAuthor} onChange={(e) => setField('isBrazilianAuthor', e.target.checked)} /> Autor(a) brasileiro(a)</label>
+                            <label className="flex items-center gap-2"><input type="checkbox" checked={form.isDistopia} onChange={(e) => setField('isDistopia', e.target.checked)} /> Distopia</label>
+                        </div>
+                        <div className="mt-6 flex gap-3 justify-end">
+                            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-500 font-semibold">Cancelar</button>
+                            <button type="submit" className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold">Salvar no Banco</button>
+                        </div>
+                    </form>
+                </div>
+            );
+        }
 
         // --- 3. COMPONENTES DE UI ---
 
@@ -426,6 +872,7 @@
             const [isInitialized, setIsInitialized] = useState(false);
             const [user, setUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
+            const [showAddBook, setShowAddBook] = useState(false);
 
             // Monitora estado de autenticação
             useEffect(() => {
@@ -471,11 +918,17 @@
                     const r = await loadFromCloud('libdb-read-v1', {});
                     const d = await loadFromCloud('libdb-download-v1', {});
                     const c = await loadFromCloud('libdb-covers-v1', {});
-                    const cb = await loadFromCloud('libdb-custom-v1', []);
+                    let cb = await loadFromCloud('libdb-custom-v1', []);
                     let rem = [];
                     const q = await loadFromCloud('libdb-queue-v1', []);
                     
-                    console.log('📚 Exibindo ' + INITIAL_BOOKS.length + ' livros no catálogo...');
+                    // Se não há livros customizados no banco, carrega os SEED_BOOKS na primeira vez
+                    if (!cb || cb.length === 0) {
+                        cb = SEED_BOOKS;
+                        console.log('📚 Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
+                    } else {
+                        console.log('📚 Exibindo ' + cb.length + ' livros do banco de dados...');
+                    }
                     
                     setReadStatus(r); setDownloadStatus(d); setCustomCovers(c); 
                     setCustomBooks(cb); setRemovedInitialIds(rem); setReadingOrder(q);
@@ -506,9 +959,16 @@
             }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder, isInitialized, user]); // Adicionada dependência do user
 
             const allBooksCombined = useMemo(() => {
-                const initialVisible = INITIAL_BOOKS.filter(b => !removedInitialIds.includes(b.id));
-                return [...initialVisible, ...customBooks];
-            }, [customBooks, removedInitialIds]);
+                // Todos os livros agora vêm do banco de dados (customBooks)
+                return customBooks;
+            }, [customBooks]);
+
+            const handleAddBook = useCallback((book) => {
+                setCustomBooks(prev => [book, ...prev]);
+                setShowAddBook(false);
+                setActiveGenre("Todos");
+                setViewMode("grid");
+            }, []);
 
             const handleToggleRead = useCallback((id) => setReadStatus(p => ({ ...p, [id]: !p[id] })), []);
             const handleToggleDownload = useCallback((id) => setDownloadStatus(p => ({ ...p, [id]: !p[id] })), []);
@@ -519,6 +979,9 @@
                 if (isCustom) setCustomBooks(p => p.filter(b => b.id !== id));
                 else setRemovedInitialIds(p => [...p, id]);
                 setReadingOrder(p => p.filter(bId => bId !== id));
+                // Remove o status de leitura e download quando deleta o livro
+                setReadStatus(p => { const n = { ...p }; delete n[id]; return n; });
+                setDownloadStatus(p => { const n = { ...p }; delete n[id]; return n; });
                 setSelectedBook(null);
             };
 
@@ -644,6 +1107,9 @@
                                     <input type="text" placeholder="Pesquisar..." className="w-full pl-11 pr-4 py-2.5 bg-[#F8F9FB] border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-[#14B8A6]/20 outline-none" value={searchQuery} disabled={viewMode === 'queue'} onChange={(e) => setSearchQuery(e.target.value)} />
                                 </div>
                                 <div className="flex gap-2 w-full xl:w-auto">
+                                    <button onClick={() => setShowAddBook(true)} className="flex-1 xl:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all border bg-[#1E3A5F] text-white border-transparent">
+                                        + Adicionar Livro
+                                    </button>
                                     <button onClick={() => setFilterRead(!filterRead)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border ${filterRead ? 'bg-[#1E3A5F] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Lido</button>
                                     <button onClick={() => setFilterDownloaded(!filterDownloaded)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border ${filterDownloaded ? 'bg-[#14B8A6] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Baixado</button>
                                 </div>
@@ -659,6 +1125,19 @@
 
                     <main key={viewMode} className="max-w-7xl mx-auto px-6 py-12">
                         <div className={viewMode === 'queue' ? "flex flex-col gap-6 max-w-3xl mx-auto" : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-8"}>
+                            {viewMode === 'grid' && !filterRead && !filterDownloaded && (
+                                <button
+                                    onClick={() => setShowAddBook(true)}
+                                    className="book-card-hover group relative rounded-[24px] border-2 border-dashed border-[#14B8A6]/35 bg-white/80 hover:bg-white cursor-pointer flex flex-col items-center justify-center min-h-[300px] md:min-h-[360px] transition-all hover:border-[#14B8A6] hover:shadow-xl"
+                                >
+                                    <div className="w-14 h-14 rounded-full bg-[#14B8A6] text-white flex items-center justify-center shadow-lg shadow-[#14B8A6]/30 mb-4">
+                                        <Icon name="plus" className="w-7 h-7" />
+                                    </div>
+                                    <p className="text-sm md:text-base font-black tracking-wide text-[#1E3A5F] uppercase">Adicionar Livro</p>
+                                    <p className="text-xs text-gray-400 mt-2 px-6">Crie uma nova ficha e salve direto no banco</p>
+                                </button>
+                            )}
+
                             {filteredBooks.map((b, idx) => b && (
                                 <BookCard 
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
@@ -696,6 +1175,10 @@
                         />
                     )}
 
+                    {showAddBook && (
+                        <AddBookModal onClose={() => setShowAddBook(false)} onSave={handleAddBook} />
+                    )}
+
                     <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-gray-100 text-center pt-8">
                         <p className="text-gray-400 text-[10px] tracking-widest uppercase font-black">Biblioteca do Amanhã &copy; 2024</p>
                     </footer>
@@ -710,4 +1193,3 @@
     </script>
 </body>
 </html>
-       
