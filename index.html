@@ -12,6 +12,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Firebase -->
     <script type="module">
         // IMPORTANTE: Configure seu projeto Firebase em firebase-config.js
@@ -30,6 +31,38 @@
             appId: "1:39485326387:web:84c1e13522efa7cbb1cf46" // ← ALTERE AQUI
         };
 
+        const supabaseConfig = {
+            url: 'https://sasnmejcbjvoupxqicff.supabase.co', // ← ALTERE AQUI
+            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhc25tZWpjYmp2b3VweHFpY2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDAzMTQsImV4cCI6MjA5MDk3NjMxNH0.GF3AgdBMegRdYKP5bUMO7WwjfEDPbOHMzDHrQHoszts', // ← ALTERE AQUI
+            bucket: 'biblioteca-epubs' // ← CRIE ESTE BUCKET NO SUPABASE
+        };
+
+        window.supabaseConfig = supabaseConfig;
+        window.supabaseBucket = supabaseConfig.bucket;
+        window.supabaseClient = null;
+        window.supabaseConfigReady = Boolean(
+            supabaseConfig.url &&
+            !supabaseConfig.url.includes('SEU-PROJETO') &&
+            supabaseConfig.anonKey &&
+            !supabaseConfig.anonKey.includes('SUA_ANON_KEY')
+        );
+
+        window.ensureSupabaseClient = async () => {
+            if (window.supabaseClient) return window.supabaseClient;
+            if (!window.supabaseConfigReady) return null;
+
+            for (let i = 0; i < 20; i += 1) {
+                const supabaseLib = window.supabase || globalThis.supabase;
+                if (supabaseLib?.createClient) {
+                    window.supabaseClient = supabaseLib.createClient(supabaseConfig.url, supabaseConfig.anonKey);
+                    return window.supabaseClient;
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            return null;
+        };
+
         try {
             window.FirebaseApp = initializeApp(firebaseConfig);
             window.db = getFirestore(window.FirebaseApp);
@@ -44,10 +77,27 @@
             window.signInWithPopup = signInWithPopup;
             window.signOut = signOut;
             window.onAuthStateChanged = onAuthStateChanged;
-            console.log('✅ Firebase conectado com sucesso! (EPUBs salvos no Firestore)');
+            console.log('✅ Firebase conectado com sucesso!');
         } catch (error) {
             console.warn('⚠️ Firebase não configurado. Usando apenas localStorage.', error);
             window.db = null;
+        }
+
+        try {
+            if (window.supabaseConfigReady) {
+                window.ensureSupabaseClient()
+                    .then((client) => {
+                        if (client) console.log('✅ Supabase Storage conectado com sucesso!');
+                        else console.warn('⚠️ Supabase não carregou no navegador. Verifique a CDN ou extensões que bloqueiam scripts.');
+                    })
+                    .catch((error) => {
+                        console.warn('⚠️ Falha ao iniciar Supabase Storage.', error);
+                    });
+            } else {
+                console.warn('⚠️ Supabase não configurado. Preencha url e anon key para ativar uploads remotos.');
+            }
+        } catch (error) {
+            console.warn('⚠️ Falha ao iniciar Supabase Storage.', error);
         }
     </script>
     
@@ -129,67 +179,29 @@
             }
         };
 
-        // IndexedDB para guardar EPUBs (muito mais espaço que localStorage)
-        const initIndexedDB = async () => {
-            return new Promise((resolve, reject) => {
-                const req = indexedDB.open('BibliotecaDB', 1);
-                req.onerror = () => reject(req.error);
-                req.onsuccess = () => resolve(req.result);
-                req.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains('epubs')) {
-                        db.createObjectStore('epubs');
-                    }
-                };
-            });
+        const sanitizeFileName = (name = '') =>
+            name
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9._-]/g, '_');
+
+        const ensureSupabaseReady = async () => {
+            const client = window.ensureSupabaseClient ? await window.ensureSupabaseClient() : window.supabaseClient;
+            return !!client && !!window.supabaseBucket;
         };
 
-        const saveEpubToIndexedDB = async (key, base64) => {
+        const downloadEpubByUrl = async (epubUrl, fileName) => {
             try {
-                const db = await initIndexedDB();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction('epubs', 'readwrite');
-                    const store = tx.objectStore('epubs');
-                    const req = store.put(base64, key);
-                    req.onsuccess = () => resolve();
-                    req.onerror = () => reject(req.error);
-                });
-            } catch (err) {
-                console.warn('IndexedDB falhou, usando localStorage:', err);
-                localStorage.setItem(key, base64);
-            }
-        };
-
-        const getEpubFromIndexedDB = async (key) => {
-            try {
-                const db = await initIndexedDB();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction('epubs', 'readonly');
-                    const store = tx.objectStore('epubs');
-                    const req = store.get(key);
-                    req.onsuccess = () => resolve(req.result || null);
-                    req.onerror = () => reject(req.error);
-                });
-            } catch (err) {
-                console.warn('IndexedDB falhou, tentando localStorage:', err);
-                return localStorage.getItem(key);
-            }
-        };
-
-        const downloadEpubByKey = async (epubKey, fileName) => {
-            try {
-                const base64 = await getEpubFromIndexedDB(epubKey);
-                if (!base64) {
-                    console.error('EPUB não encontrado no IndexedDB');
-                    alert('EPUB não encontrado. Tente enviar novamente.');
-                    return;
+                if (!epubUrl) {
+                    throw new Error('EPUB sem URL remota.');
                 }
-                
-                // Converte data URL para blob
-                const response = await fetch(base64);
+
+                const response = await fetch(epubUrl);
+                if (!response.ok) {
+                    throw new Error('Não foi possível descarregar o EPUB do Supabase.');
+                }
+
                 const blob = await response.blob();
-                
-                // Cria link de download e simula clique
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
@@ -204,25 +216,30 @@
             }
         };
 
-        const deleteEpubFromIndexedDB = async (epubKey) => {
-            try {
-                const db = await initIndexedDB();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction('epubs', 'readwrite');
-                    const store = tx.objectStore('epubs');
-                    const req = store.delete(epubKey);
-                    req.onsuccess = () => resolve();
-                    req.onerror = () => reject(req.error);
-                });
-            } catch (err) {
-                console.warn('Erro ao deletar EPUB do IndexedDB:', err);
-                localStorage.removeItem(epubKey);
+        const deleteEpubFromCloud = async (epubPath) => {
+            if (!epubPath) return;
+            const isReady = await ensureSupabaseReady();
+            if (!isReady) {
+                throw new Error('Supabase Storage indisponível no navegador. Verifique a CDN, a URL e a anon key.');
+            }
+
+            const { error } = await window.supabaseClient
+                .storage
+                .from(window.supabaseBucket)
+                .remove([epubPath]);
+
+            if (error) {
+                throw error;
             }
         };
 
-        const uploadEpubToCloud = async (bookId, file) => {
+        const uploadEpubToCloud = async (bookId, file, previousPath = null) => {
             if (!window.auth?.currentUser || !file) {
                 throw new Error('Utilizador não autenticado.');
+            }
+            const isReady = await ensureSupabaseReady();
+            if (!isReady) {
+                throw new Error('Supabase Storage indisponível no navegador. Verifique a CDN, a URL e a anon key.');
             }
             const isEpub = (file.type === 'application/epub+zip') || /\.epub$/i.test(file.name || '');
             if (!isEpub) {
@@ -232,32 +249,44 @@
             if (file.size > maxSizeBytes) {
                 throw new Error('Arquivo muito grande. Limite de 5MB para EPUBs.');
             }
-            
+
             try {
-                // Converte arquivo para base64 de forma não-bloqueante
-                const timeout = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Timeout ao processar EPUB. Arquivo muito grande ou sistema lento.')), 20000)
-                );
-                
-                const readPromise = new Promise((resolve, reject) => {
+                const safeFileName = sanitizeFileName(file.name || `livro-${bookId}.epub`);
+                const epubPath = `users/${window.auth.currentUser.uid}/books/${bookId}/${Date.now()}-${safeFileName}`;
+
+                const { error: uploadError } = await window.supabaseClient
+                    .storage
+                    .from(window.supabaseBucket)
+                    .upload(epubPath, file, {
+                        cacheControl: '3600',
+                        upsert: false,
+                        contentType: 'application/epub+zip'
+                    });
+
+                if (uploadError) {
+                    throw uploadError;
+                }
+
+                if (previousPath && previousPath !== epubPath) {
                     try {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result);
-                        reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
-                        reader.onprogress = (e) => console.log(`Lendo EPUB: ${Math.round((e.loaded/e.total)*100)}%`);
-                        reader.readAsDataURL(file);
-                    } catch (err) {
-                        reject(err);
+                        await deleteEpubFromCloud(previousPath);
+                    } catch (cleanupError) {
+                        console.warn('Não foi possível remover o EPUB antigo:', cleanupError);
                     }
-                });
-                
-                const base64 = await Promise.race([readPromise, timeout]);
-                
-                // Guarda em IndexedDB (muito mais espaço)
-                const epubKey = `epub_${window.auth.currentUser.uid}_${bookId}`;
-                await saveEpubToIndexedDB(epubKey, base64);
-                
-                return { url: null, fileName: file.name || 'livro.epub', epubKey };
+                }
+
+                const { data } = window.supabaseClient
+                    .storage
+                    .from(window.supabaseBucket)
+                    .getPublicUrl(epubPath);
+
+                return {
+                    url: data?.publicUrl || '',
+                    fileName: file.name || 'livro.epub',
+                    epubKey: epubPath,
+                    epubPath,
+                    epubOrigin: 'supabase'
+                };
             } catch (error) {
                 throw new Error(error?.message || 'Falha ao processar EPUB.');
             }
@@ -780,6 +809,9 @@
 
                 let epubUrl = initialBook?.epubUrl || "";
                 let epubFileName = initialBook?.epubFileName || "";
+                let epubKey = initialBook?.epubKey || null;
+                let epubPath = initialBook?.epubPath || initialBook?.epubKey || null;
+                let epubOrigin = initialBook?.epubOrigin || null;
                 const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
                     promise,
                     new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), ms))
@@ -790,16 +822,19 @@
                         setIsUploadingEpub(true);
                         setEpubMessage("A carregar EPUB...");
                         const uploaded = await withUiTimeout(
-                            uploadEpubToCloud(bookId, epubFile),
+                            uploadEpubToCloud(bookId, epubFile, epubPath),
                             30000,
-                            'Upload sem resposta. Verifique regras do Storage e conexão.'
+                            'Upload sem resposta. Verifique o bucket do Supabase e a conexão.'
                         );
                         epubUrl = uploaded.url;
                         epubFileName = uploaded.fileName;
+                        epubKey = uploaded.epubKey;
+                        epubPath = uploaded.epubPath;
+                        epubOrigin = uploaded.epubOrigin;
                         setEpubMessage("EPUB enviado com sucesso.");
                     } catch (error) {
                         console.error(error);
-                        setEpubMessage(error?.message || "Não foi possível enviar o EPUB. Verifique login e Firebase Storage.");
+                        setEpubMessage(error?.message || "Não foi possível enviar o EPUB. Verifique login, bucket e políticas do Supabase.");
                         return;
                     } finally {
                         setIsUploadingEpub(false);
@@ -822,6 +857,9 @@
                     isSeries: isBookInSeries,
                     epubUrl,
                     epubFileName,
+                    epubKey,
+                    epubPath,
+                    epubOrigin,
                     isBrazilianAuthor: !!form.isBrazilianAuthor,
                     isDistopia: !!form.isDistopia
                 });
@@ -952,7 +990,7 @@
             );
         }
 
-        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick }) {
+        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub }) {
             const styles = getGenreStyles(book.genre);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
@@ -1016,11 +1054,11 @@
                             >
                                 {book.genre}
                             </span>
-                            {!!book.epubKey && (
+                            {!!book.epubUrl && !!hasRemoteEpub && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        downloadEpubByKey(book.epubKey, book.epubFileName);
+                                        downloadEpubByUrl(book.epubUrl, book.epubFileName);
                                     }}
                                     title={book.epubFileName ? `Baixar ${book.epubFileName}` : 'Baixar EPUB'}
                                     className="inline-flex items-center justify-center w-6 h-6 rounded-md text-emerald-600 hover:bg-emerald-50"
@@ -1034,7 +1072,7 @@
             );
         }
 
-        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick }) {
+        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick, hasRemoteEpub }) {
             const styles = getGenreStyles(book.genre);
             const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
             const [isConfirmingDeleteEpub, setIsConfirmingDeleteEpub] = useState(false);
@@ -1045,7 +1083,7 @@
 
             const handleDeleteEpub = async () => {
                 try {
-                    await deleteEpubFromIndexedDB(book.epubKey);
+                    await deleteEpubFromCloud(book.epubPath || book.epubKey);
                     setUploadMessage("✅ EPUB removido com sucesso");
                     setTimeout(() => {
                         onDeleteEpub(book.id);
@@ -1085,16 +1123,21 @@
                                                 <Icon name="download" className="w-3.5 h-3.5" /> Baixado
                                             </button>
                                         </div>
-                                        {book.epubKey && (
+                                        {book.epubUrl && hasRemoteEpub && (
                                             <button
-                                                onClick={() => downloadEpubByKey(book.epubKey, book.epubFileName)}
+                                                onClick={() => downloadEpubByUrl(book.epubUrl, book.epubFileName)}
                                                 className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                                             >
                                                 <Icon name="download" className="w-3.5 h-3.5" />
                                                 Baixar EPUB {book.epubFileName ? `(${book.epubFileName})` : ''}
                                             </button>
                                         )}
-                                        {!book.epubKey && (
+                                        {book.epubKey && !book.epubUrl && (
+                                            <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-semibold text-amber-700 leading-relaxed">
+                                                Este livro ainda usa o formato antigo de EPUB local. Reenvie o arquivo para migrar ao Supabase Storage.
+                                            </div>
+                                        )}
+                                        {!hasRemoteEpub && (
                                             <>
                                                 <label htmlFor={`epub-upload-${book.id}`} className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer">
                                                     <Icon name="bookMarked" className="w-3.5 h-3.5" />
@@ -1123,7 +1166,7 @@
                                                                     await withUiTimeout(
                                                                         onUploadEpub(file),
                                                                         30000,
-                                                                        'Upload sem resposta. Verifique regras do Storage e conexão.'
+                                                                        'Upload sem resposta. Verifique bucket, políticas e conexão do Supabase.'
                                                                     );
                                                                     setUploadMessage(`✅ EPUB enviado: ${file.name}`);
                                                                 } catch (error) {
@@ -1143,7 +1186,7 @@
                                             </>
                                         )}
                                         {uploadMessage && <p className="text-[10px] text-gray-500">{uploadMessage}</p>}
-                                        {book.epubKey && (
+                                        {(book.epubPath || book.epubKey) && (
                                             <>
                                                 {!isConfirmingDeleteEpub ? (
                                                     <button onClick={() => setIsConfirmingDeleteEpub(true)} className="w-full mt-2 py-2 text-[10px] font-bold text-red-300 uppercase tracking-widest hover:text-red-500 flex items-center justify-center gap-2 transition-colors">
@@ -1233,6 +1276,7 @@
             const [downloadStatus, setDownloadStatus] = useState({});
             const [customCovers, setCustomCovers] = useState({});
             const [customBooks, setCustomBooks] = useState([]);
+            const [remoteEpubAvailability, setRemoteEpubAvailability] = useState({});
             const [removedInitialIds, setRemovedInitialIds] = useState([]);
             const [readingOrder, setReadingOrder] = useState([]);
             const [searchQuery, setSearchQuery] = useState("");
@@ -1331,6 +1375,12 @@
                 localStorage.setItem('libdb-queue-v1', JSON.stringify(readingOrder));
             }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder, isInitialized, user]); // Adicionada dependência do user
 
+            useEffect(() => {
+                setRemoteEpubAvailability(
+                    Object.fromEntries(customBooks.map(book => [book.id, !!book.epubUrl]))
+                );
+            }, [customBooks]);
+
             const allBooksCombined = useMemo(() => {
                 // Todos os livros agora vêm do banco de dados (customBooks)
                 return customBooks;
@@ -1352,20 +1402,20 @@
             }, []);
 
             const handleUploadEpubForBook = useCallback(async (bookId, file) => {
-                const uploaded = await uploadEpubToCloud(bookId, file);
-                // Guarda APENAS a chave, não o base64 inteiro (evita Firestore quota)
+                const currentBook = customBooks.find(book => book.id === bookId);
+                const uploaded = await uploadEpubToCloud(bookId, file, currentBook?.epubPath || currentBook?.epubKey || null);
                 setCustomBooks(prev => prev.map(book => (
                     book.id === bookId
-                        ? { ...book, epubKey: uploaded.epubKey, epubFileName: uploaded.fileName, epubUrl: null }
+                        ? { ...book, epubKey: uploaded.epubKey, epubPath: uploaded.epubPath, epubFileName: uploaded.fileName, epubUrl: uploaded.url, epubOrigin: uploaded.epubOrigin }
                         : book
                 )));
                 setSelectedBook(prev => (
                     prev && prev.id === bookId
-                        ? { ...prev, epubKey: uploaded.epubKey, epubFileName: uploaded.fileName, epubUrl: null }
+                        ? { ...prev, epubKey: uploaded.epubKey, epubPath: uploaded.epubPath, epubFileName: uploaded.fileName, epubUrl: uploaded.url, epubOrigin: uploaded.epubOrigin }
                         : prev
                 ));
                 return uploaded;
-            }, []);
+            }, [customBooks]);
 
             const handleToggleRead = useCallback((id) => setReadStatus(p => ({ ...p, [id]: !p[id] })), []);
             const handleToggleDownload = useCallback((id) => setDownloadStatus(p => ({ ...p, [id]: !p[id] })), []);
@@ -1450,6 +1500,13 @@
                         </div>
                     ) : (
                     <>
+                    {!window.supabaseConfigReady && (
+                        <div className="mx-auto max-w-7xl px-6 pt-6">
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                                Configure o Supabase no topo do arquivo para ativar o upload remoto de EPUBs. Preencha `supabaseConfig.url`, `supabaseConfig.anonKey` e crie o bucket `biblioteca-epubs`.
+                            </div>
+                        </div>
+                    )}
                     <header className="bg-[#1E3A5F] text-white pt-20 pb-12 px-6 relative overflow-hidden text-center md:text-left">
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-12 relative z-10">
                             <div className="logo-container">
@@ -1539,6 +1596,7 @@
                                 <BookCard 
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
+                                    hasRemoteEpub={!!remoteEpubAvailability[b.id]}
                                     isQueueMode={viewMode === 'queue'} queueIndex={idx} totalInQueue={readingOrder.length}
                                     onMove={(idx, dir) => {
                                         const n = [...readingOrder];
@@ -1560,6 +1618,7 @@
                         <DetailModal 
                             book={selectedBook} onClose={() => setSelectedBook(null)} 
                             isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id]} isInQueue={readingOrder.includes(selectedBook.id)}
+                            hasRemoteEpub={!!remoteEpubAvailability[selectedBook.id]}
                             coverUrl={getCoverUrl(selectedBook)} 
                             onToggleRead={() => handleToggleRead(selectedBook.id)}
                             onToggleDownload={() => handleToggleDownload(selectedBook.id)} 
@@ -1572,13 +1631,13 @@
                             onDeleteEpub={(bookId) => {
                                 const updatedBooks = customBooks.map(b => (
                                     b.id === bookId
-                                        ? { ...b, epubKey: null, epubFileName: null }
+                                        ? { ...b, epubKey: null, epubPath: null, epubFileName: null, epubUrl: null, epubOrigin: null }
                                         : b
                                 ));
                                 setCustomBooks(updatedBooks);
                                 setSelectedBook(prev => (
                                     prev && prev.id === bookId
-                                        ? { ...prev, epubKey: null, epubFileName: null }
+                                        ? { ...prev, epubKey: null, epubPath: null, epubFileName: null, epubUrl: null, epubOrigin: null }
                                         : prev
                                 ));
                                 // Salva no Firestore imediatamente
