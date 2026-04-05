@@ -17,7 +17,7 @@
         // IMPORTANTE: Configure seu projeto Firebase em firebase-config.js
         // e substitua as configurações abaixo pelas suas reais
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
-        import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+        import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
 
         // Configuração Firebase (SUBSTITUA PELAS SUAS CONFIGURAÇÕES REAIS)
@@ -33,6 +33,9 @@
         try {
             window.FirebaseApp = initializeApp(firebaseConfig);
             window.db = getFirestore(window.FirebaseApp);
+            enableIndexedDbPersistence(window.db).catch((error) => {
+                console.warn('Persistência offline não ativada:', error.code);
+            });
             window.auth = getAuth(window.FirebaseApp);
             window.provider = new GoogleAuthProvider();
             window.doc = doc;
@@ -460,13 +463,19 @@
             useEffect(() => {
                 if (!user) return; // Só carrega dados se estiver logado
 
+                // Limpa flag antiga de inicialização para forçar reset dos livros
+                localStorage.removeItem('libdb-books-initialized-v1');
+                localStorage.setItem('libdb-removed-v1', JSON.stringify([]));
+
                 const loadData = async () => {
-                    const r = await loadFromCloud('lib-read-final-v2', {});
-                    const d = await loadFromCloud('lib-download-final-v2', {});
-                    const c = await loadFromCloud('lib-covers-final-v2', {});
-                    const cb = await loadFromCloud('lib-custom-final-v2', []);
-                    const rem = await loadFromCloud('lib-removed-final-v2', []);
-                    const q = await loadFromCloud('lib-queue-final-v2', []);
+                    const r = await loadFromCloud('libdb-read-v1', {});
+                    const d = await loadFromCloud('libdb-download-v1', {});
+                    const c = await loadFromCloud('libdb-covers-v1', {});
+                    const cb = await loadFromCloud('libdb-custom-v1', []);
+                    let rem = [];
+                    const q = await loadFromCloud('libdb-queue-v1', []);
+                    
+                    console.log('📚 Exibindo ' + INITIAL_BOOKS.length + ' livros no catálogo...');
                     
                     setReadStatus(r); setDownloadStatus(d); setCustomCovers(c); 
                     setCustomBooks(cb); setRemovedInitialIds(rem); setReadingOrder(q);
@@ -480,20 +489,20 @@
                 if (!isInitialized || !user) return; // Só salva se estiver logado e inicializado
 
                 // Salva na nuvem
-                saveToCloud('lib-read-final-v2', readStatus);
-                saveToCloud('lib-download-final-v2', downloadStatus);
-                saveToCloud('lib-covers-final-v2', customCovers);
-                saveToCloud('lib-custom-final-v2', customBooks);
-                saveToCloud('lib-removed-final-v2', removedInitialIds);
-                saveToCloud('lib-queue-final-v2', readingOrder);
+                saveToCloud('libdb-read-v1', readStatus);
+                saveToCloud('libdb-download-v1', downloadStatus);
+                saveToCloud('libdb-covers-v1', customCovers);
+                saveToCloud('libdb-custom-v1', customBooks);
+                saveToCloud('libdb-removed-v1', removedInitialIds);
+                saveToCloud('libdb-queue-v1', readingOrder);
                 
                 // Backup no localStorage
-                localStorage.setItem('lib-read-final-v2', JSON.stringify(readStatus));
-                localStorage.setItem('lib-download-final-v2', JSON.stringify(downloadStatus));
-                localStorage.setItem('lib-covers-final-v2', JSON.stringify(customCovers));
-                localStorage.setItem('lib-custom-final-v2', JSON.stringify(customBooks));
-                localStorage.setItem('lib-removed-final-v2', JSON.stringify(removedInitialIds));
-                localStorage.setItem('lib-queue-final-v2', JSON.stringify(readingOrder));
+                localStorage.setItem('libdb-read-v1', JSON.stringify(readStatus));
+                localStorage.setItem('libdb-download-v1', JSON.stringify(downloadStatus));
+                localStorage.setItem('libdb-covers-v1', JSON.stringify(customCovers));
+                localStorage.setItem('libdb-custom-v1', JSON.stringify(customBooks));
+                localStorage.setItem('libdb-removed-v1', JSON.stringify(removedInitialIds));
+                localStorage.setItem('libdb-queue-v1', JSON.stringify(readingOrder));
             }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder, isInitialized, user]); // Adicionada dependência do user
 
             const allBooksCombined = useMemo(() => {
@@ -701,3 +710,4 @@
     </script>
 </body>
 </html>
+       
