@@ -42,7 +42,7 @@
         window.supabaseClient = null;
         // Configure a URL publica para o proxy de capas (Goodreads/Skoob) em producao.
         // Exemplo: window.coverProxyBaseUrl = 'https://SEU-DOMINIO.com/api/cover';
-        window.coverProxyBaseUrl = window.coverProxyBaseUrl || '';
+        window.coverProxyBaseUrl = window.coverProxyBaseUrl || 'https://biblioteca-do-amanha-capas.vercel.app/api/cover';
         window.getCoverProxyBases = () => {
             const fromConfig = String(window.coverProxyBaseUrl || '')
                 .split(',')
