@@ -975,17 +975,19 @@
 
         // --- 3. COMPONENTES DE UI ---
 
-        function AnimatedStatCard({ label, value }) {
+        function AnimatedStatCard({ label, value, variant = 'default' }) {
             const [dV, setDV] = useState(value);
             useEffect(() => {
                 if (dV === value) return;
                 const t = setInterval(() => setDV(p => (p < value ? p + 1 : p - 1)), 30);
                 return () => clearInterval(t);
             }, [value, dV]);
+
+            const isHighlight = variant === 'highlight';
             return (
-                <div className="bg-white/5 backdrop-blur-md border border-white/10 p-3 md:p-5 rounded-3xl flex flex-col items-center justify-center min-w-[80px] md:min-w-[140px] transition-transform hover:scale-105 duration-300">
-                    <span className="text-xl md:text-5xl font-serif font-bold text-[#14B8A6] leading-none mb-1 md:mb-2">{dV}</span>
-                    <span className="text-[8px] md:text-[11px] uppercase tracking-widest text-white/40 font-bold text-center">{label}</span>
+                <div className={`backdrop-blur-md border p-2.5 md:p-3.5 rounded-2xl flex flex-col items-center justify-center min-w-[74px] md:min-w-[108px] transition-transform hover:scale-105 duration-300 ${isHighlight ? 'bg-[rgba(29,206,165,0.1)] border-[rgba(29,206,165,0.25)]' : 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.1)]'}`}>
+                    <span className={`font-serif font-bold leading-none mb-1 ${isHighlight ? 'text-[#1dcea5] text-[26px]' : 'text-white text-[22px]'}`}>{dV}</span>
+                    <span className="text-[10px] uppercase tracking-[0.8px] text-white/45 font-bold text-center">{label}</span>
                 </div>
             );
         }
@@ -1312,6 +1314,26 @@
                     await window.signInWithPopup(window.auth, window.provider);
                 } catch (error) {
                     console.error('Erro no login:', error);
+                    const code = error?.code || 'erro-desconhecido';
+                    const message = error?.message || 'Falha ao autenticar com Google.';
+
+                    if (code === 'auth/unauthorized-domain') {
+                        alert(
+                            'Domínio não autorizado no Firebase.\n\n' +
+                            'Adicione estes domínios em Authentication > Settings > Authorized domains:\n' +
+                            '- localhost\n' +
+                            '- 127.0.0.1\n\n' +
+                            'Depois recarregue a página e tente novamente.'
+                        );
+                        return;
+                    }
+
+                    if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+                        alert('O popup de login foi bloqueado/fechado. Permita popups para este site e tente novamente.');
+                        return;
+                    }
+
+                    alert(`Erro no login (${code}): ${message}`);
                 }
             };
 
@@ -1463,6 +1485,15 @@
                 downloaded: Object.values(downloadStatus).filter(Boolean).length
             };
 
+            const userFirstName = (user?.displayName || user?.email || 'Leitor').trim().split(' ')[0] || 'Leitor';
+            const userInitials = (user?.displayName || user?.email || 'L')
+                .replace(/@.*/, '')
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map(part => part[0].toUpperCase())
+                .join('') || 'L';
+
             const getCoverUrl = (b) => customCovers[b.id] || b.coverUrl || `https://covers.openlibrary.org/b/isbn/${b.isbn}-L.jpg`;
 
             return (
@@ -1507,38 +1538,43 @@
                             </div>
                         </div>
                     )}
-                    <header className="bg-[#1E3A5F] text-white pt-20 pb-12 px-6 relative overflow-hidden text-center md:text-left">
-                        {!authLoading && (
-                            <div className="absolute top-5 right-6 md:right-10 z-20">
-                                {user ? (
-                                    <div className="flex items-center gap-3 justify-end">
-                                        <span className="text-sm text-white/80">Olá, {user.displayName || user.email}</span>
-                                        <button onClick={logout} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-medium transition-all">
-                                            Sair
+                    <header className="bg-[#1E3A5F] text-white pt-16 md:pt-24 pb-10 md:pb-12 px-6 relative overflow-hidden text-center md:text-left">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end gap-8 md:gap-10 lg:gap-12 relative z-10">
+                            <div className="logo-container mt-4 md:mt-10 md:ml-6 lg:ml-10">
+                                <div className="flex items-start gap-3 md:gap-4">
+                                    <img
+                                        src="https://i.imgur.com/FfKzzxi.png"
+                                        alt=""
+                                        className="h-[110px] w-auto object-contain shrink-0"
+                                        aria-hidden="true"
+                                    />
+                                    <img
+                                        src="https://i.imgur.com/9fjgoqI.png"
+                                        alt="Biblioteca do Amanhã"
+                                        className="animate-fade-in"
+                                        referrerPolicy="no-referrer"
+                                        crossOrigin="anonymous"
+                                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/260x86/1E3A5F/FFFFFF?text=Biblioteca+do+Amanh%C3%A3'; }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="w-full md:w-auto md:ml-auto flex flex-col items-center md:items-end gap-3 md:gap-4">
+                                {!authLoading && user && (
+                                    <div className="w-full md:w-auto flex justify-center md:justify-end items-center gap-2">
+                                        <span className="text-[13px] text-[rgba(255,255,255,0.7)] leading-none">{userFirstName}</span>
+                                        <div className="w-8 h-8 rounded-full bg-[rgba(29,206,165,0.2)] border-[1.5px] border-[rgba(29,206,165,0.4)] flex items-center justify-center">
+                                            <span className="text-[11px] font-bold text-[#1dcea5] leading-none">{userInitials}</span>
+                                        </div>
+                                        <button onClick={logout} className="ml-2 bg-transparent border-0 p-0 text-[11px] uppercase tracking-[0.8px] text-white/35 hover:text-white/55 transition-colors">
+                                            sair
                                         </button>
                                     </div>
-                                ) : (
-                                    <button onClick={loginWithGoogle} className="px-4 py-2 bg-[#14B8A6] hover:bg-[#0ea5e9] text-white rounded-lg text-sm font-medium transition-all">
-                                        Entrar com Google
-                                    </button>
                                 )}
-                            </div>
-                        )}
-                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center gap-12 relative z-10">
-                            <div className="logo-container">
-                                <img
-                                    src="https://i.imgur.com/FGFYV7A.png"
-                                    alt="Biblioteca do Amanhã"
-                                    className="animate-fade-in"
-                                    referrerPolicy="no-referrer"
-                                    crossOrigin="anonymous"
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/260x86/1E3A5F/FFFFFF?text=Biblioteca+do+Amanh%C3%A3'; }}
-                                />
-                            </div>
-                            <div className="grid grid-cols-3 gap-3 md:gap-6 w-full md:w-auto md:ml-auto">
-                                <AnimatedStatCard label="Total" value={stats.total} />
-                                <AnimatedStatCard label="Lidos" value={stats.read} />
-                                <AnimatedStatCard label="Baixados" value={stats.downloaded} />
+                                <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full sm:w-auto">
+                                    <AnimatedStatCard label="Total" value={stats.total} variant="highlight" />
+                                    <AnimatedStatCard label="Lidos" value={stats.read} />
+                                    <AnimatedStatCard label="Baixados" value={stats.downloaded} />
+                                </div>
                             </div>
                         </div>
                         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#14B8A6] rounded-full blur-[160px] opacity-[0.07] -mr-64 -mt-64"></div>
