@@ -2536,7 +2536,7 @@
                 try {
                     const cleanText = (text || '').trim();
                     // Aceita tanto um objeto livro quanto um ID
-                    const isBookObject = bookOrId && typeof bookOrId === 'object' && bookOrId.title;
+                    const isBookObject = bookOrId !== null && bookOrId !== undefined && typeof bookOrId === 'object' && !Array.isArray(bookOrId);
                     const bookId = isBookObject ? bookOrId.id : bookOrId;
                     console.log('[Comments] Adicionando comentário:', { bookId, textLength: cleanText.length });
                     if (!cleanText) {
