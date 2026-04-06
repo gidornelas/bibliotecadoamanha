@@ -255,7 +255,8 @@
         // Chaves que são compartilhadas entre os dois perfis (chat, comentários, notificações)
         const SHARED_KEYS = new Set([
             'libdb-chat-v1-shared',
-            'libdb-comments-v1-shared'
+            'libdb-comments-v1-shared',
+            'libdb-notifications-v1'
         ]);
 
         // Retorna a referência Firestore correta: compartilhada ou pessoal
@@ -1713,7 +1714,7 @@
             );
         }
 
-        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, showImportButton, onImportToMine, isRead, isDownloaded, isInQueue, canQuickEdit, onQuickToggleRead, onQuickToggleDownload, onQuickToggleQueue, isHighlighted, commentsCount = 0 }) {
+        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, effectiveEpub, showImportButton, onImportToMine, isRead, isDownloaded, isInQueue, canQuickEdit, onQuickToggleRead, onQuickToggleDownload, onQuickToggleQueue, isHighlighted, commentsCount = 0 }) {
             const styles = getGenreStyles(book.genre);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
@@ -1778,13 +1779,13 @@
                                 </svg>
                             </div>
                         )}
-                        {!!book.epubUrl && !!hasRemoteEpub && (
+                        {!!effectiveEpub?.epubUrl && !!hasRemoteEpub && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    downloadEpubByUrl(book.epubUrl, book.epubFileName);
+                                    downloadEpubByUrl(effectiveEpub.epubUrl, effectiveEpub.epubFileName || book.epubFileName);
                                 }}
-                                title={book.epubFileName ? `Baixar ${book.epubFileName}` : 'Baixar EPUB'}
+                                title={(effectiveEpub?.epubFileName || book.epubFileName) ? `Baixar ${effectiveEpub?.epubFileName || book.epubFileName}` : 'Baixar EPUB'}
                                 className="absolute bottom-2 right-2 z-30 inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/95 border border-emerald-100 text-emerald-600 shadow-sm hover:bg-emerald-50"
                             >
                                 <Icon name="download" className="w-4 h-4" />
@@ -1932,12 +1933,17 @@
                                                 Baixar EPUB {(effectiveEpub?.epubFileName || book.epubFileName) ? `(${effectiveEpub?.epubFileName || book.epubFileName})` : ''}
                                             </button>
                                         )}
+                                        {(effectiveEpub?.epubFileName || book.epubFileName) && (
+                                            <div className="w-full rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-[10px] font-semibold text-emerald-700 leading-relaxed">
+                                                Arquivo EPUB disponível: {effectiveEpub?.epubFileName || book.epubFileName}
+                                            </div>
+                                        )}
                                         {book.epubKey && !book.epubUrl && (
                                             <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-semibold text-amber-700 leading-relaxed">
                                                 Este livro ainda usa o formato antigo de EPUB local. Reenvie o arquivo para migrar ao Supabase Storage.
                                             </div>
                                         )}
-                                        {!hasRemoteEpub && (
+                                        {!hasRemoteEpub && isViewingOwnProfile && (
                                             <>
                                                 <label htmlFor={`epub-upload-${book.id}`} className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer">
                                                     <Icon name="bookMarked" className="w-3.5 h-3.5" />
@@ -1980,7 +1986,7 @@
                                             </>
                                         )}
                                         {uploadMessage && <p className="text-[10px] text-gray-500">{uploadMessage}</p>}
-                                        {(book.epubPath || book.epubKey) && (
+                                        {(book.epubPath || book.epubKey) && isViewingOwnProfile && (
                                             <>
                                                 {!isConfirmingDeleteEpub ? (
                                                     <button onClick={() => setIsConfirmingDeleteEpub(true)} className="w-full mt-2 py-2 text-[10px] font-bold text-red-300 uppercase tracking-widest hover:text-red-500 flex items-center justify-center gap-2 transition-colors">
@@ -2207,6 +2213,7 @@
             const chatMessagesContainerRef = useRef(null);
             const chatFromCloudRef = useRef(false);
             const commentsFromCloudRef = useRef(false);
+            const notificationsFromCloudRef = useRef(false);
             const { toasts, removeToast } = useToastCenter();
             const { registerTimeout, clearRegisteredTimeouts } = useTimeoutRegistry();
             const [activeProfile, setActiveProfile] = useState(() => {
@@ -2712,6 +2719,16 @@
                     setCommentsInitialized(true);
                 }, (err) => console.error('[Realtime] Erro no comments listener:', err)));
 
+                unsubs.push(window.onSnapshot(sharedDocRef(NOTIFICATIONS_STORAGE_KEY), (snap) => {
+                    if (!snap.exists()) return;
+                    const data = snap.data()?.data;
+                    if (!Array.isArray(data)) return;
+                    console.log('[Realtime] Notificações atualizadas remotamente:', data.length, 'itens');
+                    notificationsFromCloudRef.current = true;
+                    setNotifications(data);
+                    setNotificationsInitialized(true);
+                }, (err) => console.error('[Realtime] Erro no notifications listener:', err)));
+
                 return () => {
                     console.log('[Realtime] Removendo listeners');
                     unsubs.forEach(u => u());
@@ -2740,6 +2757,7 @@
 
             useEffect(() => {
                 if (!user || !notificationsInitialized) return;
+                if (notificationsFromCloudRef.current) { notificationsFromCloudRef.current = false; return; }
                 saveToCloud(NOTIFICATIONS_STORAGE_KEY, notifications);
             }, [notifications, user, notificationsInitialized]);
 
@@ -4138,6 +4156,7 @@
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
                                     hasRemoteEpub={!!remoteEpubAvailability[b.id]}
+                                    effectiveEpub={getEffectiveEpub(b)}
                                     isInQueue={readingOrder.includes(b.id)}
                                     isHighlighted={highlightedBookId === b.id}
                                             canQuickEdit={isViewingOwnProfile && viewMode === 'grid'}

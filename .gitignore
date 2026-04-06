@@ -5,3 +5,6 @@ dist/
 tmp_*.jpg
 *.log
 index melhorias.html
+.agents/
+.claude/
+skills-lock.json
