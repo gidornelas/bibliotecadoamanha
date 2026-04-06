@@ -3439,11 +3439,17 @@
             const [otherProfileEpubMap, setOtherProfileEpubMap] = useState({});
 
             useEffect(() => {
-                if (!otherProfile || !user) return;
+                if (!otherProfile || !user || !window.db) return;
                 let cancelled = false;
                 const otherKeys = getProfileKeys(otherProfile.id);
-                loadFromCloud(otherKeys.custom, []).then(otherBooks => {
-                    if (cancelled || !Array.isArray(otherBooks)) return;
+                const docRef = getCloudDocRef(otherKeys.custom);
+                
+                // Listener realtime para monitorar mudanças nos EPUBs do outro perfil
+                const unsubscribe = window.onSnapshot(docRef, (docSnap) => {
+                    if (cancelled) return;
+                    const otherBooks = (docSnap.data()?.data) || [];
+                    if (!Array.isArray(otherBooks)) return;
+                    
                     const map = {};
                     otherBooks.forEach(b => {
                         if (b.epubUrl) {
@@ -3451,9 +3457,15 @@
                         }
                     });
                     setOtherProfileEpubMap(map);
+                }, (error) => {
+                    console.warn('Erro ao sincronizar EPUBs do outro perfil:', error);
                 });
-                return () => { cancelled = true; };
-            }, [otherProfile, user, getProfileKeys, customBooks]);
+                
+                return () => { 
+                    cancelled = true;
+                    if (unsubscribe) unsubscribe();
+                };
+            }, [otherProfile, user, getProfileKeys]);
 
             useEffect(() => {
                 const availability = {};
