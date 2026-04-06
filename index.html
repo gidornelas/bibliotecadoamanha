@@ -1401,16 +1401,18 @@
                             </div>
                         </div>
                         {canQuickEdit && (
-                            <div className="mt-3 grid grid-cols-3 gap-1.5">
+                            <div className="mt-2 flex items-center justify-end gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                                 <button
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onQuickToggleRead(book);
                                     }}
-                                    className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all active:scale-95 ${isRead ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-200 hover:text-emerald-700'}`}
+                                    title={isRead ? 'Desmarcar como lido' : 'Marcar como lido'}
+                                    aria-label={isRead ? 'Desmarcar como lido' : 'Marcar como lido'}
+                                    className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isRead ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-200 hover:text-emerald-700'}`}
                                 >
-                                    {isRead ? 'Lido' : 'Marcar'}
+                                    <Icon name="check" className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                     type="button"
@@ -1418,9 +1420,11 @@
                                         e.stopPropagation();
                                         onQuickToggleDownload(book);
                                     }}
-                                    className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all active:scale-95 ${isDownloaded ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-200 hover:text-cyan-700'}`}
+                                    title={isDownloaded ? 'Desmarcar como baixado' : 'Marcar como baixado'}
+                                    aria-label={isDownloaded ? 'Desmarcar como baixado' : 'Marcar como baixado'}
+                                    className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isDownloaded ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-200 hover:text-cyan-700'}`}
                                 >
-                                    {isDownloaded ? 'Baixado' : 'Baixar'}
+                                    <Icon name="download" className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                     type="button"
@@ -1428,9 +1432,11 @@
                                         e.stopPropagation();
                                         onQuickToggleQueue(book);
                                     }}
-                                    className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all active:scale-95 ${isInQueue ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-500 border-gray-200 hover:border-amber-200 hover:text-amber-700'}`}
+                                    title={isInQueue ? 'Remover da fila' : 'Adicionar na fila'}
+                                    aria-label={isInQueue ? 'Remover da fila' : 'Adicionar na fila'}
+                                    className={`w-7 h-7 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isInQueue ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-500 border-gray-200 hover:border-amber-200 hover:text-amber-700'}`}
                                 >
-                                    {isInQueue ? 'Na fila' : 'Fila'}
+                                    <Icon name="list" className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         )}
@@ -1696,7 +1702,6 @@
         const CHAT_STORAGE_KEY = 'libdb-chat-v1-shared';
         const COMMENTS_STORAGE_KEY = 'libdb-comments-v1-shared';
         const NOTIFICATIONS_STORAGE_KEY = 'libdb-notifications-v1-shared';
-        const ACTIVITY_STORAGE_KEY = 'libdb-activity-v1-shared';
         const PROFILE_PREFERENCES_VERSION = 'v1';
 
         const getBookKey = (book) => {
@@ -1739,8 +1744,6 @@
             const [notifications, setNotifications] = useState([]);
             const [notificationsInitialized, setNotificationsInitialized] = useState(false);
             const [notificationsOpen, setNotificationsOpen] = useState(false);
-            const [activityFeed, setActivityFeed] = useState([]);
-            const [activityInitialized, setActivityInitialized] = useState(false);
             const [amazonHighlights, setAmazonHighlights] = useState([]);
             const [isLoadingAmazonHighlights, setIsLoadingAmazonHighlights] = useState(false);
             const [amazonHighlightsError, setAmazonHighlightsError] = useState('');
@@ -1835,20 +1838,7 @@
                 readingOrder
             }), [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder]);
 
-            const logActivity = useCallback((text, type = 'general') => {
-                if (!text) return;
-                const actorId = myProfileId || activeProfile;
-                const actorLabel = loggedUserProfile?.label || currentProfile.label;
-                const entry = {
-                    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                    text,
-                    type,
-                    profileId: actorId,
-                    profileLabel: actorLabel,
-                    createdAt: Date.now()
-                };
-                setActivityFeed(prev => [entry, ...prev].slice(0, 60));
-            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label]);
+            const logActivity = useCallback(() => {}, []);
 
             const playSubtleMessageBeep = useCallback(() => {
                 try {
@@ -2132,8 +2122,6 @@
                     setNotifications([]);
                     setNotificationsInitialized(false);
                     setNotificationsOpen(false);
-                    setActivityFeed([]);
-                    setActivityInitialized(false);
                     return;
                 }
 
@@ -2142,7 +2130,6 @@
                     const loadedChat = await loadFromCloud(CHAT_STORAGE_KEY, []);
                     const loadedComments = await loadFromCloud(COMMENTS_STORAGE_KEY, {});
                     const loadedNotifications = await loadFromCloud(NOTIFICATIONS_STORAGE_KEY, []);
-                    const loadedActivity = await loadFromCloud(ACTIVITY_STORAGE_KEY, []);
                     if (!active) return;
                     setChatMessages(Array.isArray(loadedChat) ? loadedChat : []);
                     setChatInitialized(true);
@@ -2150,8 +2137,6 @@
                     setCommentsInitialized(true);
                     setNotifications(Array.isArray(loadedNotifications) ? loadedNotifications : []);
                     setNotificationsInitialized(true);
-                    setActivityFeed(Array.isArray(loadedActivity) ? loadedActivity : []);
-                    setActivityInitialized(true);
                 })();
 
                 return () => {
@@ -2173,11 +2158,6 @@
                 if (!user || !notificationsInitialized) return;
                 saveToCloud(NOTIFICATIONS_STORAGE_KEY, notifications);
             }, [notifications, user, notificationsInitialized]);
-
-            useEffect(() => {
-                if (!user || !activityInitialized) return;
-                saveToCloud(ACTIVITY_STORAGE_KEY, activityFeed);
-            }, [activityFeed, user, activityInitialized]);
 
             useEffect(() => {
                 const raw = localStorage.getItem(profilePreferencesKey);
@@ -3204,24 +3184,6 @@
                     </nav>
 
                     <main key={activeProfile + viewMode} className={`max-w-7xl mx-auto px-6 py-12 ${profileTransitionStage === 'out' ? 'profile-transition-out' : ''} ${profileTransitionStage === 'in' ? 'profile-transition-in' : ''}`} style={{ pointerEvents: profileTransitionStage === 'out' ? 'none' : 'auto' }}>
-                        {activityFeed.length > 0 && (
-                            <section className="mb-8 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
-                                <div className="mb-2 flex items-center justify-between">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1E3A5F]">Atividade Recente</p>
-                                    <span className="text-[10px] text-gray-400">{activityFeed.length} eventos</span>
-                                </div>
-                                <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1">
-                                    {activityFeed.slice(0, 20).map((entry) => (
-                                        <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
-                                            <p className="text-[11px] text-[#1E3A5F] truncate">
-                                                <span className="font-bold">{entry.profileLabel}:</span> {entry.text}
-                                            </p>
-                                            <span className="text-[10px] text-gray-400 shrink-0">{formatChatTime(entry.createdAt)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-                        )}
                         {viewMode === 'amazon' ? (
                             <div className="max-w-6xl mx-auto">
                                 <div className="mb-6 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03] p-4 md:p-5">
