@@ -244,7 +244,7 @@
                 URL.revokeObjectURL(url);
             } catch (err) {
                 console.error('Erro ao baixar EPUB:', err);
-                alert('Erro ao baixar EPUB: ' + err.message);
+                notifyUser('Erro ao baixar EPUB: ' + err.message, 'error');
             }
         };
 
@@ -356,6 +356,160 @@
         };
 
         // --- 1. CONFIGURAÇÕES E HELPERS (DEFINIDOS NO TOPO) ---
+
+        const APP_TOAST_EVENT = 'libdb:toast';
+
+        const normalizeText = (value = '') =>
+            (value || '')
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, ' ');
+
+        const booksMatch = (left, right) =>
+            normalizeText(left?.title) === normalizeText(right?.title) &&
+            normalizeText(left?.author) === normalizeText(right?.author);
+
+        const dedupeBooksByIdentity = (books = []) => {
+            const seen = new Set();
+            return (books || []).filter((book) => {
+                const key = `${normalizeText(book?.title)}||${normalizeText(book?.author)}`;
+                if (!key || key === '||' || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        };
+
+        const notifyUser = (message, tone = 'info') => {
+            if (!message) return;
+            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+                window.dispatchEvent(new CustomEvent(APP_TOAST_EVENT, { detail: { message, tone } }));
+                return;
+            }
+            console.warn(message);
+        };
+
+        const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
+            promise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), ms))
+        ]);
+
+        function useTimeoutRegistry() {
+            const registryRef = useRef([]);
+
+            const registerTimeout = useCallback((callback, delay) => {
+                const timeoutId = setTimeout(() => {
+                    registryRef.current = registryRef.current.filter(id => id !== timeoutId);
+                    callback();
+                }, delay);
+                registryRef.current.push(timeoutId);
+                return timeoutId;
+            }, []);
+
+            const clearRegisteredTimeouts = useCallback(() => {
+                registryRef.current.forEach(clearTimeout);
+                registryRef.current = [];
+            }, []);
+
+            useEffect(() => clearRegisteredTimeouts, [clearRegisteredTimeouts]);
+
+            return { registerTimeout, clearRegisteredTimeouts };
+        }
+
+        function useDebouncedEffect(effect, deps, delay) {
+            useEffect(() => {
+                const timeoutId = setTimeout(() => {
+                    effect();
+                }, delay);
+
+                return () => clearTimeout(timeoutId);
+            }, [...deps, delay]);
+        }
+
+        function useToastCenter() {
+            const [toasts, setToasts] = useState([]);
+            const { registerTimeout } = useTimeoutRegistry();
+
+            const removeToast = useCallback((toastId) => {
+                setToasts(prev => prev.filter(toast => toast.id !== toastId));
+            }, []);
+
+            useEffect(() => {
+                const handler = (event) => {
+                    const detail = event?.detail || {};
+                    const message = String(detail.message || '').trim();
+                    if (!message) return;
+
+                    const toastId = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                    const nextToast = {
+                        id: toastId,
+                        tone: detail.tone || 'info',
+                        message
+                    };
+
+                    setToasts(prev => [...prev, nextToast].slice(-4));
+                    registerTimeout(() => removeToast(toastId), 3600);
+                };
+
+                window.addEventListener(APP_TOAST_EVENT, handler);
+                return () => window.removeEventListener(APP_TOAST_EVENT, handler);
+            }, [registerTimeout, removeToast]);
+
+            return { toasts, removeToast };
+        }
+
+        function ToastViewport({ toasts, onDismiss }) {
+            if (!toasts.length) return null;
+
+            const toneClassMap = {
+                info: 'border-slate-200 bg-white text-slate-700',
+                success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                warning: 'border-amber-200 bg-amber-50 text-amber-800',
+                error: 'border-red-200 bg-red-50 text-red-700'
+            };
+
+            return (
+                <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,360px)] flex-col gap-2">
+                    {toasts.map((toast) => (
+                        <div
+                            key={toast.id}
+                            className={`rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm animate-fade-in ${toneClassMap[toast.tone] || toneClassMap.info}`}
+                        >
+                            <div className="flex items-start gap-3">
+                                <p className="flex-1 text-sm leading-relaxed">{toast.message}</p>
+                                <button
+                                    type="button"
+                                    onClick={() => onDismiss(toast.id)}
+                                    className="shrink-0 rounded-md p-1 text-current/60 hover:bg-black/5 hover:text-current"
+                                    aria-label="Fechar aviso"
+                                >
+                                    <Icon name="x" className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        function useProfilePersistence({ isInitialized, user, isProfileSwitchingRef, profileKeys, payload }) {
+            useDebouncedEffect(() => {
+                if (!isInitialized || !user || isProfileSwitchingRef.current) return;
+
+                saveToCloud(profileKeys.read, payload.readStatus);
+                saveToCloud(profileKeys.download, payload.downloadStatus);
+                saveToCloud(profileKeys.covers, payload.customCovers);
+                saveToCloud(profileKeys.custom, payload.customBooks);
+                saveToCloud(profileKeys.removed, payload.removedInitialIds);
+                saveToCloud(profileKeys.queue, payload.readingOrder);
+
+                localStorage.setItem(profileKeys.read, JSON.stringify(payload.readStatus));
+                localStorage.setItem(profileKeys.download, JSON.stringify(payload.downloadStatus));
+                localStorage.setItem(profileKeys.covers, JSON.stringify(payload.customCovers));
+                localStorage.setItem(profileKeys.custom, JSON.stringify(payload.customBooks));
+                localStorage.setItem(profileKeys.removed, JSON.stringify(payload.removedInitialIds));
+                localStorage.setItem(profileKeys.queue, JSON.stringify(payload.readingOrder));
+            }, [isInitialized, user, isProfileSwitchingRef, profileKeys, payload], 450);
+        }
 
         const GENRES = ["Todos", "Fantasia", "Romantasy", "Ficção Científica", "Thriller", "Romance Contemporâneo", "Ficção Literária", "Distopia"];
         const DEFAULT_GENRES = GENRES.filter(genre => genre !== "Todos");
@@ -498,6 +652,20 @@
             const [epubFile, setEpubFile] = useState(null);
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
             const [epubMessage, setEpubMessage] = useState("");
+
+            const buildVolumeFromOpenLibraryDoc = useCallback((doc) => {
+                if (!doc) return null;
+                const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
+                return {
+                    title: doc.title,
+                    authors: doc.author_name || [],
+                    publisher: doc.publisher?.[0] || '',
+                    pageCount: doc.number_of_pages_median || '',
+                    description: '',
+                    categories: doc.subject?.slice(0, 4) || [],
+                    imageLinks: { thumbnail: cover, smallThumbnail: cover }
+                };
+            }, []);
 
             useEffect(() => {
                 if (!initialBook) return;
@@ -802,15 +970,7 @@
                         const doc = olData?.docs?.[0];
                         if (doc) {
                             const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
-                            volume = {
-                                title: doc.title,
-                                authors: doc.author_name || [],
-                                publisher: doc.publisher?.[0] || '',
-                                pageCount: doc.number_of_pages_median || '',
-                                description: '',
-                                categories: doc.subject?.slice(0, 4) || [],
-                                imageLinks: { thumbnail: cover, smallThumbnail: cover }
-                            };
+                            volume = buildVolumeFromOpenLibraryDoc(doc);
                         }
                     }
 
@@ -819,16 +979,7 @@
                         const olDataByQ = await olResByQ.json();
                         const doc = olDataByQ?.docs?.[0];
                         if (doc) {
-                            const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
-                            volume = {
-                                title: doc.title,
-                                authors: doc.author_name || [],
-                                publisher: doc.publisher?.[0] || '',
-                                pageCount: doc.number_of_pages_median || '',
-                                description: '',
-                                categories: doc.subject?.slice(0, 4) || [],
-                                imageLinks: { thumbnail: cover, smallThumbnail: cover }
-                            };
+                            volume = buildVolumeFromOpenLibraryDoc(doc);
                         }
                     }
 
@@ -865,10 +1016,6 @@
                 let epubKey = initialBook?.epubKey || null;
                 let epubPath = initialBook?.epubPath || initialBook?.epubKey || null;
                 let epubOrigin = initialBook?.epubOrigin || null;
-                const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
-                    promise,
-                    new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), ms))
-                ]);
 
                 if (epubFile) {
                     try {
@@ -1147,7 +1294,7 @@
             );
         }
 
-        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, showImportButton, onImportToMine, isRead, commentsCount = 0 }) {
+        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, showImportButton, onImportToMine, isRead, isDownloaded, isInQueue, canQuickEdit, onQuickToggleRead, onQuickToggleDownload, onQuickToggleQueue, isHighlighted, commentsCount = 0 }) {
             const styles = getGenreStyles(book.genre);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
@@ -1188,7 +1335,7 @@
                 );
             }
             return (
-                <div onClick={onClick} className="book-card-hover group relative bg-white rounded-[24px] overflow-hidden border border-transparent hover:border-[#14B8A6] hover:shadow-2xl hover:shadow-[#14B8A6]/10 cursor-pointer flex flex-col h-full animate-fade-in">
+                <div onClick={onClick} className={`book-card-hover group relative bg-white rounded-[24px] overflow-hidden border border-transparent hover:border-[#14B8A6] hover:shadow-2xl hover:shadow-[#14B8A6]/10 cursor-pointer flex flex-col h-full animate-fade-in ${isHighlighted ? 'ring-4 ring-amber-200 ring-offset-2 animate-pulse' : ''}`}>
                     <div className="relative aspect-[3/4.2] overflow-hidden bg-gray-50">
                         <img src={coverUrl} alt={book.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" onError={(e) => { e.target.src='https://via.placeholder.com/300x450?text=Sem+Capa'; }} />
                         <div className="absolute top-3 left-3 right-3 flex flex-col gap-1.5 pointer-events-none z-10">
@@ -1253,6 +1400,40 @@
                                 )}
                             </div>
                         </div>
+                        {canQuickEdit && (
+                            <div className="mt-3 grid grid-cols-3 gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onQuickToggleRead(book);
+                                    }}
+                                    className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all active:scale-95 ${isRead ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-200 hover:text-emerald-700'}`}
+                                >
+                                    {isRead ? 'Lido' : 'Marcar'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onQuickToggleDownload(book);
+                                    }}
+                                    className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all active:scale-95 ${isDownloaded ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-white text-gray-500 border-gray-200 hover:border-cyan-200 hover:text-cyan-700'}`}
+                                >
+                                    {isDownloaded ? 'Baixado' : 'Baixar'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onQuickToggleQueue(book);
+                                    }}
+                                    className={`px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide border transition-all active:scale-95 ${isInQueue ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-gray-500 border-gray-200 hover:border-amber-200 hover:text-amber-700'}`}
+                                >
+                                    {isInQueue ? 'Na fila' : 'Fila'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             );
@@ -1267,12 +1448,19 @@
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
             const [uploadMessage, setUploadMessage] = useState("");
             const [commentDraft, setCommentDraft] = useState("");
+            const { registerTimeout } = useTimeoutRegistry();
+            const isMountedRef = useRef(true);
+
+            useEffect(() => () => {
+                isMountedRef.current = false;
+            }, []);
 
             const handleDeleteEpub = async () => {
                 try {
                     await deleteEpubFromCloud(book.epubPath || book.epubKey);
                     setUploadMessage("✅ EPUB removido com sucesso");
-                    setTimeout(() => {
+                    registerTimeout(() => {
+                        if (!isMountedRef.current) return;
                         onDeleteEpub(book.id);
                         setIsConfirmingDeleteEpub(false);
                     }, 500);
@@ -1336,37 +1524,31 @@
                                                     accept=".epub,application/epub+zip"
                                                     className="hidden"
                                                     disabled={isUploadingEpub}
-                                                    onChange={(e) => {
-                                                        try {
-                                                            const file = e.target.files?.[0];
-                                                            if (!file) return;
+                                                    onChange={async (e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (!file) return;
 
-                                                            // Apenas guarda arquivo, processa no próximo evento
-                                                            setTimeout(async () => {
-                                                                const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
-                                                                    promise,
-                                                                    new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), ms))
-                                                                ]);
-                                                                try {
-                                                                    setIsUploadingEpub(true);
-                                                                    setUploadMessage('A carregar EPUB...');
-                                                                    await withUiTimeout(
-                                                                        onUploadEpub(file),
-                                                                        30000,
-                                                                        'Upload sem resposta. Verifique bucket, políticas e conexão do Supabase.'
-                                                                    );
-                                                                    setUploadMessage(`✅ EPUB enviado: ${file.name}`);
-                                                                } catch (error) {
-                                                                    console.error(error);
-                                                                    setUploadMessage(`❌ ${error?.message || 'Falha ao enviar EPUB.'}`);
-                                                                } finally {
-                                                                    setIsUploadingEpub(false);
-                                                                    e.target.value = '';
-                                                                }
-                                                            }, 0);
-                                                        } catch (err) {
-                                                            console.error('Erro ao selecionar arquivo:', err);
-                                                            setUploadMessage(`❌ Erro: ${err.message}`);
+                                                        try {
+                                                            setIsUploadingEpub(true);
+                                                            setUploadMessage('A carregar EPUB...');
+                                                            await withUiTimeout(
+                                                                onUploadEpub(file),
+                                                                30000,
+                                                                'Upload sem resposta. Verifique bucket, políticas e conexão do Supabase.'
+                                                            );
+                                                            if (isMountedRef.current) {
+                                                                setUploadMessage(`✅ EPUB enviado: ${file.name}`);
+                                                            }
+                                                        } catch (error) {
+                                                            console.error(error);
+                                                            if (isMountedRef.current) {
+                                                                setUploadMessage(`❌ ${error?.message || 'Falha ao enviar EPUB.'}`);
+                                                            }
+                                                        } finally {
+                                                            if (isMountedRef.current) {
+                                                                setIsUploadingEpub(false);
+                                                            }
+                                                            e.target.value = '';
                                                         }
                                                     }}
                                                 />
@@ -1514,6 +1696,8 @@
         const CHAT_STORAGE_KEY = 'libdb-chat-v1-shared';
         const COMMENTS_STORAGE_KEY = 'libdb-comments-v1-shared';
         const NOTIFICATIONS_STORAGE_KEY = 'libdb-notifications-v1-shared';
+        const ACTIVITY_STORAGE_KEY = 'libdb-activity-v1-shared';
+        const PROFILE_PREFERENCES_VERSION = 'v1';
 
         const getBookKey = (book) => {
             const t = (book?.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -1555,10 +1739,16 @@
             const [notifications, setNotifications] = useState([]);
             const [notificationsInitialized, setNotificationsInitialized] = useState(false);
             const [notificationsOpen, setNotificationsOpen] = useState(false);
+            const [activityFeed, setActivityFeed] = useState([]);
+            const [activityInitialized, setActivityInitialized] = useState(false);
             const [amazonHighlights, setAmazonHighlights] = useState([]);
             const [isLoadingAmazonHighlights, setIsLoadingAmazonHighlights] = useState(false);
             const [amazonHighlightsError, setAmazonHighlightsError] = useState('');
+            const [highlightedBookId, setHighlightedBookId] = useState(null);
             const previousChatUnreadRef = useRef(null);
+            const chatMessagesContainerRef = useRef(null);
+            const { toasts, removeToast } = useToastCenter();
+            const { registerTimeout, clearRegisteredTimeouts } = useTimeoutRegistry();
             const [activeProfile, setActiveProfile] = useState(() => {
                 const stored = localStorage.getItem(ACTIVE_PROFILE_KEY);
                 return PROFILE_OPTIONS.some(profile => profile.id === stored) ? stored : PROFILE_OPTIONS[0].id;
@@ -1566,14 +1756,15 @@
 
             const switchProfile = useCallback((profileId) => {
                 if (profileId === activeProfile) return;
+                clearRegisteredTimeouts();
                 pendingProfileRef.current = profileId;
                 setProfileTransitionStage('out');
-                setTimeout(() => {
+                registerTimeout(() => {
                     setActiveProfile(pendingProfileRef.current);
                     setProfileTransitionStage('in');
-                    setTimeout(() => setProfileTransitionStage('idle'), 520);
+                    registerTimeout(() => setProfileTransitionStage('idle'), 520);
                 }, 420);
-            }, [activeProfile]);
+            }, [activeProfile, clearRegisteredTimeouts, registerTimeout]);
 
             const getProfileKeys = useCallback((profileId) => {
                 const version = PROFILE_STORAGE_VERSION[profileId] || 'v1';
@@ -1596,6 +1787,10 @@
                 return PROFILE_OPTIONS.find(profile => profile.label.toLowerCase() === firstName) || null;
             }, [user]);
             const myProfileId = loggedUserProfile?.id || null;
+            const profilePreferencesKey = useMemo(
+                () => `libdb-preferences-${PROFILE_PREFERENCES_VERSION}-${activeProfile}`,
+                [activeProfile]
+            );
             const profileGenres = useMemo(() => {
                 const available = new Set();
                 customBooks.forEach(book => {
@@ -1627,6 +1822,33 @@
                 () => notifications.filter(n => n.toProfileId === myProfileId && !n.readBy?.[myProfileId]).length,
                 [notifications, myProfileId]
             );
+            const firstUnreadChatIndex = useMemo(
+                () => sortedChatMessages.findIndex(msg => msg.to === activeProfile && !msg.readBy?.[activeProfile]),
+                [sortedChatMessages, activeProfile]
+            );
+            const persistencePayload = useMemo(() => ({
+                readStatus,
+                downloadStatus,
+                customCovers,
+                customBooks,
+                removedInitialIds,
+                readingOrder
+            }), [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder]);
+
+            const logActivity = useCallback((text, type = 'general') => {
+                if (!text) return;
+                const actorId = myProfileId || activeProfile;
+                const actorLabel = loggedUserProfile?.label || currentProfile.label;
+                const entry = {
+                    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    text,
+                    type,
+                    profileId: actorId,
+                    profileLabel: actorLabel,
+                    createdAt: Date.now()
+                };
+                setActivityFeed(prev => [entry, ...prev].slice(0, 60));
+            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label]);
 
             const playSubtleMessageBeep = useCallback(() => {
                 try {
@@ -1644,11 +1866,11 @@
                     gain.connect(context.destination);
                     oscillator.start();
                     oscillator.stop(context.currentTime + 0.13);
-                    setTimeout(() => context.close().catch(() => {}), 180);
+                    registerTimeout(() => context.close().catch(() => {}), 180);
                 } catch {
                     // Falha silenciosa: audio não é crítico.
                 }
-            }, []);
+            }, [registerTimeout]);
 
             const markChatAsRead = useCallback(() => {
                 setChatMessages(prev => {
@@ -1731,8 +1953,12 @@
                 const match = notification.bookKey
                     ? customBooks.find(b => getBookKey(b) === notification.bookKey)
                     : customBooks.find(b => b.id === notification.bookId);
-                if (match) setSelectedBook(match);
-            }, [customBooks]);
+                if (match) {
+                    setSelectedBook(match);
+                    setHighlightedBookId(match.id);
+                    registerTimeout(() => setHighlightedBookId(null), 1800);
+                }
+            }, [customBooks, registerTimeout]);
 
             const sendChatMessage = useCallback(() => {
                 const text = chatInput.trim();
@@ -1751,7 +1977,8 @@
                 };
                 setChatMessages(prev => [...prev, newMessage]);
                 setChatInput('');
-            }, [chatInput, otherProfile, activeProfile]);
+                logActivity(`Enviou uma mensagem para ${otherProfile.label}.`, 'chat');
+            }, [chatInput, otherProfile, activeProfile, logActivity]);
 
             const formatChatTime = (timestamp) => {
                 if (!timestamp) return '';
@@ -1796,7 +2023,8 @@
                         });
                     }
                 }
-            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, otherProfile, customBooks, pushNotification]);
+                logActivity(`Comentou em ${bookTitle}.`, 'comment');
+            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, otherProfile, customBooks, pushNotification, logActivity]);
 
             const deleteBookComment = useCallback((bookKey, commentId) => {
                 setCommentsByBook(prev => {
@@ -1820,7 +2048,9 @@
                     await saveToCloud(CHAT_STORAGE_KEY, []);
                     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify([]));
                 }
-            }, [user]);
+                notifyUser('Conversa limpa com sucesso.', 'success');
+                logActivity('Limpou o histórico do chat.', 'chat');
+            }, [user, logActivity]);
 
             useEffect(() => {
                 localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfile);
@@ -1902,6 +2132,8 @@
                     setNotifications([]);
                     setNotificationsInitialized(false);
                     setNotificationsOpen(false);
+                    setActivityFeed([]);
+                    setActivityInitialized(false);
                     return;
                 }
 
@@ -1910,6 +2142,7 @@
                     const loadedChat = await loadFromCloud(CHAT_STORAGE_KEY, []);
                     const loadedComments = await loadFromCloud(COMMENTS_STORAGE_KEY, {});
                     const loadedNotifications = await loadFromCloud(NOTIFICATIONS_STORAGE_KEY, []);
+                    const loadedActivity = await loadFromCloud(ACTIVITY_STORAGE_KEY, []);
                     if (!active) return;
                     setChatMessages(Array.isArray(loadedChat) ? loadedChat : []);
                     setChatInitialized(true);
@@ -1917,6 +2150,8 @@
                     setCommentsInitialized(true);
                     setNotifications(Array.isArray(loadedNotifications) ? loadedNotifications : []);
                     setNotificationsInitialized(true);
+                    setActivityFeed(Array.isArray(loadedActivity) ? loadedActivity : []);
+                    setActivityInitialized(true);
                 })();
 
                 return () => {
@@ -1940,6 +2175,35 @@
             }, [notifications, user, notificationsInitialized]);
 
             useEffect(() => {
+                if (!user || !activityInitialized) return;
+                saveToCloud(ACTIVITY_STORAGE_KEY, activityFeed);
+            }, [activityFeed, user, activityInitialized]);
+
+            useEffect(() => {
+                const raw = localStorage.getItem(profilePreferencesKey);
+                if (!raw) return;
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (typeof parsed.viewMode === 'string') setViewMode(parsed.viewMode);
+                    if (typeof parsed.activeGenre === 'string') setActiveGenre(parsed.activeGenre);
+                    if (typeof parsed.filterRead === 'boolean') setFilterRead(parsed.filterRead);
+                    if (typeof parsed.filterDownloaded === 'boolean') setFilterDownloaded(parsed.filterDownloaded);
+                } catch {
+                    // Preferências inválidas são ignoradas.
+                }
+            }, [profilePreferencesKey]);
+
+            useEffect(() => {
+                const preferences = {
+                    viewMode,
+                    activeGenre,
+                    filterRead,
+                    filterDownloaded
+                };
+                localStorage.setItem(profilePreferencesKey, JSON.stringify(preferences));
+            }, [profilePreferencesKey, viewMode, activeGenre, filterRead, filterDownloaded]);
+
+            useEffect(() => {
                 if (!chatOpen) return;
                 markChatAsRead();
             }, [chatOpen, activeProfile, markChatAsRead]);
@@ -1948,6 +2212,14 @@
                 if (!notificationsOpen) return;
                 markNotificationsAsRead();
             }, [notificationsOpen, myProfileId, markNotificationsAsRead]);
+
+            useEffect(() => {
+                if (!chatOpen) return;
+                registerTimeout(() => {
+                    if (!chatMessagesContainerRef.current) return;
+                    chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
+                }, 40);
+            }, [chatOpen, sortedChatMessages, registerTimeout]);
 
             useEffect(() => {
                 if (previousChatUnreadRef.current === null) {
@@ -2361,22 +2633,19 @@
                     const message = error?.message || 'Falha ao autenticar com Google.';
 
                     if (code === 'auth/unauthorized-domain') {
-                        alert(
-                            'Domínio não autorizado no Firebase.\n\n' +
-                            'Adicione estes domínios em Authentication > Settings > Authorized domains:\n' +
-                            '- localhost\n' +
-                            '- 127.0.0.1\n\n' +
-                            'Depois recarregue a página e tente novamente.'
+                        notifyUser(
+                            'Domínio não autorizado no Firebase. Adicione localhost e 127.0.0.1 em Authentication > Settings > Authorized domains e tente novamente.',
+                            'error'
                         );
                         return;
                     }
 
                     if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
-                        alert('O popup de login foi bloqueado/fechado. Permita popups para este site e tente novamente.');
+                        notifyUser('O popup de login foi bloqueado ou fechado. Permita popups para este site e tente novamente.', 'warning');
                         return;
                     }
 
-                    alert(`Erro no login (${code}): ${message}`);
+                    notifyUser(`Erro no login (${code}): ${message}`, 'error');
                 }
             };
 
@@ -2393,6 +2662,7 @@
                 if (!user) return; // Só carrega dados se estiver logado
 
                 setIsInitialized(false);
+                let cancelled = false;
 
                 const loadData = async () => {
                     const r = await loadFromCloud(profileKeys.read, {});
@@ -2411,7 +2681,7 @@
                             for (const legacyKey of legacyCustomCandidates) {
                                 const legacyBooks = await loadFromCloud(legacyKey, []);
                                 if (Array.isArray(legacyBooks) && legacyBooks.length > 0) {
-                                    recoveredLegacy = legacyBooks;
+                                    recoveredLegacy = dedupeBooksByIdentity(legacyBooks);
                                     console.log('📚 Catálogo legado da Gianny recuperado da chave:', legacyKey);
                                     break;
                                 }
@@ -2422,45 +2692,39 @@
                                 await saveToCloud(profileKeys.custom, cb);
                                 localStorage.setItem(profileKeys.custom, JSON.stringify(cb));
                             } else {
-                                cb = SEED_BOOKS;
+                                cb = dedupeBooksByIdentity(SEED_BOOKS);
                                 console.log('📚 Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
                             }
                         } else {
-                            cb = LAISA_DEMO_BOOKS;
+                            cb = dedupeBooksByIdentity(LAISA_DEMO_BOOKS);
                             console.log('📚 Carregando livro de demonstração para o perfil da Laisa.');
                         }
                     } else {
+                        cb = dedupeBooksByIdentity(cb);
                         console.log('📚 Exibindo ' + cb.length + ' livros do banco de dados...');
                     }
-                    
-                    setReadStatus(r); setDownloadStatus(d); setCustomCovers(c); 
+
+                    if (cancelled) return;
+
+                    setReadStatus(r); setDownloadStatus(d); setCustomCovers(c);
                     setCustomBooks(cb); setRemovedInitialIds(rem); setReadingOrder(q);
                     setIsInitialized(true);
                     isProfileSwitchingRef.current = false;
                 };
                 loadData();
+
+                return () => {
+                    cancelled = true;
+                };
             }, [user, profileKeys]);
 
-            // Persistência Automática (Nuvem + LocalStorage)
-            useEffect(() => {
-                if (!isInitialized || !user || isProfileSwitchingRef.current) return; // Só salva se estiver logado, inicializado e sem troca em andamento
-
-                // Salva na nuvem
-                saveToCloud(profileKeys.read, readStatus);
-                saveToCloud(profileKeys.download, downloadStatus);
-                saveToCloud(profileKeys.covers, customCovers);
-                saveToCloud(profileKeys.custom, customBooks);
-                saveToCloud(profileKeys.removed, removedInitialIds);
-                saveToCloud(profileKeys.queue, readingOrder);
-                
-                // Backup no localStorage
-                localStorage.setItem(profileKeys.read, JSON.stringify(readStatus));
-                localStorage.setItem(profileKeys.download, JSON.stringify(downloadStatus));
-                localStorage.setItem(profileKeys.covers, JSON.stringify(customCovers));
-                localStorage.setItem(profileKeys.custom, JSON.stringify(customBooks));
-                localStorage.setItem(profileKeys.removed, JSON.stringify(removedInitialIds));
-                localStorage.setItem(profileKeys.queue, JSON.stringify(readingOrder));
-            }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder, isInitialized, user, profileKeys]);
+            useProfilePersistence({
+                isInitialized,
+                user,
+                isProfileSwitchingRef,
+                profileKeys,
+                payload: persistencePayload
+            });
 
             useEffect(() => {
                 setRemoteEpubAvailability(
@@ -2479,22 +2743,21 @@
                 setEditingBook(null);
                 setActiveGenre("Todos");
                 setViewMode("grid");
-            }, []);
+                notifyUser(`Livro ${book.title || 'novo'} adicionado.`, 'success');
+                logActivity(`Adicionou o livro ${book.title || 'novo'}.`, 'catalog');
+            }, [logActivity]);
 
             const addAmazonHighlightToCatalog = useCallback((item) => {
                 if (!ensureOwnProfileWrite('Você não pode adicionar livros diretamente na biblioteca do outro perfil.')) return;
                 if (!item?.title || !item?.author) {
-                    alert('Não foi possível adicionar este livro agora.');
+                    notifyUser('Não foi possível adicionar este livro agora.', 'warning');
                     return;
                 }
 
-                const alreadyExists = customBooks.some(book =>
-                    (book.title || '').trim().toLowerCase() === (item.title || '').trim().toLowerCase() &&
-                    (book.author || '').trim().toLowerCase() === (item.author || '').trim().toLowerCase()
-                );
+                const alreadyExists = customBooks.some(book => booksMatch(book, item));
 
                 if (alreadyExists) {
-                    alert('Esse livro já existe no catálogo deste perfil.');
+                    notifyUser('Esse livro já existe no catálogo deste perfil.', 'warning');
                     return;
                 }
 
@@ -2524,18 +2787,21 @@
                     isDistopia
                 };
 
-                setCustomBooks(prev => [newBook, ...prev]);
+                setCustomBooks(prev => dedupeBooksByIdentity([newBook, ...prev]));
                 setViewMode('grid');
                 setActiveGenre('Todos');
-                alert('Livro adicionado ao catálogo com sucesso.');
-            }, [ensureOwnProfileWrite, customBooks, activeProfile]);
+                notifyUser('Livro adicionado ao catálogo com sucesso.', 'success');
+                logActivity(`Adicionou ${newBook.title} via sugestões Em Alta.`, 'catalog');
+            }, [ensureOwnProfileWrite, customBooks, activeProfile, logActivity]);
 
             const handleEditBook = useCallback((updatedBook) => {
                 setCustomBooks(prev => prev.map(book => (book.id === updatedBook.id ? { ...book, ...updatedBook } : book)));
                 setShowAddBook(false);
                 setEditingBook(null);
                 setSelectedBook(null);
-            }, []);
+                notifyUser(`Livro ${updatedBook.title || 'atualizado'} salvo.`, 'success');
+                logActivity(`Atualizou os dados de ${updatedBook.title || 'um livro'}.`, 'catalog');
+            }, [logActivity]);
 
             const handleUploadEpubForBook = useCallback(async (bookId, file) => {
                 const currentBook = customBooks.find(book => book.id === bookId);
@@ -2557,8 +2823,33 @@
             const handleToggleDownload = useCallback((id) => setDownloadStatus(p => ({ ...p, [id]: !p[id] })), []);
             const handleToggleQueue = useCallback((id) => setReadingOrder(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]), []);
 
+            const handleQuickToggleRead = useCallback((book) => {
+                if (!ensureOwnProfileWrite()) return;
+                const isNextRead = !readStatus[book.id];
+                setReadStatus(prev => ({ ...prev, [book.id]: isNextRead }));
+                notifyUser(isNextRead ? `${book.title} marcado como lido.` : `${book.title} desmarcado de lido.`, 'info');
+                logActivity(`${isNextRead ? 'Marcou' : 'Desmarcou'} ${book.title} como lido.`, 'status');
+            }, [ensureOwnProfileWrite, readStatus, logActivity]);
+
+            const handleQuickToggleDownload = useCallback((book) => {
+                if (!ensureOwnProfileWrite()) return;
+                const isNextDownloaded = !downloadStatus[book.id];
+                setDownloadStatus(prev => ({ ...prev, [book.id]: isNextDownloaded }));
+                notifyUser(isNextDownloaded ? `${book.title} marcado como baixado.` : `${book.title} desmarcado de baixado.`, 'info');
+                logActivity(`${isNextDownloaded ? 'Marcou' : 'Desmarcou'} ${book.title} como baixado.`, 'status');
+            }, [ensureOwnProfileWrite, downloadStatus, logActivity]);
+
+            const handleQuickToggleQueue = useCallback((book) => {
+                if (!ensureOwnProfileWrite()) return;
+                const inQueue = readingOrder.includes(book.id);
+                setReadingOrder(prev => inQueue ? prev.filter(x => x !== book.id) : [...prev, book.id]);
+                notifyUser(inQueue ? `${book.title} removido da fila.` : `${book.title} adicionado à fila.`, 'info');
+                logActivity(`${inQueue ? 'Removeu' : 'Adicionou'} ${book.title} ${inQueue ? 'da' : 'na'} fila.`, 'queue');
+            }, [ensureOwnProfileWrite, readingOrder, logActivity]);
+
             const deleteBookFromCatalog = (id) => {
                 const isCustom = customBooks.some(b => b.id === id);
+                const deletedBook = customBooks.find(b => b.id === id);
                 if (isCustom) setCustomBooks(p => p.filter(b => b.id !== id));
                 else setRemovedInitialIds(p => [...p, id]);
                 setReadingOrder(p => p.filter(bId => bId !== id));
@@ -2566,6 +2857,10 @@
                 setReadStatus(p => { const n = { ...p }; delete n[id]; return n; });
                 setDownloadStatus(p => { const n = { ...p }; delete n[id]; return n; });
                 setSelectedBook(null);
+                if (deletedBook?.title) {
+                    notifyUser(`${deletedBook.title} removido da biblioteca.`, 'warning');
+                    logActivity(`Removeu ${deletedBook.title} da biblioteca.`, 'catalog');
+                }
             };
 
             const handleGenreFilter = useCallback((genre) => {
@@ -2575,6 +2870,24 @@
                 setFilterRead(false);
                 setFilterDownloaded(false);
             }, []);
+
+            const toggleFilterRead = useCallback(() => {
+                if (viewMode === 'amazon') return;
+                setFilterRead(prev => {
+                    const next = !prev;
+                    notifyUser(next ? 'Filtro de lidos ativado.' : 'Filtro de lidos desativado.', 'info');
+                    return next;
+                });
+            }, [viewMode]);
+
+            const toggleFilterDownloaded = useCallback(() => {
+                if (viewMode === 'amazon') return;
+                setFilterDownloaded(prev => {
+                    const next = !prev;
+                    notifyUser(next ? 'Filtro de baixados ativado.' : 'Filtro de baixados desativado.', 'info');
+                    return next;
+                });
+            }, [viewMode]);
 
             const filteredBooks = useMemo(() => {
                 if (viewMode === "queue") return readingOrder.map(id => allBooksCombined.find(b => b.id === id)).filter(Boolean);
@@ -2608,24 +2921,21 @@
 
             const ensureOwnProfileWrite = useCallback((message) => {
                 if (isViewingOwnProfile) return true;
-                alert(message || 'Você só pode editar a sua própria biblioteca.');
+                notifyUser(message || 'Você só pode editar a sua própria biblioteca.', 'warning');
                 return false;
             }, [isViewingOwnProfile]);
 
             const importBookToMyProfile = useCallback(async (sourceBook) => {
                 if (!myProfileId || !user) {
-                    alert('Não foi possível identificar o perfil da conta logada.');
+                    notifyUser('Não foi possível identificar o perfil da conta logada.', 'error');
                     return;
                 }
                 const myKeys = getProfileKeys(myProfileId);
                 const myBooks = await loadFromCloud(myKeys.custom, []);
-                const alreadyExists = myBooks.some((b) =>
-                    (b.title || '').trim().toLowerCase() === (sourceBook.title || '').trim().toLowerCase() &&
-                    (b.author || '').trim().toLowerCase() === (sourceBook.author || '').trim().toLowerCase()
-                );
+                const alreadyExists = myBooks.some((b) => booksMatch(b, sourceBook));
 
                 if (alreadyExists) {
-                    alert('Esse livro já existe no seu perfil.');
+                    notifyUser('Esse livro já existe no seu perfil.', 'warning');
                     return;
                 }
 
@@ -2635,7 +2945,7 @@
                     importedFromProfile: activeProfile
                 };
 
-                const updatedMyBooks = [copiedBook, ...myBooks];
+                const updatedMyBooks = dedupeBooksByIdentity([copiedBook, ...myBooks]);
                 await saveToCloud(myKeys.custom, updatedMyBooks);
                 localStorage.setItem(myKeys.custom, JSON.stringify(updatedMyBooks));
 
@@ -2647,8 +2957,9 @@
                     text: `${loggedUserProfile?.label || 'Outro perfil'} importou ${sourceBook.title || 'um livro'} do seu catálogo`
                 });
 
-                alert(`Livro adicionado ao perfil ${loggedUserProfile?.label || 'atual'}.`);
-            }, [myProfileId, user, getProfileKeys, activeProfile, loggedUserProfile, pushNotification]);
+                notifyUser(`Livro adicionado ao perfil ${loggedUserProfile?.label || 'atual'}.`, 'success');
+                logActivity(`Importou ${sourceBook.title || 'um livro'} de ${currentProfile.label}.`, 'import');
+            }, [myProfileId, user, getProfileKeys, activeProfile, loggedUserProfile, pushNotification, logActivity, currentProfile.label]);
 
             const userFirstName = (user?.displayName || user?.email || 'Leitor').trim().split(' ')[0] || 'Leitor';
             const userInitials = (user?.displayName || user?.email || 'L')
@@ -2663,6 +2974,7 @@
 
             return (
                 <div className="min-h-screen">
+                    <ToastViewport toasts={toasts} onDismiss={removeToast} />
                     {authLoading ? (
                         <div className="flex items-center justify-center min-h-screen">
                             <div className="text-center">
@@ -2878,8 +3190,8 @@
                                             </div>
                                         )}
                                     </div>)}
-                                    <button disabled={viewMode === 'amazon'} onClick={() => setFilterRead(!filterRead)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border disabled:opacity-50 ${filterRead ? 'bg-[#1E3A5F] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Lido</button>
-                                    <button disabled={viewMode === 'amazon'} onClick={() => setFilterDownloaded(!filterDownloaded)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border disabled:opacity-50 ${filterDownloaded ? 'bg-[#14B8A6] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Baixado</button>
+                                    <button disabled={viewMode === 'amazon'} onClick={toggleFilterRead} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border disabled:opacity-50 active:scale-95 ${filterRead ? 'bg-[#1E3A5F] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Lido</button>
+                                    <button disabled={viewMode === 'amazon'} onClick={toggleFilterDownloaded} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border disabled:opacity-50 active:scale-95 ${filterDownloaded ? 'bg-[#14B8A6] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Baixado</button>
                                 </div>
                             </div>
 
@@ -2892,6 +3204,24 @@
                     </nav>
 
                     <main key={activeProfile + viewMode} className={`max-w-7xl mx-auto px-6 py-12 ${profileTransitionStage === 'out' ? 'profile-transition-out' : ''} ${profileTransitionStage === 'in' ? 'profile-transition-in' : ''}`} style={{ pointerEvents: profileTransitionStage === 'out' ? 'none' : 'auto' }}>
+                        {activityFeed.length > 0 && (
+                            <section className="mb-8 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+                                <div className="mb-2 flex items-center justify-between">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1E3A5F]">Atividade Recente</p>
+                                    <span className="text-[10px] text-gray-400">{activityFeed.length} eventos</span>
+                                </div>
+                                <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1">
+                                    {activityFeed.slice(0, 20).map((entry) => (
+                                        <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+                                            <p className="text-[11px] text-[#1E3A5F] truncate">
+                                                <span className="font-bold">{entry.profileLabel}:</span> {entry.text}
+                                            </p>
+                                            <span className="text-[10px] text-gray-400 shrink-0">{formatChatTime(entry.createdAt)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                         {viewMode === 'amazon' ? (
                             <div className="max-w-6xl mx-auto">
                                 <div className="mb-6 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03] p-4 md:p-5">
@@ -2982,6 +3312,12 @@
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
                                     hasRemoteEpub={!!remoteEpubAvailability[b.id]}
+                                    isInQueue={readingOrder.includes(b.id)}
+                                    isHighlighted={highlightedBookId === b.id}
+                                    canQuickEdit={isViewingOwnProfile && viewMode === 'grid'}
+                                    onQuickToggleRead={handleQuickToggleRead}
+                                    onQuickToggleDownload={handleQuickToggleDownload}
+                                    onQuickToggleQueue={handleQuickToggleQueue}
                                     commentsCount={(commentsByBook[getBookKey(b)] || []).length}
                                     isQueueMode={viewMode === 'queue'} queueIndex={idx} totalInQueue={readingOrder.length}
                                     onMove={(idx, dir) => {
@@ -2993,7 +3329,7 @@
                                             setReadingOrder(n);
                                         }
                                     }} 
-                                    onRemoveFromQueue={() => handleToggleQueue(b.id)} 
+                                    onRemoveFromQueue={() => handleQuickToggleQueue(b)} 
                                     onGenreClick={handleGenreFilter}
                                     showImportButton={canImportFromViewedProfile}
                                     onImportToMine={importBookToMyProfile}
@@ -3010,9 +3346,9 @@
                             isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id]} isInQueue={readingOrder.includes(selectedBook.id)}
                             hasRemoteEpub={!!remoteEpubAvailability[selectedBook.id]}
                             coverUrl={getCoverUrl(selectedBook)} 
-                            onToggleRead={() => { if (!ensureOwnProfileWrite()) return; handleToggleRead(selectedBook.id); }}
-                            onToggleDownload={() => { if (!ensureOwnProfileWrite()) return; handleToggleDownload(selectedBook.id); }} 
-                            onToggleQueue={() => { if (!ensureOwnProfileWrite()) return; handleToggleQueue(selectedBook.id); }}
+                            onToggleRead={() => handleQuickToggleRead(selectedBook)}
+                            onToggleDownload={() => handleQuickToggleDownload(selectedBook)} 
+                            onToggleQueue={() => handleQuickToggleQueue(selectedBook)}
                             onSetCover={(id, u) => setCustomCovers(p => ({ ...p, [id]: u }))} 
                             onRemoveCover={(id) => setCustomCovers(p => { const n = { ...p }; delete n[id]; return n; })} 
                             hasCustomCover={!!customCovers[selectedBook.id]}
@@ -3088,25 +3424,34 @@
                                     </div>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto px-3 py-3 bg-[#F8F9FB] space-y-2">
+                                <div ref={chatMessagesContainerRef} className="flex-1 overflow-y-auto px-3 py-3 bg-[#F8F9FB] space-y-2">
                                     {sortedChatMessages.length === 0 ? (
                                         <div className="h-full flex items-center justify-center text-center text-xs text-gray-400 px-6">
                                             Envie a primeira mensagem para começar a conversa entre os perfis.
                                         </div>
                                     ) : (
-                                        sortedChatMessages.map(msg => {
+                                        sortedChatMessages.map((msg, idx) => {
                                             const isMine = msg.from === activeProfile;
                                             const senderLabel = PROFILE_OPTIONS.find(p => p.id === msg.from)?.label || 'Perfil';
                                             return (
-                                                <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                                                    <div className={`max-w-[82%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                                                        <p className="text-[10px] font-semibold lowercase tracking-wide mb-1 px-1 text-gray-400">{senderLabel}</p>
-                                                        <div className={`rounded-2xl px-3 py-2 shadow-sm ${isMine ? 'bg-[#1E3A5F] text-white rounded-br-md' : 'bg-[#E6FFFB] text-[#0F766E] border border-[#99F6E4] rounded-bl-md'}`}>
-                                                            <p className="text-sm leading-snug whitespace-pre-wrap">{msg.text}</p>
-                                                            <p className={`mt-1 text-[10px] ${isMine ? 'text-white/70' : 'text-[#0F766E]/70'}`}>{formatChatTime(msg.createdAt)}</p>
+                                                <React.Fragment key={msg.id}>
+                                                    {chatFirstUnreadIndex > -1 && idx === chatFirstUnreadIndex && (
+                                                        <div className="flex items-center gap-2 py-1">
+                                                            <div className="h-px flex-1 bg-violet-200" />
+                                                            <span className="text-[9px] font-black uppercase tracking-wider text-violet-500">Não lidas</span>
+                                                            <div className="h-px flex-1 bg-violet-200" />
+                                                        </div>
+                                                    )}
+                                                    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                                        <div className={`max-w-[82%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                                            <p className="text-[10px] font-semibold lowercase tracking-wide mb-1 px-1 text-gray-400">{senderLabel}</p>
+                                                            <div className={`rounded-2xl px-3 py-2 shadow-sm ${isMine ? 'bg-[#1E3A5F] text-white rounded-br-md' : 'bg-[#E6FFFB] text-[#0F766E] border border-[#99F6E4] rounded-bl-md'}`}>
+                                                                <p className="text-sm leading-snug whitespace-pre-wrap">{msg.text}</p>
+                                                                <p className={`mt-1 text-[10px] ${isMine ? 'text-white/70' : 'text-[#0F766E]/70'}`}>{formatChatTime(msg.createdAt)}</p>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                </React.Fragment>
                                             );
                                         })
                                     )}
