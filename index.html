@@ -259,6 +259,9 @@
             'libdb-notifications-v1'
         ]);
 
+        // Chave compartilhada para mapear perfil -> UID do Firebase
+        const PROFILE_UIDS_KEY = 'profile-uids';
+
         // Retorna a referência Firestore correta: compartilhada ou pessoal
         const getCloudDocRef = (key) => {
             if (SHARED_KEYS.has(key)) {
@@ -287,6 +290,43 @@
                 data: cloudData.data ?? defaultValue,
                 timestampMs: extractTimestampMs(cloudData.timestamp)
             };
+        };
+
+        // Lê dados do Firestore usando o UID de outro usuário (para leitura cross-profile)
+        const readCloudSnapshotForUid = async (key, uid, defaultValue = {}) => {
+            if (!window.db) {
+                const ready = await waitForDb();
+                if (!ready) return { exists: false, data: defaultValue, timestampMs: 0 };
+            }
+            const docRef = doc(window.db, 'users', uid, 'data', key);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                return { exists: false, data: defaultValue, timestampMs: 0 };
+            }
+
+            const cloudData = docSnap.data() || {};
+            return {
+                exists: true,
+                data: cloudData.data ?? defaultValue,
+                timestampMs: extractTimestampMs(cloudData.timestamp)
+            };
+        };
+
+        // Carrega o mapa de UIDs dos perfis do Firestore compartilhado
+        const loadProfileUids = async () => {
+            if (!window.db) {
+                const ready = await waitForDb();
+                if (!ready) return {};
+            }
+            try {
+                const uidsDocRef = doc(window.db, 'shared', 'biblioteca-do-amanha', 'data', PROFILE_UIDS_KEY);
+                const snap = await getDoc(uidsDocRef);
+                return snap.exists() ? snap.data() : {};
+            } catch (e) {
+                console.warn('[ProfileUIDs] Erro ao carregar UIDs:', e);
+                return {};
+            }
         };
 
         const saveToCloud = async (key, data, setSyncStatus) => {
@@ -2173,6 +2213,7 @@
             const [bookSortMode, setBookSortMode] = useState('added-desc');
             const [selectedBook, setSelectedBook] = useState(null);
             const [viewMode, setViewMode] = useState("grid");
+            const [profileUids, setProfileUids] = useState({});
             const [isInitialized, setIsInitialized] = useState(false);
             const [user, setUser] = useState(null);
             const [authLoading, setAuthLoading] = useState(true);
@@ -2422,9 +2463,17 @@
                 if (!otherProfile) return;
                 try {
                     const otherKeys = getProfileKeys(otherProfile.id);
-                    // Força recarregar do Firestore para ter dados frescos (ignora cache)
-                    const cloudSnapshot = await readCloudSnapshot(otherKeys.custom, []);
-                    const otherBooks = cloudSnapshot.data || [];
+                    // Usa o UID do outro perfil para ler seus dados do Firestore
+                    const otherUid = profileUids[otherProfile.id];
+                    let otherBooks = [];
+                    if (otherUid) {
+                        const cloudSnapshot = await readCloudSnapshotForUid(otherKeys.custom, otherUid, []);
+                        otherBooks = cloudSnapshot.data || [];
+                    } else {
+                        // Fallback: tenta carregar do localStorage
+                        otherBooks = await loadFromCloud(otherKeys.custom, []);
+                        if (!Array.isArray(otherBooks)) otherBooks = [];
+                    }
                     const otherMatch = notification.bookKey
                         ? otherBooks.find(b => getBookKey(b) === notification.bookKey)
                         : otherBooks.find(b => b.id === notification.bookId);
@@ -2437,7 +2486,7 @@
                 } catch (err) {
                     console.warn('Erro ao carregar livro do outro perfil:', err);
                 }
-            }, [customBooks, otherProfile, getProfileKeys, getBookKey, registerTimeout]);
+            }, [customBooks, otherProfile, getProfileKeys, getBookKey, registerTimeout, profileUids]);
 
             const sendChatMessage = useCallback(() => {
                 try {
@@ -2655,6 +2704,28 @@
 
                 return () => unsubscribe();
             }, [notifyUser]);
+
+            // Salva o UID do perfil logado e carrega mapa de UIDs de todos os perfis
+            useEffect(() => {
+                if (!user || !window.db) return;
+                const profile = resolveProfileForUser(user);
+                const uidsDocRef = doc(window.db, 'shared', 'biblioteca-do-amanha', 'data', PROFILE_UIDS_KEY);
+                
+                const syncUids = async () => {
+                    try {
+                        if (profile) {
+                            await setDoc(uidsDocRef, { [profile.id]: user.uid }, { merge: true });
+                        }
+                        const snap = await getDoc(uidsDocRef);
+                        if (snap.exists()) {
+                            setProfileUids(snap.data());
+                        }
+                    } catch (e) {
+                        console.warn('[ProfileUIDs] Erro ao sincronizar UIDs:', e);
+                    }
+                };
+                syncUids();
+            }, [user]);
 
             useEffect(() => {
                 if (!user) return;
@@ -3401,17 +3472,28 @@
                     // Quando você visita outro perfil, sempre carrega do Firestore para garantir dados frescos
                     const isVisitingOtherProfile = !!myProfileId && activeProfile !== myProfileId;
                     
+                    // Resolve o UID do perfil visitado para leitura cross-profile
+                    let targetUid = null;
+                    if (isVisitingOtherProfile) {
+                        targetUid = profileUids[activeProfile];
+                        if (!targetUid) {
+                            const uids = await loadProfileUids();
+                            setProfileUids(uids);
+                            targetUid = uids[activeProfile];
+                        }
+                    }
+                    
                     const r = await loadFromCloud(profileKeys.read, {});
                     const d = await loadFromCloud(profileKeys.download, {});
                     const c = await loadFromCloud(profileKeys.covers, {});
                     
-                    // Se visitando outro perfil, força recarregar de Firestore (ignora cache local)
-                    let cb = isVisitingOtherProfile 
-                        ? (await readCloudSnapshot(profileKeys.custom, [])).data
+                    // Se visitando outro perfil, lê direto do Firestore do perfil alvo usando seu UID
+                    let cb = (isVisitingOtherProfile && targetUid)
+                        ? (await readCloudSnapshotForUid(profileKeys.custom, targetUid, [])).data
                         : await loadFromCloud(profileKeys.custom, []);
                     let rem = [];
-                    const q = isVisitingOtherProfile
-                        ? (await readCloudSnapshot(profileKeys.queue, [])).data
+                    const q = (isVisitingOtherProfile && targetUid)
+                        ? (await readCloudSnapshotForUid(profileKeys.queue, targetUid, [])).data
                         : await loadFromCloud(profileKeys.queue, []);
                     
                     // Se não há livros no banco, carrega SEED_BOOKS só para o perfil principal (Gianny)
@@ -3458,7 +3540,7 @@
                 return () => {
                     cancelled = true;
                 };
-            }, [user, profileKeys, myProfileId, activeProfile]);
+            }, [user, profileKeys, myProfileId, activeProfile, profileUids]);
 
             useProfilePersistence({
                 isInitialized,
@@ -3482,8 +3564,12 @@
                 
                 if (!epubSourceProfile) return;
                 
+                // Usa o UID correto do perfil fonte para acessar dados no Firestore
+                const targetUid = profileUids[epubSourceProfileId];
+                if (!targetUid) return; // UID ainda não disponível, será re-executado quando profileUids atualizar
+                
                 const otherKeys = getProfileKeys(epubSourceProfileId);
-                const docRef = getCloudDocRef(otherKeys.custom);
+                const docRef = doc(window.db, 'users', targetUid, 'data', otherKeys.custom);
                 
                 // Listener realtime para monitorar mudanças nos EPUBs do perfil apropriado
                 const unsubscribe = window.onSnapshot(docRef, (docSnap) => {
@@ -3506,7 +3592,7 @@
                     cancelled = true;
                     if (unsubscribe) unsubscribe();
                 };
-            }, [otherProfile, user, getProfileKeys, myProfileId, activeProfile, PROFILE_OPTIONS]);
+            }, [otherProfile, user, getProfileKeys, myProfileId, activeProfile, PROFILE_OPTIONS, profileUids]);
 
             useEffect(() => {
                 const availability = {};
