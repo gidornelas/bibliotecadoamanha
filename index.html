@@ -276,24 +276,28 @@
             const nowMs = Date.now();
             setLocalSnapshot(key, data, nowMs);
             try {
+                console.log('[Cloud] Salvando', key, 'com', typeof data === 'object' ? Object.keys(data).length : '? items');
                 if (!window.db) {
                     const ready = await waitForDb();
                     if (!ready) {
+                        console.warn('[Cloud] Database não pronto, marcando para sincronização posterior');
                         if (setSyncStatus) setSyncStatus("offline");
                         markPendingSyncKey(key, true);
                         return;
                     }
                 }
 
-                const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user'; // Para múltiplos usuários, use autenticação
+                const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user';
+                console.log('[Cloud] Enviando para Firestore:', { userId, key });
                 await setDoc(doc(window.db, 'users', userId, 'data', key), {
                     data: data,
                     timestamp: new Date(nowMs).toISOString()
                 });
+                console.log('[Cloud]', key, '- Salvo com sucesso na nuvem');
                 markPendingSyncKey(key, false);
                 if (setSyncStatus) setSyncStatus("online");
             } catch (error) {
-                console.error('Erro ao salvar na nuvem:', error);
+                console.error('[Cloud] Erro ao salvar', key, ':', error);
                 if (setSyncStatus) setSyncStatus("offline");
                 markPendingSyncKey(key, true);
             }
@@ -414,6 +418,7 @@
 
         const loadFromCloud = async (key, defaultValue = {}, setSyncStatus) => {
             try {
+                console.log('[Cloud] Carregando', key);
                 const [cloudSnapshot, localSnapshot] = await Promise.all([
                     readCloudSnapshot(key, defaultValue),
                     Promise.resolve(getLocalSnapshot(key, defaultValue))
@@ -425,21 +430,26 @@
 
                 // Escolhe sempre o dado mais novo entre local e nuvem.
                 if (localSnapshot.exists && localSnapshot.timestampMs > cloudSnapshot.timestampMs) {
+                    console.log('[Cloud]', key, '- Usando local (mais novo):', localSnapshot.data);
                     markPendingSyncKey(key, true);
                     return localSnapshot.data;
                 }
 
                 if (cloudSnapshot.exists) {
+                    console.log('[Cloud]', key, '- Usando nuvem, sincronizando local');
                     setLocalSnapshot(key, cloudSnapshot.data, cloudSnapshot.timestampMs || Date.now());
                     markPendingSyncKey(key, false);
                     return cloudSnapshot.data;
                 }
 
-                return localSnapshot.exists ? localSnapshot.data : defaultValue;
+                const result = localSnapshot.exists ? localSnapshot.data : defaultValue;
+                console.log('[Cloud]', key, '- Retornando default ou local');
+                return result;
             } catch (error) {
-                console.error('Erro ao carregar da nuvem:', error);
+                console.error('[Cloud] Erro ao carregar', key, ':', error);
                 if (setSyncStatus) setSyncStatus("offline");
                 const localSnapshot = getLocalSnapshot(key, defaultValue);
+                console.log('[Cloud]', key, '- Fallback para local em caso de erro');
                 return localSnapshot.exists ? localSnapshot.data : defaultValue;
             }
         };
@@ -2377,24 +2387,38 @@
             }, [customBooks, registerTimeout]);
 
             const sendChatMessage = useCallback(() => {
-                const text = chatInput.trim();
-                if (!text || !otherProfile) return;
-                const now = Date.now();
-                const newMessage = {
-                    id: `msg-${now}-${Math.random().toString(36).slice(2, 8)}`,
-                    from: activeProfile,
-                    to: otherProfile.id,
-                    text,
-                    createdAt: now,
-                    readBy: {
-                        [activeProfile]: true,
-                        [otherProfile.id]: false
+                try {
+                    const text = chatInput.trim();
+                    console.log('[Chat] Enviando mensagem:', { text, otherProfile: otherProfile?.id, activeProfile });
+                    if (!text || !otherProfile) {
+                        console.warn('[Chat] Abortando: texto vazio ou sem perfil destino');
+                        return;
                     }
-                };
-                setChatMessages(prev => [...prev, newMessage]);
-                setChatInput('');
-                logActivity(`Enviou uma mensagem para ${otherProfile.label}.`, 'chat');
-            }, [chatInput, otherProfile, activeProfile, logActivity]);
+                    const now = Date.now();
+                    const newMessage = {
+                        id: `msg-${now}-${Math.random().toString(36).slice(2, 8)}`,
+                        from: activeProfile,
+                        to: otherProfile.id,
+                        text,
+                        createdAt: now,
+                        readBy: {
+                            [activeProfile]: true,
+                            [otherProfile.id]: false
+                        }
+                    };
+                    console.log('[Chat] Mensagem criada:', newMessage);
+                    setChatMessages(prev => {
+                        const updated = [...prev, newMessage];
+                        console.log('[Chat] Estado atualizado com', updated.length, 'mensagens');
+                        return updated;
+                    });
+                    setChatInput('');
+                    console.log('[Chat] Input limpo');
+                } catch (err) {
+                    console.error('[Chat] Erro ao enviar mensagem:', err);
+                    notifyUser('Erro ao enviar mensagem: ' + err.message, 'error');
+                }
+            }, [chatInput, otherProfile, activeProfile]);
 
             const formatChatTime = (timestamp) => {
                 if (!timestamp) return '';
@@ -2406,54 +2430,76 @@
             };
 
             const addBookComment = useCallback((bookId, text) => {
-                const cleanText = (text || '').trim();
-                if (!cleanText) return;
-                const targetBook = customBooks.find(book => book.id === bookId);
-                const bookKey = targetBook ? getBookKey(targetBook) : bookId;
-                const bookTitle = targetBook?.title || 'um livro';
-                const commenterLabel = loggedUserProfile?.label || currentProfile.label;
-                const newComment = {
-                    id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                    authorProfileId: myProfileId || activeProfile,
-                    authorProfileLabel: commenterLabel,
-                    text: cleanText,
-                    createdAt: Date.now()
-                };
-
-                setCommentsByBook(prev => {
-                    const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
-                    return {
-                        ...prev,
-                        [bookKey]: [...currentComments, newComment]
-                    };
-                });
-                if (myProfileId) {
-                    const recipientProfile = PROFILE_OPTIONS.find(p => p.id !== myProfileId);
-                    if (recipientProfile) {
-                        pushNotification({
-                            toProfileId: recipientProfile.id,
-                            type: 'comment',
-                            bookId,
-                            bookKey,
-                            text: `${commenterLabel} comentou em ${bookTitle}`
-                        });
+                try {
+                    const cleanText = (text || '').trim();
+                    console.log('[Comments] Adicionando comentário:', { bookId, textLength: cleanText.length });
+                    if (!cleanText) {
+                        console.warn('[Comments] Texto vazio, abortando');
+                        return;
                     }
+                    const targetBook = customBooks.find(book => book.id === bookId);
+                    const bookKey = targetBook ? getBookKey(targetBook) : bookId;
+                    const bookTitle = targetBook?.title || 'um livro';
+                    const commenterLabel = loggedUserProfile?.label || currentProfile.label;
+                    const newComment = {
+                        id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                        authorProfileId: myProfileId || activeProfile,
+                        authorProfileLabel: commenterLabel,
+                        text: cleanText,
+                        createdAt: Date.now()
+                    };
+
+                    console.log('[Comments] Novo comentário:', newComment);
+                    setCommentsByBook(prev => {
+                        const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
+                        const updated = {
+                            ...prev,
+                            [bookKey]: [...currentComments, newComment]
+                        };
+                        console.log('[Comments] Estado atualizado para', bookKey, 'com', currentComments.length + 1, 'comentários');
+                        return updated;
+                    });
+                    if (myProfileId) {
+                        const recipientProfile = PROFILE_OPTIONS.find(p => p.id !== myProfileId);
+                        if (recipientProfile) {
+                            console.log('[Comments] Notificando', recipientProfile.label, 'sobre comentário');
+                            pushNotification({
+                                toProfileId: recipientProfile.id,
+                                type: 'comment',
+                                bookId,
+                                bookKey,
+                                text: `${commenterLabel} comentou em ${bookTitle}`
+                            });
+                        }
+                    }
+                    notifyUser(`Comentário adicionado em ${bookTitle}`, 'success');
+                } catch (err) {
+                    console.error('[Comments] Erro ao adicionar comentário:', err);
+                    notifyUser('Erro ao salvar comentário: ' + err.message, 'error');
                 }
-                logActivity(`Comentou em ${bookTitle}.`, 'comment');
-            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, otherProfile, customBooks, pushNotification, logActivity]);
+            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, otherProfile, customBooks, pushNotification]);
 
             const deleteBookComment = useCallback((bookKey, commentId) => {
-                setCommentsByBook(prev => {
-                    const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
-                    const filtered = currentComments.filter(comment => comment.id !== commentId);
-                    const next = { ...prev };
-                    if (filtered.length === 0) {
-                        delete next[bookKey];
-                    } else {
-                        next[bookKey] = filtered;
-                    }
-                    return next;
-                });
+                try {
+                    console.log('[Comments] Deletando comentário:', { bookKey, commentId });
+                    setCommentsByBook(prev => {
+                        const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
+                        const filtered = currentComments.filter(comment => comment.id !== commentId);
+                        const next = { ...prev };
+                        if (filtered.length === 0) {
+                            delete next[bookKey];
+                            console.log('[Comments] Livro', bookKey, 'removido (no more comments)');
+                        } else {
+                            next[bookKey] = filtered;
+                            console.log('[Comments] Comentário', commentId, 'removido. Restam', filtered.length, 'comentários');
+                        }
+                        return next;
+                    });
+                    notifyUser('Comentário removido', 'success');
+                } catch (err) {
+                    console.error('[Comments] Erro ao deletar comentário:', err);
+                    notifyUser('Erro ao deletar comentário: ' + err.message, 'error');
+                }
             }, []);
 
             const clearChatConversation = useCallback(async () => {
@@ -2604,12 +2650,20 @@
 
             useEffect(() => {
                 if (!user || !chatInitialized) return;
-                saveToCloud(CHAT_STORAGE_KEY, chatMessages);
+                console.log('[Chat] Salvando', chatMessages.length, 'mensagens na nuvem');
+                saveToCloud(CHAT_STORAGE_KEY, chatMessages).catch((err) => {
+                    console.error('[Chat] Erro ao salvar mensagens:', err);
+                    notifyUser('Erro ao salvar mensagem: ' + err.message, 'warning');
+                });
             }, [chatMessages, user, chatInitialized]);
 
             useEffect(() => {
                 if (!user || !commentsInitialized) return;
-                saveToCloud(COMMENTS_STORAGE_KEY, commentsByBook);
+                console.log('[Comments] Salvando comentários de', Object.keys(commentsByBook).length, 'livros');
+                saveToCloud(COMMENTS_STORAGE_KEY, commentsByBook).catch((err) => {
+                    console.error('[Comments] Erro ao salvar comentários:', err);
+                    notifyUser('Erro ao salvar comentário: ' + err.message, 'warning');
+                });
             }, [commentsByBook, user, commentsInitialized]);
 
             useEffect(() => {
