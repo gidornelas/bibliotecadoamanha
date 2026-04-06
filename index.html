@@ -1060,6 +1060,39 @@
                 return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
             }, []);
 
+            const improveCoverQuality = useCallback((inputUrl = '') => {
+                let url = (inputUrl || '').trim();
+                if (!url || url.startsWith('data:image/')) return url;
+
+                url = url.replace(/^http:\/\//i, 'https://');
+
+                // Prefer larger Open Library variants when available.
+                url = url.replace(/-(S|M)\.jpg(\?|$)/i, '-L.jpg$2');
+
+                // Promote Goodreads-style low-res suffixes.
+                url = url
+                    .replace(/_SX\d+_/gi, '_SX600_')
+                    .replace(/_SY\d+_/gi, '_SY900_')
+                    .replace(/_SL\d+_/gi, '_SL600_');
+
+                // Google Books often returns tiny thumbnails; request higher zoom.
+                try {
+                    const parsed = new URL(url);
+                    const host = parsed.hostname || '';
+                    if (/google|gstatic|googleusercontent/i.test(host)) {
+                        const currentZoom = Number(parsed.searchParams.get('zoom') || '0');
+                        if (!Number.isNaN(currentZoom) && currentZoom < 3) parsed.searchParams.set('zoom', '3');
+                        if (!parsed.searchParams.has('zoom')) parsed.searchParams.set('zoom', '3');
+                        parsed.searchParams.delete('edge');
+                        url = parsed.toString();
+                    }
+                } catch {
+                    // If URL parsing fails, keep best-effort transformed URL.
+                }
+
+                return url;
+            }, []);
+
             const coverSources = useMemo(() => {
                 const fromItem = Array.isArray(item?.coverCandidates) ? item.coverCandidates : [];
                 const titleCover = item?.title ? `https://covers.openlibrary.org/b/title/${encodeURIComponent(item.title)}-L.jpg?default=false` : '';
@@ -1074,11 +1107,13 @@
                 const merged = [...fromItem, item?.coverUrl || '', isbnCover, titleCover]
                     .map(url => (url || '').trim())
                     .filter(Boolean)
-                    .map(url => url.replace(/^http:\/\//i, 'https://'));
+                    .map(improveCoverQuality);
                 // Keep localhost proxy URLs as http, but normalize other http links to https.
                 const normalized = merged.map(url => (url.startsWith('http://localhost:') ? url : url.replace(/^http:\/\//i, 'https://')));
-                return [...new Set([...proxyCoverUrls, ...normalized].filter(Boolean))];
-            }, [item]);
+                // Use proxy covers as fallback because they can be smaller/compressed.
+                const proxyAsFallback = proxyCoverUrls.map(improveCoverQuality);
+                return [...new Set([...normalized, ...proxyAsFallback].filter(Boolean))];
+            }, [item, improveCoverQuality]);
 
             useEffect(() => {
                 setCoverIndex(0);
@@ -1096,6 +1131,13 @@
                     className="w-full h-full object-cover"
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    onLoad={(e) => {
+                        const img = e.currentTarget;
+                        const tooSmall = img.naturalWidth > 0 && (img.naturalWidth < 240 || img.naturalHeight < 340);
+                        if (tooSmall && coverIndex < coverSources.length - 1) {
+                            setCoverIndex(prev => prev + 1);
+                        }
+                    }}
                     onError={() => {
                         // Avanca para a proxima opcao e, no fim, cai no placeholder inline.
                         setCoverIndex(prev => prev + 1);
