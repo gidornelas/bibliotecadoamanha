@@ -1204,6 +1204,11 @@
                                 </span>
                             )}
                         </div>
+                        {commentsCount > 0 && (
+                            <div className="absolute top-2 right-2 z-30 flex items-center justify-center bg-white rounded-full shadow-md min-w-[22px] h-[22px] px-1">
+                                <span className="text-[9px] font-black text-[#1E3A5F] leading-none">💬 {commentsCount}</span>
+                            </div>
+                        )}
                         <div className="absolute inset-0 bg-[#1E3A5F]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px] z-20">
                             <span className="bg-white text-[#1E3A5F] px-5 py-2.5 rounded-full text-[11px] font-black shadow-xl">VER DETALHES</span>
                         </div>
@@ -1219,11 +1224,6 @@
                                 {book.genre}
                             </span>
                             <div className="flex items-center gap-1">
-                                {commentsCount > 0 && (
-                                    <span className="inline-flex items-center justify-center px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200">
-                                        {commentsCount} com.
-                                    </span>
-                                )}
                                 {showImportButton && (
                                     <button
                                         onClick={(e) => {
@@ -1512,6 +1512,12 @@
         const COMMENTS_STORAGE_KEY = 'libdb-comments-v1-shared';
         const NOTIFICATIONS_STORAGE_KEY = 'libdb-notifications-v1-shared';
 
+        const getBookKey = (book) => {
+            const t = (book?.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            const a = (book?.author || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            return `${t}||${a}`;
+        };
+
         const App = () => {
             const [readStatus, setReadStatus] = useState({});
             const [downloadStatus, setDownloadStatus] = useState({});
@@ -1716,6 +1722,15 @@
                 setNotifications(prev => prev.filter(n => n.toProfileId !== myProfileId));
             }, [myProfileId]);
 
+            const openBookFromNotification = useCallback((notification) => {
+                if (!notification.bookKey && !notification.bookId) return;
+                setNotificationsOpen(false);
+                const match = notification.bookKey
+                    ? customBooks.find(b => getBookKey(b) === notification.bookKey)
+                    : customBooks.find(b => b.id === notification.bookId);
+                if (match) setSelectedBook(match);
+            }, [customBooks]);
+
             const sendChatMessage = useCallback(() => {
                 const text = chatInput.trim();
                 if (!text || !otherProfile) return;
@@ -1747,44 +1762,45 @@
             const addBookComment = useCallback((bookId, text) => {
                 const cleanText = (text || '').trim();
                 if (!cleanText) return;
+                const targetBook = customBooks.find(book => book.id === bookId);
+                const bookKey = targetBook ? getBookKey(targetBook) : bookId;
+                const bookTitle = targetBook?.title || 'um livro';
+                const commenterLabel = loggedUserProfile?.label || currentProfile.label;
                 const newComment = {
                     id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                     authorProfileId: myProfileId || activeProfile,
-                    authorProfileLabel: loggedUserProfile?.label || currentProfile.label,
+                    authorProfileLabel: commenterLabel,
                     text: cleanText,
                     createdAt: Date.now()
                 };
 
                 setCommentsByBook(prev => {
-                    const currentComments = Array.isArray(prev[bookId]) ? prev[bookId] : [];
+                    const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
                     return {
                         ...prev,
-                        [bookId]: [...currentComments, newComment]
+                        [bookKey]: [...currentComments, newComment]
                     };
                 });
-                const notifyProfileId = (myProfileId && activeProfile !== myProfileId) ? activeProfile : otherProfile?.id;
-                if (notifyProfileId) {
-                    const targetBook = customBooks.find(book => book.id === bookId);
-                    const bookTitle = targetBook?.title || 'um livro';
-                    const commenterLabel = loggedUserProfile?.label || currentProfile.label;
+                if (otherProfile?.id) {
                     pushNotification({
-                        toProfileId: notifyProfileId,
+                        toProfileId: otherProfile.id,
                         type: 'comment',
                         bookId,
+                        bookKey,
                         text: `${commenterLabel} comentou em ${bookTitle}`
                     });
                 }
             }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, otherProfile, customBooks, pushNotification]);
 
-            const deleteBookComment = useCallback((bookId, commentId) => {
+            const deleteBookComment = useCallback((bookKey, commentId) => {
                 setCommentsByBook(prev => {
-                    const currentComments = Array.isArray(prev[bookId]) ? prev[bookId] : [];
+                    const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
                     const filtered = currentComments.filter(comment => comment.id !== commentId);
                     const next = { ...prev };
                     if (filtered.length === 0) {
-                        delete next[bookId];
+                        delete next[bookKey];
                     } else {
-                        next[bookId] = filtered;
+                        next[bookKey] = filtered;
                     }
                     return next;
                 });
@@ -2808,18 +2824,22 @@
                                                         <p className="text-[11px] text-gray-400 px-2 py-3">Nenhuma notificação por enquanto.</p>
                                                     ) : (
                                                         sortedNotifications.slice(0, 30).map((notification) => {
-                                                            const isUnread = notification.toProfileId === activeProfile && !notification.readBy?.[activeProfile];
+                                                            const isUnread = notification.toProfileId === myProfileId && !notification.readBy?.[myProfileId];
+                                                            const isClickable = notification.type === 'comment' && (notification.bookKey || notification.bookId);
                                                             return (
-                                                                <div key={notification.id} className={`rounded-xl border px-2.5 py-2 ${isUnread ? 'border-violet-200 bg-violet-50/50' : 'border-gray-100 bg-gray-50'}`}>
+                                                                <div key={notification.id}
+                                                                    className={`rounded-xl border px-2.5 py-2 ${isUnread ? 'border-violet-200 bg-violet-50/50' : 'border-gray-100 bg-gray-50'} ${isClickable ? 'cursor-pointer hover:border-violet-300 transition-colors' : ''}`}
+                                                                    onClick={isClickable ? () => openBookFromNotification(notification) : undefined}
+                                                                >
                                                                     <div className="flex items-start justify-between gap-2">
                                                                         <div className="min-w-0 flex-1">
                                                                             <p className="text-[10px] text-gray-400 lowercase font-semibold">{notification.fromProfileLabel || 'perfil'}</p>
-                                                                            <p className="text-[11px] text-[#1E3A5F] leading-relaxed">{notification.text}</p>
+                                                                            <p className={`text-[11px] text-[#1E3A5F] leading-relaxed ${isClickable ? 'underline decoration-dotted underline-offset-2' : ''}`}>{notification.text}</p>
                                                                             <p className="mt-1 text-[10px] text-gray-400">{formatChatTime(notification.createdAt)}</p>
                                                                         </div>
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => deleteNotification(notification.id)}
+                                                                            onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
                                                                             className="shrink-0 p-1 rounded-md text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
                                                                             title="Apagar notificação"
                                                                         >
@@ -2938,7 +2958,7 @@
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
                                     hasRemoteEpub={!!remoteEpubAvailability[b.id]}
-                                    commentsCount={(commentsByBook[b.id] || []).length}
+                                    commentsCount={(commentsByBook[getBookKey(b)] || []).length}
                                     isQueueMode={viewMode === 'queue'} queueIndex={idx} totalInQueue={readingOrder.length}
                                     onMove={(idx, dir) => {
                                         const n = [...readingOrder];
@@ -2973,11 +2993,14 @@
                             onRemoveCover={(id) => setCustomCovers(p => { const n = { ...p }; delete n[id]; return n; })} 
                             hasCustomCover={!!customCovers[selectedBook.id]}
                             isViewingOwnProfile={isViewingOwnProfile}
-                            bookComments={(commentsByBook[selectedBook.id] || []).slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))}
+                            bookComments={(commentsByBook[getBookKey(selectedBook)] || []).slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))}
                             onAddComment={addBookComment}
-                            onDeleteComment={deleteBookComment}
-                            currentProfileLabel={currentProfile.label}
-                            currentProfileId={activeProfile}
+                            onDeleteComment={(bookId, commentId) => {
+                                const book = customBooks.find(b => b.id === bookId) || selectedBook;
+                                deleteBookComment(getBookKey(book), commentId);
+                            }}
+                            currentProfileLabel={loggedUserProfile?.label || currentProfile.label}
+                            currentProfileId={myProfileId || activeProfile}
                             onEdit={() => { if (!ensureOwnProfileWrite()) return; setEditingBook(selectedBook); setShowAddBook(true); }}
                             onUploadEpub={(file) => {
                                 if (!ensureOwnProfileWrite()) {
