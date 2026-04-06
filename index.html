@@ -1754,25 +1754,20 @@
             );
         }
 
-        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, effectiveEpub, showImportButton, onImportToMine, isRead, isDownloaded, isInQueue, canQuickEdit, onQuickToggleRead, onQuickToggleDownload, onQuickToggleQueue, isHighlighted, commentsCount = 0, onDragReorder, dragOverIndex, onDragOver, onDragLeave }) {
+        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, effectiveEpub, showImportButton, onImportToMine, isRead, isDownloaded, isInQueue, canQuickEdit, onQuickToggleRead, onQuickToggleDownload, onQuickToggleQueue, isHighlighted, commentsCount = 0, onDragReorder, isDragging, onDragOver, onDragLeave }) {
             const styles = getGenreStyles(book.genre);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
             if (isQueueMode) {
-                const isDragTarget = dragOverIndex === queueIndex;
                 return (
                     <div
                         draggable
                         onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragReorder && onDragReorder('start', queueIndex); }}
-                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver && onDragOver(queueIndex); }}
-                        onDragLeave={() => onDragLeave && onDragLeave()}
-                        onDrop={(e) => { e.preventDefault(); onDragReorder && onDragReorder('drop', queueIndex); }}
-                        onDragEnd={() => onDragReorder && onDragReorder('end', queueIndex)}
-                        className={`bg-white p-4 rounded-[28px] border flex items-center gap-3 md:gap-5 shadow-sm transition-all group animate-fade-in select-none ${
-                            isDragTarget
-                                ? 'border-[#14B8A6] shadow-lg shadow-[#14B8A6]/20 scale-[1.01]'
-                                : 'border-gray-100 hover:shadow-md'
-                        }`}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; const rect = e.currentTarget.getBoundingClientRect(); const insertIdx = e.clientY < rect.top + rect.height / 2 ? queueIndex : queueIndex + 1; onDragOver && onDragOver(insertIdx); }}
+                        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { onDragLeave && onDragLeave(); } }}
+                        onDrop={(e) => { e.preventDefault(); onDragReorder && onDragReorder('drop'); }}
+                        onDragEnd={() => onDragReorder && onDragReorder('end')}
+                        className={`bg-white p-4 rounded-[28px] border border-gray-100 flex items-center gap-3 md:gap-5 shadow-sm transition-all group animate-fade-in select-none hover:shadow-md${isDragging ? ' opacity-40' : ''}`}
                     >
                         {/* Drag handle */}
                         <div
@@ -2271,8 +2266,8 @@
             const [isLoadingAmazonHighlights, setIsLoadingAmazonHighlights] = useState(false);
             const [amazonHighlightsError, setAmazonHighlightsError] = useState('');
             const [highlightedBookId, setHighlightedBookId] = useState(null);
-            const dragSrcIndexRef = useRef(null);
-            const [dragOverIndex, setDragOverIndex] = useState(null);
+            const [dragSrcIndex, setDragSrcIndex] = useState(null);
+            const [dragInsertIndex, setDragInsertIndex] = useState(null);
             const previousChatUnreadRef = useRef(null);
             const chatMessagesContainerRef = useRef(null);
             const chatFromCloudRef = useRef(false);
@@ -4351,8 +4346,15 @@
                                 </button>
                             )}
 
-                            {sortedFilteredBooks.map((b, idx) => b && (
-                                <BookCard 
+                            {sortedFilteredBooks.map((b, idx) => {
+                                if (!b) return null;
+                                const showInsertBefore = viewMode === 'queue' && dragSrcIndex !== null && dragInsertIndex === idx && dragSrcIndex !== idx && dragSrcIndex + 1 !== idx;
+                                return (
+                                    <React.Fragment key={b.id}>
+                                        {showInsertBefore && (
+                                            <div className="h-1 rounded-full bg-[#14B8A6] mx-4 shadow-sm shadow-[#14B8A6]/40" />
+                                        )}
+                                        <BookCard 
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
                                     hasRemoteEpub={!!remoteEpubAvailability[b.id]}
@@ -4374,33 +4376,40 @@
                                             setReadingOrder(n);
                                         }
                                     }}
-                                    onDragReorder={(action, targetIdx) => {
+                                    onDragReorder={(action, srcIdx) => {
                                         if (action === 'start') {
-                                            dragSrcIndexRef.current = targetIdx;
+                                            setDragSrcIndex(srcIdx);
                                         } else if (action === 'drop') {
-                                            const src = dragSrcIndexRef.current;
-                                            if (src !== null && src !== targetIdx) {
+                                            const src = dragSrcIndex;
+                                            const insertIdx = dragInsertIndex;
+                                            if (src !== null && insertIdx !== null && src !== insertIdx && src + 1 !== insertIdx) {
                                                 const n = [...readingOrder];
                                                 const [moved] = n.splice(src, 1);
-                                                n.splice(targetIdx, 0, moved);
+                                                const adjustedInsert = insertIdx > src ? insertIdx - 1 : insertIdx;
+                                                n.splice(adjustedInsert, 0, moved);
                                                 setReadingOrder(n);
                                             }
-                                            dragSrcIndexRef.current = null;
-                                            setDragOverIndex(null);
-                                        } else if (action === 'end') {
-                                            dragSrcIndexRef.current = null;
-                                            setDragOverIndex(null);
+                                            setDragSrcIndex(null);
+                                            setDragInsertIndex(null);
+                                        } else {
+                                            setDragSrcIndex(null);
+                                            setDragInsertIndex(null);
                                         }
                                     }}
-                                    dragOverIndex={dragOverIndex}
-                                    onDragOver={(targetIdx) => setDragOverIndex(targetIdx)}
-                                    onDragLeave={() => setDragOverIndex(null)}
+                                    isDragging={dragSrcIndex === idx}
+                                    onDragOver={(insertIdx) => setDragInsertIndex(insertIdx)}
+                                    onDragLeave={() => setDragInsertIndex(null)}
                                     onRemoveFromQueue={() => handleQuickToggleQueue(b)} 
                                     onGenreClick={handleGenreFilter}
                                     showImportButton={canImportFromViewedProfile}
                                     onImportToMine={importBookToMyProfile}
                                 />
-                            ))}
+                                    </React.Fragment>
+                                );
+                            })}
+                            {viewMode === 'queue' && dragSrcIndex !== null && dragInsertIndex === sortedFilteredBooks.length && dragSrcIndex !== sortedFilteredBooks.length - 1 && (
+                                <div className="h-1 rounded-full bg-[#14B8A6] mx-4 shadow-sm shadow-[#14B8A6]/40" />
+                            )}
                         </div>
                         </>
                         )}
