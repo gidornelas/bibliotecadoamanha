@@ -3867,28 +3867,14 @@
                         </div>
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end gap-8 md:gap-10 lg:gap-12 relative z-10">
                             <div className="logo-container mt-4 md:mt-10 md:ml-6 lg:ml-10">
-                                <div className="flex items-start gap-3 md:gap-4">
-                                    <img
-                                        src={activeProfile === 'perfil-2' ? 'https://i.imgur.com/yZ7ONCZ.png' : 'https://i.imgur.com/FfKzzxi.png'}
-                                        alt=""
-                                        className="h-[110px] w-[110px] object-contain shrink-0"
-                                        aria-hidden="true"
-                                        referrerPolicy="no-referrer"
-                                        crossOrigin="anonymous"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = 'https://i.imgur.com/bYjPl8I.png';
-                                        }}
-                                    />
-                                    <img
-                                        src="https://i.imgur.com/9fjgoqI.png"
-                                        alt="Biblioteca do Amanhã"
-                                        className="animate-fade-in"
-                                        referrerPolicy="no-referrer"
-                                        crossOrigin="anonymous"
-                                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/260x86/1E3A5F/FFFFFF?text=Biblioteca+do+Amanh%C3%A3'; }}
-                                    />
-                                </div>
+                                <img
+                                    src={activeProfile === 'perfil-2' ? 'https://i.imgur.com/o6KllQ2.png' : 'https://i.imgur.com/ewWnZWm.png'}
+                                    alt="Biblioteca do Amanhã"
+                                    className="animate-fade-in h-[80px] md:h-[86px] w-auto object-contain"
+                                    referrerPolicy="no-referrer"
+                                    crossOrigin="anonymous"
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/320x100/1E3A5F/FFFFFF?text=Biblioteca+do+Amanh%C3%A3'; }}
+                                />
                             </div>
                             <div className="w-full md:w-auto md:ml-auto flex flex-col items-center md:items-end gap-3 md:gap-4">
                                 {!authLoading && user && (
