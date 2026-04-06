@@ -1205,8 +1205,11 @@
                             )}
                         </div>
                         {commentsCount > 0 && (
-                            <div className="absolute top-2 right-2 z-30 flex items-center justify-center bg-white rounded-full shadow-md min-w-[22px] h-[22px] px-1">
-                                <span className="text-[9px] font-black text-[#1E3A5F] leading-none">💬 {commentsCount}</span>
+                            <div className="absolute top-2 right-2 z-30 drop-shadow-md">
+                                <svg viewBox="0 0 36 34" width="36" height="34" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M2 2 H34 Q36 2 36 4 V22 Q36 24 34 24 H14 L6 32 V24 H2 Q0 24 0 22 V4 Q0 2 2 2 Z" fill="white"/>
+                                    <text x="18" y="17" textAnchor="middle" dominantBaseline="middle" fontFamily="system-ui,sans-serif" fontWeight="900" fontSize="11" fill="#1E3A5F">{commentsCount}</text>
+                                </svg>
                             </div>
                         )}
                         <div className="absolute inset-0 bg-[#1E3A5F]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px] z-20">
