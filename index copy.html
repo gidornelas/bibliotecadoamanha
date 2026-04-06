@@ -1784,14 +1784,17 @@
                         [bookKey]: [...currentComments, newComment]
                     };
                 });
-                if (otherProfile?.id) {
-                    pushNotification({
-                        toProfileId: otherProfile.id,
-                        type: 'comment',
-                        bookId,
-                        bookKey,
-                        text: `${commenterLabel} comentou em ${bookTitle}`
-                    });
+                if (myProfileId) {
+                    const recipientProfile = PROFILE_OPTIONS.find(p => p.id !== myProfileId);
+                    if (recipientProfile) {
+                        pushNotification({
+                            toProfileId: recipientProfile.id,
+                            type: 'comment',
+                            bookId,
+                            bookKey,
+                            text: `${commenterLabel} comentou em ${bookTitle}`
+                        });
+                    }
                 }
             }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, otherProfile, customBooks, pushNotification]);
 
