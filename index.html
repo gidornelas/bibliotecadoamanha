@@ -3474,31 +3474,39 @@
             useEffect(() => {
                 if (!otherProfile || !user || !window.db) return;
                 let cancelled = false;
-                const otherKeys = getProfileKeys(otherProfile.id);
+                
+                // Se está visitando outro perfil, monitora EPUBs do perfil VISITADO, não do "outro"
+                const isVisitingOtherProfile = !!myProfileId && activeProfile !== myProfileId;
+                const epubSourceProfileId = isVisitingOtherProfile ? activeProfile : otherProfile.id;
+                const epubSourceProfile = PROFILE_OPTIONS.find(p => p.id === epubSourceProfileId);
+                
+                if (!epubSourceProfile) return;
+                
+                const otherKeys = getProfileKeys(epubSourceProfileId);
                 const docRef = getCloudDocRef(otherKeys.custom);
                 
-                // Listener realtime para monitorar mudanças nos EPUBs do outro perfil
+                // Listener realtime para monitorar mudanças nos EPUBs do perfil apropriado
                 const unsubscribe = window.onSnapshot(docRef, (docSnap) => {
                     if (cancelled) return;
-                    const otherBooks = (docSnap.data()?.data) || [];
-                    if (!Array.isArray(otherBooks)) return;
+                    const books = (docSnap.data()?.data) || [];
+                    if (!Array.isArray(books)) return;
                     
                     const map = {};
-                    otherBooks.forEach(b => {
+                    books.forEach(b => {
                         if (b.epubUrl) {
                             map[getBookKey(b)] = { epubUrl: b.epubUrl, epubFileName: b.epubFileName, epubPath: b.epubPath, epubKey: b.epubKey };
                         }
                     });
                     setOtherProfileEpubMap(map);
                 }, (error) => {
-                    console.warn('Erro ao sincronizar EPUBs do outro perfil:', error);
+                    console.warn('Erro ao sincronizar EPUBs:', error);
                 });
                 
                 return () => { 
                     cancelled = true;
                     if (unsubscribe) unsubscribe();
                 };
-            }, [otherProfile, user, getProfileKeys]);
+            }, [otherProfile, user, getProfileKeys, myProfileId, activeProfile, PROFILE_OPTIONS]);
 
             useEffect(() => {
                 const availability = {};
