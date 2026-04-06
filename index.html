@@ -825,6 +825,45 @@
                 return out;
             };
 
+            const GENERIC_TAG_BLOCKLIST = new Set([
+                'fiction', 'ficcao', 'ficção', 'romance', 'livro', 'book', 'novel', 'literatura',
+                'autor', 'autora', 'escritor', 'escritora', 'volume', 'serie', 'série', 'drama'
+            ]);
+
+            const TAG_STOPWORDS = new Set([
+                'a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'no', 'na', 'nos', 'nas',
+                'um', 'uma', 'para', 'por', 'com', 'sem', 'ao', 'aos', 'à', 'às', 'the', 'of', 'and'
+            ]);
+
+            const buildNoiseTokenSet = (title = '', author = '') => {
+                const source = `${title || ''} ${author || ''}`;
+                const tokens = new Set();
+                normalizeTag(source)
+                    .split(' ')
+                    .map(v => v.trim())
+                    .filter(v => v.length >= 3 && !TAG_STOPWORDS.has(v))
+                    .forEach(v => tokens.add(v));
+                return tokens;
+            };
+
+            const sanitizeStoryTags = (values = [], title = '', author = '') => {
+                const noiseTokens = buildNoiseTokenSet(title, author);
+                return uniqueTags(values).filter((tag) => {
+                    const key = normalizeTag(tag);
+                    if (!key) return false;
+                    if (GENERIC_TAG_BLOCKLIST.has(key)) return false;
+                    if (noiseTokens.has(key)) return false;
+
+                    const words = key.split(' ').filter(Boolean);
+                    if (!words.length) return false;
+
+                    const allNoise = words.every(word => noiseTokens.has(word) || TAG_STOPWORDS.has(word));
+                    if (allNoise) return false;
+
+                    return words.some(word => word.length >= 4 && !TAG_STOPWORDS.has(word));
+                }).slice(0, 10);
+            };
+
             const makeLeanSynopsis = (value = '') => {
                 const text = stripHtml(value);
                 if (!text) return '';
@@ -901,11 +940,10 @@
                 const categories = uniqueTags([...(Array.isArray(volume?.categories) ? volume.categories : []), ...evidenceTags]);
                 const inferredGenre = inferGenreFromSignals(categories, cleanSynopsis);
                 const genre = inferredGenre || form.genre || 'Fantasia';
-                const tags = uniqueTags([
+                const tags = sanitizeStoryTags([
                     ...inferTropeTags(categories, cleanSynopsis, genre),
-                    ...categories.slice(0, 5),
-                    ...fallbackQuery.split(' ').filter(Boolean).slice(0, 3)
-                ]).slice(0, 10);
+                    ...inferTropeTags(evidenceTags, cleanSynopsis, genre)
+                ], volume?.title || '', (volume?.authors || []).join(', '));
 
                 return {
                     title: volume?.title || '',
@@ -948,19 +986,20 @@
                     if (!profile || typeof profile !== 'object') return webEvidence ? { webEvidenceOnly: true, webEvidence } : null;
 
                     const genre = GENRES.includes(profile.genre) ? profile.genre : '';
+                    const evidenceTags = extractWebEvidenceTags(webEvidence);
+                    const allCategorySignals = uniqueTags([...(payload.categories || []), ...evidenceTags]);
                     return {
                         title: profile.title || payload.title,
                         author: profile.author || payload.author,
                         publisher: profile.publisher || payload.publisher,
                         pages: Number(profile.pages) || payload.pages,
                         synopsis: makeLeanSynopsis(profile.synopsis || payload.synopsis),
-                        genre: genre || inferGenreFromSignals(payload.categories, profile.synopsis || payload.synopsis),
+                        genre: genre || inferGenreFromSignals(allCategorySignals, profile.synopsis || payload.synopsis),
                         sectionLabel: String(profile.sectionLabel || '').trim(),
-                        tags: uniqueTags([
+                        tags: sanitizeStoryTags([
                             ...(Array.isArray(profile.tags) ? profile.tags : []),
-                            ...inferTropeTags(payload.categories, profile.synopsis || payload.synopsis, genre),
-                            ...extractWebEvidenceTags(webEvidence)
-                        ]).slice(0, 10),
+                            ...inferTropeTags(allCategorySignals, profile.synopsis || payload.synopsis, genre)
+                        ], profile.title || payload.title, profile.author || payload.author),
                         webEvidence
                     };
                 } catch {
@@ -1012,11 +1051,10 @@
                 const matchedGenre = GENRES.find(g => g !== "Todos" && categories.some(c => c.toLowerCase().includes(g.toLowerCase())));
                 const resolvedGenre = profile?.genre || matchedGenre || form.genre || 'Fantasia';
                 const resolvedSynopsis = profile?.synopsis || makeLeanSynopsis(volume.description || '') || form.synopsis;
-                const resolvedTags = uniqueTags([
+                const resolvedTags = sanitizeStoryTags([
                     ...((profile?.tags || []).length ? profile.tags : []),
-                    ...inferTropeTags(categories, resolvedSynopsis, resolvedGenre),
-                    ...categories.slice(0, 4)
-                ]).slice(0, 10);
+                    ...inferTropeTags(categories, resolvedSynopsis, resolvedGenre)
+                ], profile?.title || volume?.title || '', profile?.author || volume?.authors?.join(', ') || '');
 
                 setForm(prev => ({
                     ...prev,

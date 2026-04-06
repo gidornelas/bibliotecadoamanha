@@ -194,6 +194,82 @@ function normalizeTags(values = []) {
   return tags.slice(0, 10);
 }
 
+const GENERIC_TAG_BLOCKLIST = new Set([
+  'fiction',
+  'ficcao',
+  'ficção',
+  'romance',
+  'livro',
+  'book',
+  'novel',
+  'literatura',
+  'autor',
+  'autora',
+  'escritor',
+  'escritora',
+  'volume',
+  'serie',
+  'série',
+  'drama'
+]);
+
+const NOISE_STOPWORDS = new Set([
+  'a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'no', 'na', 'nos', 'nas', 'um', 'uma',
+  'para', 'por', 'com', 'sem', 'ao', 'aos', 'à', 'às', 'the', 'of', 'and'
+]);
+
+function normalizeKey(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildNoiseTokenSet(title = '', author = '') {
+  const tokens = new Set();
+  const source = `${title || ''} ${author || ''}`;
+  normalizeKey(source)
+    .split(' ')
+    .map((v) => v.trim())
+    .filter((v) => v.length >= 3 && !NOISE_STOPWORDS.has(v))
+    .forEach((v) => tokens.add(v));
+  return tokens;
+}
+
+function sanitizeStoryTags(values = [], title = '', author = '') {
+  const tokens = buildNoiseTokenSet(title, author);
+  const out = [];
+  const seen = new Set();
+
+  for (const raw of values) {
+    const tag = cleanText(raw).toLowerCase();
+    if (!tag) continue;
+
+    const key = normalizeKey(tag);
+    if (!key || seen.has(key)) continue;
+    if (GENERIC_TAG_BLOCKLIST.has(key)) continue;
+    if (tokens.has(key)) continue;
+
+    const words = key.split(' ').filter(Boolean);
+    if (!words.length) continue;
+
+    const allNoise = words.every((word) => tokens.has(word) || NOISE_STOPWORDS.has(word));
+    if (allNoise) continue;
+
+    const hasMeaningfulWord = words.some((word) => word.length >= 4 && !NOISE_STOPWORDS.has(word));
+    if (!hasMeaningfulWord) continue;
+
+    seen.add(key);
+    out.push(tag);
+    if (out.length >= 10) break;
+  }
+
+  return out;
+}
+
 function fallbackSection(genre = '') {
   if (genre === 'Thriller') return 'Thriller & Suspense Psicológico';
   if (genre === 'Romance Contemporâneo') return 'Romance Contemporâneo';
@@ -205,18 +281,24 @@ function fallbackSection(genre = '') {
 function coerceProfile(raw = {}, payload = {}, webEvidence = null) {
   const genre = ALLOWED_GENRES.includes(raw.genre) ? raw.genre : '';
   const baseSynopsis = makeLeanSynopsis(raw.synopsis || payload.synopsis || '');
+  const resolvedTitle = cleanText(raw.title || payload.title || '');
+  const resolvedAuthor = cleanText(raw.author || payload.author || '');
   const aiTags = normalizeTags(Array.isArray(raw.tags) ? raw.tags : []);
+  const combinedSignals = normalizeTags([
+    ...(Array.isArray(payload.categories) ? payload.categories : []),
+    ...(Array.isArray(webEvidence?.subjects) ? webEvidence.subjects : [])
+  ]);
   const inferredTags = normalizeTags(buildTropeTags(
-    payload.categories || [],
+    combinedSignals,
     baseSynopsis || webEvidence?.description || '',
     genre || payload.genre || '',
     webEvidence?.subjects || []
   ));
-  const tags = normalizeTags([...aiTags, ...inferredTags]);
+  const tags = sanitizeStoryTags([...aiTags, ...inferredTags], resolvedTitle, resolvedAuthor);
 
   return {
-    title: cleanText(raw.title || payload.title || ''),
-    author: cleanText(raw.author || payload.author || ''),
+    title: resolvedTitle,
+    author: resolvedAuthor,
     publisher: cleanText(raw.publisher || payload.publisher || ''),
     pages: Number(raw.pages || payload.pages || 0),
     synopsis: baseSynopsis,
@@ -292,6 +374,7 @@ export default async function handler(req, res) {
     'Responda apenas em JSON válido.',
     'A sinopse deve ser enxuta (1-2 frases), com gancho e sem spoilers.',
     'Nunca revele final, culpado, identidade secreta ou reviravolta completa.',
+    'NUNCA use nomes de autor(a), personagens, título do livro, editora ou termos genéricos como fiction/livro/romance sozinho nas tags.',
     'Use gênero apenas dentre: Fantasia, Romantasy, Ficção Científica, Thriller, Romance Contemporâneo, Ficção Literária, Distopia.',
     'Gere de 5 a 10 palavras-chave de tropos/atmosfera (ex.: triângulo amoroso, plot twist, narrador misterioso), sem spoiler, em minúsculas e sem hashtags.'
   ].join(' ');
@@ -324,6 +407,7 @@ export default async function handler(req, res) {
     'Você é especialista em recomendar palavras-chave de livros em português do Brasil.',
     'Responda apenas em JSON válido.',
     'Sua tarefa é gerar somente palavras-chave de tropos, atmosfera, dinâmica e tipo de história.',
+    'Nunca use nomes próprios (autor/personagens), título do livro, editora ou termos genéricos como fiction/livro.',
     'Evite temas genéricos demais e evite spoilers.',
     'Prefira expressões como: triângulo amoroso, plot twist, narrador misterioso, suspense psicológico, enemies to lovers, found family.',
     'Retorne entre 6 e 10 tags curtas, em minúsculas, sem hashtags.'
