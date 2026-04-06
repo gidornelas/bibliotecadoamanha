@@ -1582,6 +1582,11 @@
 
             const currentProfile = PROFILE_OPTIONS.find(profile => profile.id === activeProfile) || PROFILE_OPTIONS[0];
             const otherProfile = PROFILE_OPTIONS.find(profile => profile.id !== activeProfile);
+            const loggedUserProfile = useMemo(() => {
+                const firstName = (user?.displayName || user?.email || '').trim().split(' ')[0].toLowerCase();
+                return PROFILE_OPTIONS.find(profile => profile.label.toLowerCase() === firstName) || null;
+            }, [user]);
+            const myProfileId = loggedUserProfile?.id || null;
             const profileGenres = useMemo(() => {
                 const available = new Set();
                 customBooks.forEach(book => {
@@ -1675,24 +1680,26 @@
             }, [activeProfile]);
 
             const pushNotification = useCallback(({ toProfileId, type, text, bookId }) => {
-                if (!toProfileId || toProfileId === activeProfile) return;
+                const fromId = myProfileId || activeProfile;
+                const fromLabel = loggedUserProfile?.label || currentProfile.label;
+                if (!toProfileId || toProfileId === fromId) return;
                 const now = Date.now();
                 const notification = {
                     id: `notif-${now}-${Math.random().toString(36).slice(2, 8)}`,
                     type: type || 'geral',
                     text: text || 'Nova notificação',
                     bookId: bookId || null,
-                    fromProfileId: activeProfile,
-                    fromProfileLabel: currentProfile.label,
+                    fromProfileId: fromId,
+                    fromProfileLabel: fromLabel,
                     toProfileId,
                     createdAt: now,
                     readBy: {
                         [toProfileId]: false,
-                        [activeProfile]: true
+                        [fromId]: true
                     }
                 };
                 setNotifications(prev => [...prev, notification]);
-            }, [activeProfile, currentProfile.label]);
+            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label]);
 
             const deleteNotification = useCallback((notificationId) => {
                 setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
@@ -1735,8 +1742,8 @@
                 if (!cleanText) return;
                 const newComment = {
                     id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                    authorProfileId: activeProfile,
-                    authorProfileLabel: currentProfile.label,
+                    authorProfileId: myProfileId || activeProfile,
+                    authorProfileLabel: loggedUserProfile?.label || currentProfile.label,
                     text: cleanText,
                     createdAt: Date.now()
                 };
@@ -1748,17 +1755,19 @@
                         [bookId]: [...currentComments, newComment]
                     };
                 });
-                if (otherProfile?.id) {
+                const notifyProfileId = (myProfileId && activeProfile !== myProfileId) ? activeProfile : otherProfile?.id;
+                if (notifyProfileId) {
                     const targetBook = customBooks.find(book => book.id === bookId);
                     const bookTitle = targetBook?.title || 'um livro';
+                    const commenterLabel = loggedUserProfile?.label || currentProfile.label;
                     pushNotification({
-                        toProfileId: otherProfile.id,
+                        toProfileId: notifyProfileId,
                         type: 'comment',
                         bookId,
-                        text: `${currentProfile.label} comentou em ${bookTitle}`
+                        text: `${commenterLabel} comentou em ${bookTitle}`
                     });
                 }
-            }, [activeProfile, currentProfile.label, otherProfile, customBooks, pushNotification]);
+            }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, otherProfile, customBooks, pushNotification]);
 
             const deleteBookComment = useCallback((bookId, commentId) => {
                 setCommentsByBook(prev => {
@@ -2565,11 +2574,6 @@
             const queueRead = readingOrder.filter(id => !!readStatus[id]).length;
             const queueProgress = queueTotal > 0 ? Math.round((queueRead / queueTotal) * 100) : 0;
 
-            const loggedUserProfile = useMemo(() => {
-                const firstName = (user?.displayName || user?.email || '').trim().split(' ')[0].toLowerCase();
-                return PROFILE_OPTIONS.find(profile => profile.label.toLowerCase() === firstName) || null;
-            }, [user]);
-            const myProfileId = loggedUserProfile?.id || null;
             const isViewingOwnProfile = !!myProfileId && activeProfile === myProfileId;
             const canImportFromViewedProfile = !!myProfileId && activeProfile !== myProfileId;
 
