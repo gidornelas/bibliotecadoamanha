@@ -484,11 +484,17 @@
 
         const notifyUser = (message, tone = 'info') => {
             if (!message) return;
+            console.log('[Toast] Notificação:', message, tone);
             if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
-                window.dispatchEvent(new CustomEvent(APP_TOAST_EVENT, { detail: { message, tone } }));
+                try {
+                    window.dispatchEvent(new CustomEvent(APP_TOAST_EVENT, { detail: { message, tone } }));
+                    console.log('[Toast] Event despachado com sucesso');
+                } catch (err) {
+                    console.error('[Toast] Erro ao despachar evento:', err);
+                }
                 return;
             }
-            console.warn(message);
+            console.warn('[Toast] Fallback - navegador não suporta CustomEvent:', message);
         };
 
         const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
@@ -540,6 +546,7 @@
                 const handler = (event) => {
                     const detail = event?.detail || {};
                     const message = String(detail.message || '').trim();
+                    console.log('[Toast] Handler recebeu evento:', { message, tone: detail.tone, event });
                     if (!message) return;
 
                     const toastId = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -549,19 +556,32 @@
                         message
                     };
 
-                    setToasts(prev => [...prev, nextToast].slice(-4));
+                    console.log('[Toast] Adicionando toast ao estado:', nextToast);
+                    setToasts(prev => {
+                        const updated = [...prev, nextToast].slice(-4);
+                        console.log('[Toast] Estado de toasts atualizado:', updated);
+                        return updated;
+                    });
                     registerTimeout(() => removeToast(toastId), 3600);
                 };
 
+                console.log('[Toast] Registrando event listener para', APP_TOAST_EVENT);
                 window.addEventListener(APP_TOAST_EVENT, handler);
-                return () => window.removeEventListener(APP_TOAST_EVENT, handler);
+                return () => {
+                    console.log('[Toast] Removendo event listener para', APP_TOAST_EVENT);
+                    window.removeEventListener(APP_TOAST_EVENT, handler);
+                };
             }, [registerTimeout, removeToast]);
 
             return { toasts, removeToast };
         }
 
         function ToastViewport({ toasts, onDismiss }) {
-            if (!toasts.length) return null;
+            console.log('[Toast] ToastViewport renderizando com', toasts.length, 'toasts:', toasts);
+            if (!toasts.length) {
+                console.log('[Toast] Sem toasts para exibir');
+                return null;
+            }
 
             const toneClassMap = {
                 info: 'border-slate-200 bg-white text-slate-700',
