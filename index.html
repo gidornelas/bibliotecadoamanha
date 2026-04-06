@@ -1778,7 +1778,7 @@
                                 </svg>
                             </div>
                         )}
-                        {showImportButton && !!book.epubUrl && !!hasRemoteEpub && (
+                        {!!book.epubUrl && !!hasRemoteEpub && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -1815,18 +1815,6 @@
                                         className="inline-flex items-center justify-center px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wide text-[#1E3A5F] bg-[#14B8A6]/10 border border-[#14B8A6]/30 hover:bg-[#14B8A6]/20"
                                     >
                                         + Meu Perfil
-                                    </button>
-                                )}
-                                {!!book.epubUrl && !!hasRemoteEpub && !showImportButton && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            downloadEpubByUrl(book.epubUrl, book.epubFileName);
-                                        }}
-                                        title={book.epubFileName ? `Baixar ${book.epubFileName}` : 'Baixar EPUB'}
-                                        className="inline-flex items-center justify-center w-6 h-6 rounded-md text-emerald-600 hover:bg-emerald-50"
-                                    >
-                                        <Icon name="download" className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                             </div>
