@@ -4112,7 +4112,7 @@
                                             const senderLabel = PROFILE_OPTIONS.find(p => p.id === msg.from)?.label || 'Perfil';
                                             return (
                                                 <React.Fragment key={msg.id}>
-                                                    {chatFirstUnreadIndex > -1 && idx === chatFirstUnreadIndex && (
+                                                    {firstUnreadChatIndex > -1 && idx === firstUnreadChatIndex && (
                                                         <div className="flex items-center gap-2 py-1">
                                                             <div className="h-px flex-1 bg-violet-200" />
                                                             <span className="text-[9px] font-black uppercase tracking-wider text-violet-500">Não lidas</span>
