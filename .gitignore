@@ -1,0 +1,7 @@
+.vercel
+node_modules/
+dist/
+.vscode/
+tmp_*.jpg
+*.log
+index melhorias.html

@@ -177,6 +177,68 @@
 
         // --- 0. CONFIGURAÇÃO DO BANCO DE DADOS NA NUVEM ---
 
+        const LOCAL_META_PREFIX = 'libdb-meta:';
+        const LOCAL_PENDING_SYNC_KEY = 'libdb-pending-sync-keys-v1';
+
+        const getLocalMetaKey = (key) => `${LOCAL_META_PREFIX}${key}`;
+
+        const setLocalSnapshot = (key, data, timestampMs = Date.now()) => {
+            localStorage.setItem(key, JSON.stringify(data));
+            localStorage.setItem(getLocalMetaKey(key), String(timestampMs));
+        };
+
+        const getLocalSnapshot = (key, defaultValue = {}) => {
+            const rawData = localStorage.getItem(key);
+            const rawTs = localStorage.getItem(getLocalMetaKey(key));
+            const timestampMs = Number(rawTs) || 0;
+
+            if (!rawData) {
+                return { exists: false, data: defaultValue, timestampMs };
+            }
+
+            try {
+                return {
+                    exists: true,
+                    data: JSON.parse(rawData),
+                    timestampMs
+                };
+            } catch {
+                return { exists: false, data: defaultValue, timestampMs: 0 };
+            }
+        };
+
+        const getPendingSyncKeys = () => {
+            try {
+                const raw = localStorage.getItem(LOCAL_PENDING_SYNC_KEY);
+                if (!raw) return [];
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
+            }
+        };
+
+        const setPendingSyncKeys = (keys) => {
+            const unique = [...new Set(keys)].filter(Boolean);
+            localStorage.setItem(LOCAL_PENDING_SYNC_KEY, JSON.stringify(unique));
+        };
+
+        const markPendingSyncKey = (key, shouldBePending) => {
+            const current = getPendingSyncKeys();
+            if (shouldBePending) {
+                if (!current.includes(key)) setPendingSyncKeys([...current, key]);
+                return;
+            }
+            setPendingSyncKeys(current.filter(item => item !== key));
+        };
+
+        const extractTimestampMs = (value) => {
+            if (!value) return 0;
+            const maybeDate = typeof value === 'string' ? new Date(value) : value.toDate?.();
+            const time = maybeDate?.getTime?.();
+            return Number.isFinite(time) ? time : 0;
+        };
+
         // Funções para salvar/carregar dados do Firebase
         const waitForDb = async () => {
             for (let i = 0; i < 20; i += 1) {
@@ -186,13 +248,36 @@
             return false;
         };
 
+        const readCloudSnapshot = async (key, defaultValue = {}) => {
+            if (!window.db) {
+                const ready = await waitForDb();
+                if (!ready) return { exists: false, data: defaultValue, timestampMs: 0 };
+            }
+            const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user';
+            const docRef = doc(window.db, 'users', userId, 'data', key);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                return { exists: false, data: defaultValue, timestampMs: 0 };
+            }
+
+            const cloudData = docSnap.data() || {};
+            return {
+                exists: true,
+                data: cloudData.data ?? defaultValue,
+                timestampMs: extractTimestampMs(cloudData.timestamp)
+            };
+        };
+
         const saveToCloud = async (key, data, setSyncStatus) => {
+            const nowMs = Date.now();
+            setLocalSnapshot(key, data, nowMs);
             try {
                 if (!window.db) {
                     const ready = await waitForDb();
                     if (!ready) {
                         if (setSyncStatus) setSyncStatus("offline");
-                        localStorage.setItem(key, JSON.stringify(data));
+                        markPendingSyncKey(key, true);
                         return;
                     }
                 }
@@ -200,14 +285,14 @@
                 const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user'; // Para múltiplos usuários, use autenticação
                 await setDoc(doc(window.db, 'users', userId, 'data', key), {
                     data: data,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date(nowMs).toISOString()
                 });
+                markPendingSyncKey(key, false);
                 if (setSyncStatus) setSyncStatus("online");
             } catch (error) {
                 console.error('Erro ao salvar na nuvem:', error);
                 if (setSyncStatus) setSyncStatus("offline");
-                // Fallback para localStorage
-                localStorage.setItem(key, JSON.stringify(data));
+                markPendingSyncKey(key, true);
             }
         };
 
@@ -326,32 +411,47 @@
 
         const loadFromCloud = async (key, defaultValue = {}, setSyncStatus) => {
             try {
-                if (!window.db) {
-                    const ready = await waitForDb();
-                    if (!ready) {
-                        if (setSyncStatus) setSyncStatus("offline");
-                        return defaultValue;
-                    }
+                const [cloudSnapshot, localSnapshot] = await Promise.all([
+                    readCloudSnapshot(key, defaultValue),
+                    Promise.resolve(getLocalSnapshot(key, defaultValue))
+                ]);
+
+                const cloudReady = window.db || await waitForDb();
+                if (!cloudReady && setSyncStatus) setSyncStatus("offline");
+                else if (setSyncStatus) setSyncStatus("online");
+
+                // Escolhe sempre o dado mais novo entre local e nuvem.
+                if (localSnapshot.exists && localSnapshot.timestampMs > cloudSnapshot.timestampMs) {
+                    markPendingSyncKey(key, true);
+                    return localSnapshot.data;
                 }
-                const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user';
-                const docRef = doc(window.db, 'users', userId, 'data', key);
-                const docSnap = await getDoc(docRef);
-                
-                if (docSnap.exists()) {
-                    if (setSyncStatus) setSyncStatus("online");
-                    return docSnap.data().data;
-                } else {
-                    if (setSyncStatus) setSyncStatus("online");
-                    // Tenta carregar do localStorage como fallback
-                    const localData = localStorage.getItem(key);
-                    return localData ? JSON.parse(localData) : defaultValue;
+
+                if (cloudSnapshot.exists) {
+                    setLocalSnapshot(key, cloudSnapshot.data, cloudSnapshot.timestampMs || Date.now());
+                    markPendingSyncKey(key, false);
+                    return cloudSnapshot.data;
                 }
+
+                return localSnapshot.exists ? localSnapshot.data : defaultValue;
             } catch (error) {
                 console.error('Erro ao carregar da nuvem:', error);
                 if (setSyncStatus) setSyncStatus("offline");
-                // Fallback para localStorage
-                const localData = localStorage.getItem(key);
-                return localData ? JSON.parse(localData) : defaultValue;
+                const localSnapshot = getLocalSnapshot(key, defaultValue);
+                return localSnapshot.exists ? localSnapshot.data : defaultValue;
+            }
+        };
+
+        const flushPendingCloudSync = async (setSyncStatus) => {
+            const keys = getPendingSyncKeys();
+            if (keys.length === 0) return;
+
+            for (const key of keys) {
+                const localSnapshot = getLocalSnapshot(key, null);
+                if (!localSnapshot.exists) {
+                    markPendingSyncKey(key, false);
+                    continue;
+                }
+                await saveToCloud(key, localSnapshot.data, setSyncStatus);
             }
         };
 
@@ -2111,6 +2211,29 @@
 
                 return () => unsubscribe();
             }, []);
+
+            useEffect(() => {
+                if (!user) return;
+
+                let cancelled = false;
+                const runSync = async () => {
+                    if (cancelled) return;
+                    try {
+                        await flushPendingCloudSync();
+                    } catch (error) {
+                        console.warn('Falha ao sincronizar pendências locais:', error);
+                    }
+                };
+
+                runSync();
+                const onOnline = () => runSync();
+                window.addEventListener('online', onOnline);
+
+                return () => {
+                    cancelled = true;
+                    window.removeEventListener('online', onOnline);
+                };
+            }, [user]);
 
             useEffect(() => {
                 if (!user) {
