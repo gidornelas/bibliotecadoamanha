@@ -1609,12 +1609,14 @@
                 [chatMessages, activeProfile]
             );
             const sortedNotifications = useMemo(
-                () => [...notifications].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
-                [notifications]
+                () => notifications
+                    .filter(n => n.toProfileId === myProfileId)
+                    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+                [notifications, myProfileId]
             );
             const notificationUnreadCount = useMemo(
-                () => notifications.filter(n => n.toProfileId === activeProfile && !n.readBy?.[activeProfile]).length,
-                [notifications, activeProfile]
+                () => notifications.filter(n => n.toProfileId === myProfileId && !n.readBy?.[myProfileId]).length,
+                [notifications, myProfileId]
             );
 
             const playSubtleMessageBeep = useCallback(() => {
@@ -1660,16 +1662,17 @@
             }, [activeProfile]);
 
             const markNotificationsAsRead = useCallback(() => {
+                if (!myProfileId) return;
                 setNotifications(prev => {
                     let changed = false;
                     const next = prev.map(notification => {
-                        if (notification.toProfileId === activeProfile && !notification.readBy?.[activeProfile]) {
+                        if (notification.toProfileId === myProfileId && !notification.readBy?.[myProfileId]) {
                             changed = true;
                             return {
                                 ...notification,
                                 readBy: {
                                     ...(notification.readBy || {}),
-                                    [activeProfile]: true
+                                    [myProfileId]: true
                                 }
                             };
                         }
@@ -1677,7 +1680,7 @@
                     });
                     return changed ? next : prev;
                 });
-            }, [activeProfile]);
+            }, [myProfileId]);
 
             const pushNotification = useCallback(({ toProfileId, type, text, bookId }) => {
                 const fromId = myProfileId || activeProfile;
@@ -1702,12 +1705,16 @@
             }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label]);
 
             const deleteNotification = useCallback((notificationId) => {
-                setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
-            }, []);
+                if (!myProfileId) return;
+                setNotifications(prev => prev.filter(notification =>
+                    !(notification.id === notificationId && notification.toProfileId === myProfileId)
+                ));
+            }, [myProfileId]);
 
             const clearAllNotifications = useCallback(() => {
-                setNotifications([]);
-            }, []);
+                if (!myProfileId) return;
+                setNotifications(prev => prev.filter(n => n.toProfileId !== myProfileId));
+            }, [myProfileId]);
 
             const sendChatMessage = useCallback(() => {
                 const text = chatInput.trim();
@@ -1918,7 +1925,7 @@
             useEffect(() => {
                 if (!notificationsOpen) return;
                 markNotificationsAsRead();
-            }, [notificationsOpen, activeProfile, markNotificationsAsRead]);
+            }, [notificationsOpen, myProfileId, markNotificationsAsRead]);
 
             useEffect(() => {
                 if (previousChatUnreadRef.current === null) {
