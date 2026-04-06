@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Dados pessoais de cada usuária — só ela mesma pode ler/escrever
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Dados compartilhados (chat, comentários, notificações) — acessíveis pelas duas
+    match /shared/biblioteca-do-amanha/{document=**} {
+      allow read, write: if request.auth != null &&
+        request.auth.token.email in ['giannydornelas@gmail.com', 'laisamgb@gmail.com'];
+    }
+  }
+}

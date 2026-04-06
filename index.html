@@ -18,7 +18,7 @@
         // IMPORTANTE: Configure seu projeto Firebase em firebase-config.js
         // e substitua as configurações abaixo pelas suas reais
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
-        import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+        import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence, onSnapshot } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
         import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
 
         // Configuração Firebase (SUBSTITUA PELAS SUAS CONFIGURAÇÕES REAIS)
@@ -91,6 +91,7 @@
             window.doc = doc;
             window.getDoc = getDoc;
             window.setDoc = setDoc;
+            window.onSnapshot = onSnapshot;
             window.signInWithEmailAndPassword = signInWithEmailAndPassword;
             window.sendPasswordResetEmail = sendPasswordResetEmail;
             window.setPersistence = setPersistence;
@@ -251,13 +252,29 @@
             return false;
         };
 
+        // Chaves que são compartilhadas entre os dois perfis (chat, comentários, notificações)
+        const SHARED_KEYS = new Set([
+            'libdb-chat-v1-shared',
+            'libdb-comments-v1-shared',
+            'libdb-notifications-v1-shared'
+        ]);
+
+        // Retorna a referência Firestore correta: compartilhada ou pessoal
+        const getCloudDocRef = (key) => {
+            if (SHARED_KEYS.has(key)) {
+                // Path único para toda a biblioteca — acessível pelas duas usuárias
+                return doc(window.db, 'shared', 'biblioteca-do-amanha', 'data', key);
+            }
+            const userId = window.auth?.currentUser?.uid || 'default-user';
+            return doc(window.db, 'users', userId, 'data', key);
+        };
+
         const readCloudSnapshot = async (key, defaultValue = {}) => {
             if (!window.db) {
                 const ready = await waitForDb();
                 if (!ready) return { exists: false, data: defaultValue, timestampMs: 0 };
             }
-            const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user';
-            const docRef = doc(window.db, 'users', userId, 'data', key);
+            const docRef = getCloudDocRef(key);
             const docSnap = await getDoc(docRef);
 
             if (!docSnap.exists()) {
@@ -288,8 +305,8 @@
                 }
 
                 const userId = window.auth.currentUser ? window.auth.currentUser.uid : 'default-user';
-                console.log('[Cloud] Enviando para Firestore:', { userId, key });
-                await setDoc(doc(window.db, 'users', userId, 'data', key), {
+                console.log('[Cloud] Enviando para Firestore:', { key, shared: SHARED_KEYS.has(key), uid: userId });
+                await setDoc(getCloudDocRef(key), {
                     data: data,
                     timestamp: new Date(nowMs).toISOString()
                 });
@@ -2189,6 +2206,9 @@
             const [highlightedBookId, setHighlightedBookId] = useState(null);
             const previousChatUnreadRef = useRef(null);
             const chatMessagesContainerRef = useRef(null);
+            const chatFromCloudRef = useRef(false);
+            const commentsFromCloudRef = useRef(false);
+            const notificationsFromCloudRef = useRef(false);
             const { toasts, removeToast } = useToastCenter();
             const { registerTimeout, clearRegisteredTimeouts } = useTimeoutRegistry();
             const [activeProfile, setActiveProfile] = useState(() => {
@@ -2648,8 +2668,53 @@
                 };
             }, [user]);
 
+            // Listener em tempo real para dados compartilhados — recebe updates da outra usuária
+            useEffect(() => {
+                if (!user || !window.db || !window.onSnapshot) return;
+                console.log('[Realtime] Iniciando listeners de dados compartilhados');
+
+                const sharedDocRef = (key) => doc(window.db, 'shared', 'biblioteca-do-amanha', 'data', key);
+                const unsubs = [];
+
+                unsubs.push(window.onSnapshot(sharedDocRef(CHAT_STORAGE_KEY), (snap) => {
+                    if (!snap.exists()) return;
+                    const data = snap.data()?.data;
+                    if (!Array.isArray(data)) return;
+                    console.log('[Realtime] Chat atualizado remotamente:', data.length, 'mensagens');
+                    chatFromCloudRef.current = true;
+                    setChatMessages(data);
+                    setChatInitialized(true);
+                }, (err) => console.error('[Realtime] Erro no chat listener:', err)));
+
+                unsubs.push(window.onSnapshot(sharedDocRef(COMMENTS_STORAGE_KEY), (snap) => {
+                    if (!snap.exists()) return;
+                    const data = snap.data()?.data;
+                    if (!data || typeof data !== 'object') return;
+                    console.log('[Realtime] Comentários atualizados remotamente');
+                    commentsFromCloudRef.current = true;
+                    setCommentsByBook(data);
+                    setCommentsInitialized(true);
+                }, (err) => console.error('[Realtime] Erro no comments listener:', err)));
+
+                unsubs.push(window.onSnapshot(sharedDocRef(NOTIFICATIONS_STORAGE_KEY), (snap) => {
+                    if (!snap.exists()) return;
+                    const data = snap.data()?.data;
+                    if (!Array.isArray(data)) return;
+                    console.log('[Realtime] Notificações atualizadas remotamente');
+                    notificationsFromCloudRef.current = true;
+                    setNotifications(data);
+                    setNotificationsInitialized(true);
+                }, (err) => console.error('[Realtime] Erro no notifications listener:', err)));
+
+                return () => {
+                    console.log('[Realtime] Removendo listeners');
+                    unsubs.forEach(u => u());
+                };
+            }, [user]);
+
             useEffect(() => {
                 if (!user || !chatInitialized) return;
+                if (chatFromCloudRef.current) { chatFromCloudRef.current = false; return; }
                 console.log('[Chat] Salvando', chatMessages.length, 'mensagens na nuvem');
                 saveToCloud(CHAT_STORAGE_KEY, chatMessages).catch((err) => {
                     console.error('[Chat] Erro ao salvar mensagens:', err);
@@ -2659,6 +2724,7 @@
 
             useEffect(() => {
                 if (!user || !commentsInitialized) return;
+                if (commentsFromCloudRef.current) { commentsFromCloudRef.current = false; return; }
                 console.log('[Comments] Salvando comentários de', Object.keys(commentsByBook).length, 'livros');
                 saveToCloud(COMMENTS_STORAGE_KEY, commentsByBook).catch((err) => {
                     console.error('[Comments] Erro ao salvar comentários:', err);
@@ -2668,6 +2734,7 @@
 
             useEffect(() => {
                 if (!user || !notificationsInitialized) return;
+                if (notificationsFromCloudRef.current) { notificationsFromCloudRef.current = false; return; }
                 saveToCloud(NOTIFICATIONS_STORAGE_KEY, notifications);
             }, [notifications, user, notificationsInitialized]);
 
