@@ -3374,12 +3374,21 @@
                 let cancelled = false;
 
                 const loadData = async () => {
+                    // Quando você visita outro perfil, sempre carrega do Firestore para garantir dados frescos
+                    const isVisitingOtherProfile = !!myProfileId && activeProfile !== myProfileId;
+                    
                     const r = await loadFromCloud(profileKeys.read, {});
                     const d = await loadFromCloud(profileKeys.download, {});
                     const c = await loadFromCloud(profileKeys.covers, {});
-                    let cb = await loadFromCloud(profileKeys.custom, []);
+                    
+                    // Se visitando outro perfil, força recarregar de Firestore (ignora cache local)
+                    let cb = isVisitingOtherProfile 
+                        ? (await readCloudSnapshot(profileKeys.custom, [])).data
+                        : await loadFromCloud(profileKeys.custom, []);
                     let rem = [];
-                    const q = await loadFromCloud(profileKeys.queue, []);
+                    const q = isVisitingOtherProfile
+                        ? (await readCloudSnapshot(profileKeys.queue, [])).data
+                        : await loadFromCloud(profileKeys.queue, []);
                     
                     // Se não há livros no banco, carrega SEED_BOOKS só para o perfil principal (Gianny)
                     if (!cb || cb.length === 0) {
@@ -3425,7 +3434,7 @@
                 return () => {
                     cancelled = true;
                 };
-            }, [user, profileKeys]);
+            }, [user, profileKeys, myProfileId, activeProfile]);
 
             useProfilePersistence({
                 isInitialized,
