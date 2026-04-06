@@ -2402,18 +2402,42 @@
                 setNotifications(prev => prev.filter(n => n.toProfileId !== myProfileId));
             }, [myProfileId]);
 
-            const openBookFromNotification = useCallback((notification) => {
+            const openBookFromNotification = useCallback(async (notification) => {
                 if (!notification.bookKey && !notification.bookId) return;
                 setNotificationsOpen(false);
+                
+                // Tenta encontrar primeiro no perfil atual
                 const match = notification.bookKey
                     ? customBooks.find(b => getBookKey(b) === notification.bookKey)
                     : customBooks.find(b => b.id === notification.bookId);
+                    
                 if (match) {
                     setSelectedBook(match);
                     setHighlightedBookId(match.id);
                     registerTimeout(() => setHighlightedBookId(null), 1800);
+                    return;
                 }
-            }, [customBooks, registerTimeout]);
+                
+                // Se não encontrou, tenta no outro perfil
+                if (!otherProfile) return;
+                try {
+                    const otherKeys = getProfileKeys(otherProfile.id);
+                    // Força recarregar do Firestore para ter dados frescos (ignora cache)
+                    const cloudSnapshot = await readCloudSnapshot(otherKeys.custom, []);
+                    const otherBooks = cloudSnapshot.data || [];
+                    const otherMatch = notification.bookKey
+                        ? otherBooks.find(b => getBookKey(b) === notification.bookKey)
+                        : otherBooks.find(b => b.id === notification.bookId);
+                    
+                    if (otherMatch) {
+                        setSelectedBook(otherMatch);
+                        setHighlightedBookId(otherMatch.id);
+                        registerTimeout(() => setHighlightedBookId(null), 1800);
+                    }
+                } catch (err) {
+                    console.warn('Erro ao carregar livro do outro perfil:', err);
+                }
+            }, [customBooks, otherProfile, getProfileKeys, getBookKey, registerTimeout]);
 
             const sendChatMessage = useCallback(() => {
                 try {
