@@ -3743,8 +3743,22 @@
                 if (currentBook) {
                     syncEpubToOtherProfile(currentBook, epubFields);
                 }
+                if (myProfileId) {
+                    const recipientProfile = PROFILE_OPTIONS.find(p => p.id !== myProfileId);
+                    if (recipientProfile) {
+                        const senderLabel = loggedUserProfile?.label || currentProfile.label;
+                        const bookTitle = currentBook?.title || 'um livro';
+                        pushNotification({
+                            toProfileId: recipientProfile.id,
+                            type: 'epub',
+                            bookId,
+                            bookKey: currentBook ? getBookKey(currentBook) : null,
+                            text: `${senderLabel} adicionou epub em ${bookTitle}`
+                        });
+                    }
+                }
                 return uploaded;
-            }, [customBooks, syncEpubToOtherProfile]);
+            }, [customBooks, syncEpubToOtherProfile, myProfileId, loggedUserProfile, currentProfile.label, pushNotification]);
 
             const handleToggleRead = useCallback((id) => setReadStatus(p => ({ ...p, [id]: !p[id] })), []);
             const handleToggleDownload = useCallback((id) => setDownloadStatus(p => ({ ...p, [id]: !p[id] })), []);
@@ -4181,7 +4195,7 @@
                                                     ) : (
                                                         sortedNotifications.slice(0, 30).map((notification) => {
                                                             const isUnread = notification.toProfileId === myProfileId && !notification.readBy?.[myProfileId];
-                                                            const isClickable = notification.type === 'comment' && (notification.bookKey || notification.bookId);
+                                                            const isClickable = (notification.type === 'comment' || notification.type === 'epub') && (notification.bookKey || notification.bookId);
                                                             return (
                                                                 <div key={notification.id}
                                                                     className={`rounded-xl border px-2.5 py-2 ${isUnread ? 'border-violet-200 bg-violet-50/50' : 'border-gray-100 bg-gray-50'} ${isClickable ? 'cursor-pointer hover:border-violet-300 transition-colors' : ''}`}
