@@ -255,8 +255,7 @@
         // Chaves que são compartilhadas entre os dois perfis (chat, comentários, notificações)
         const SHARED_KEYS = new Set([
             'libdb-chat-v1-shared',
-            'libdb-comments-v1-shared',
-            'libdb-notifications-v1-shared'
+            'libdb-comments-v1-shared'
         ]);
 
         // Retorna a referência Firestore correta: compartilhada ou pessoal
@@ -2123,7 +2122,7 @@
         const ACTIVE_PROFILE_KEY = 'libdb-active-profile-v1';
         const CHAT_STORAGE_KEY = 'libdb-chat-v1-shared';
         const COMMENTS_STORAGE_KEY = 'libdb-comments-v1-shared';
-        const NOTIFICATIONS_STORAGE_KEY = 'libdb-notifications-v1-shared';
+        const NOTIFICATIONS_STORAGE_KEY = 'libdb-notifications-v1';
         const PROFILE_PREFERENCES_VERSION = 'v1';
         const BOOK_SORT_OPTIONS = [
             { value: 'added-desc', label: 'Mais recentes' },
@@ -2208,7 +2207,6 @@
             const chatMessagesContainerRef = useRef(null);
             const chatFromCloudRef = useRef(false);
             const commentsFromCloudRef = useRef(false);
-            const notificationsFromCloudRef = useRef(false);
             const { toasts, removeToast } = useToastCenter();
             const { registerTimeout, clearRegisteredTimeouts } = useTimeoutRegistry();
             const [activeProfile, setActiveProfile] = useState(() => {
@@ -2696,16 +2694,6 @@
                     setCommentsInitialized(true);
                 }, (err) => console.error('[Realtime] Erro no comments listener:', err)));
 
-                unsubs.push(window.onSnapshot(sharedDocRef(NOTIFICATIONS_STORAGE_KEY), (snap) => {
-                    if (!snap.exists()) return;
-                    const data = snap.data()?.data;
-                    if (!Array.isArray(data)) return;
-                    console.log('[Realtime] Notificações atualizadas remotamente');
-                    notificationsFromCloudRef.current = true;
-                    setNotifications(data);
-                    setNotificationsInitialized(true);
-                }, (err) => console.error('[Realtime] Erro no notifications listener:', err)));
-
                 return () => {
                     console.log('[Realtime] Removendo listeners');
                     unsubs.forEach(u => u());
@@ -2734,7 +2722,6 @@
 
             useEffect(() => {
                 if (!user || !notificationsInitialized) return;
-                if (notificationsFromCloudRef.current) { notificationsFromCloudRef.current = false; return; }
                 saveToCloud(NOTIFICATIONS_STORAGE_KEY, notifications);
             }, [notifications, user, notificationsInitialized]);
 
