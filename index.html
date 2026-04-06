@@ -960,7 +960,7 @@
                     .map(part => part.trim())
                     .filter(Boolean);
                 const safe = sentences.filter(sentence => !spoilerCue.test(sentence));
-                return (safe.length ? safe : sentences).slice(0, 2).join(' ').slice(0, 320);
+                return (safe.length ? safe : sentences).slice(0, 5).join(' ').slice(0, 800);
             };
 
             const inferTropeTags = (categories = [], synopsis = '', genre = '') => {
@@ -1027,17 +1027,34 @@
                 const categories = uniqueTags([...(Array.isArray(volume?.categories) ? volume.categories : []), ...evidenceTags]);
                 const inferredGenre = inferGenreFromSignals(categories, cleanSynopsis);
                 const genre = inferredGenre || form.genre || 'Fantasia';
+                const allTropeTags = inferTropeTags(categories, cleanSynopsis, genre);
+                const olSubjects = Array.isArray(webEvidence?.openLibrary?.subjects)
+                    ? webEvidence.openLibrary.subjects.slice(0, 6) : [];
                 const tags = sanitizeStoryTags([
-                    ...inferTropeTags(categories, cleanSynopsis, genre),
-                    ...inferTropeTags(evidenceTags, cleanSynopsis, genre)
+                    ...allTropeTags,
+                    ...olSubjects
                 ], volume?.title || '', (volume?.authors || []).join(', '));
+
+                // Use the best synopsis available from web evidence
+                const wikiSynopsis = webEvidence?.wikipedia?.extract || '';
+                const gbSynopsis = webEvidence?.googleBooks?.description || '';
+                const bestSynopsis = cleanSynopsis || makeLeanSynopsis(gbSynopsis) || makeLeanSynopsis(wikiSynopsis);
+
+                // Use publisher from web evidence if missing from volume
+                const publisher = volume?.publisher
+                    || webEvidence?.googleBooks?.publisher
+                    || (webEvidence?.openLibrary?.publishers || [])[0]
+                    || '';
+                const pages = Number(volume?.pageCount)
+                    || Number(webEvidence?.googleBooks?.pageCount)
+                    || 0;
 
                 return {
                     title: volume?.title || '',
                     author: (volume?.authors || []).join(', '),
-                    publisher: volume?.publisher || '',
-                    pages: Number(volume?.pageCount) || 0,
-                    synopsis: cleanSynopsis,
+                    publisher,
+                    pages,
+                    synopsis: bestSynopsis,
                     genre,
                     sectionLabel: sectionLabelFromGenre(genre),
                     tags
@@ -1080,13 +1097,17 @@
                         author: profile.author || payload.author,
                         publisher: profile.publisher || payload.publisher,
                         pages: Number(profile.pages) || payload.pages,
-                        synopsis: makeLeanSynopsis(profile.synopsis || payload.synopsis),
+                        synopsis: profile.synopsis || makeLeanSynopsis(payload.synopsis),
                         genre: genre || inferGenreFromSignals(allCategorySignals, profile.synopsis || payload.synopsis),
                         sectionLabel: String(profile.sectionLabel || '').trim(),
                         tags: sanitizeStoryTags([
                             ...(Array.isArray(profile.tags) ? profile.tags : []),
                             ...inferTropeTags(allCategorySignals, profile.synopsis || payload.synopsis, genre)
                         ], profile.title || payload.title, profile.author || payload.author),
+                        isSeries: !!profile.isSeries,
+                        series: profile.series || '',
+                        volume: Number(profile.volume) || 0,
+                        totalVolumes: Number(profile.totalVolumes) || 0,
                         webEvidence
                     };
                 } catch {
@@ -1152,7 +1173,11 @@
                     synopsis: resolvedSynopsis,
                     coverUrl: toHttps(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) || prev.coverUrl,
                     genre: resolvedGenre,
-                    tags: resolvedTags.length ? resolvedTags.join(', ') : prev.tags
+                    tags: resolvedTags.length ? resolvedTags.join(', ') : prev.tags,
+                    isSeries: profile?.isSeries || prev.isSeries,
+                    series: profile?.series || prev.series,
+                    volume: profile?.volume || prev.volume,
+                    totalVolumes: profile?.totalVolumes || prev.totalVolumes
                 }));
             };
 

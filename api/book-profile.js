@@ -177,8 +177,8 @@ function makeLeanSynopsis(value = '') {
     .filter(Boolean);
 
   const safe = sentences.filter((s) => !spoilerCue.test(s));
-  const picked = (safe.length ? safe : sentences).slice(0, 2).join(' ');
-  return cleanText(picked).slice(0, 320);
+  const picked = (safe.length ? safe : sentences).slice(0, 5).join(' ');
+  return cleanText(picked).slice(0, 800);
 }
 
 function normalizeTags(values = []) {
@@ -280,7 +280,8 @@ function fallbackSection(genre = '') {
 
 function coerceProfile(raw = {}, payload = {}, webEvidence = null) {
   const genre = ALLOWED_GENRES.includes(raw.genre) ? raw.genre : '';
-  const baseSynopsis = makeLeanSynopsis(raw.synopsis || payload.synopsis || '');
+  const rawSynopsis = cleanText(raw.synopsis || '');
+  const baseSynopsis = rawSynopsis || makeLeanSynopsis(payload.synopsis || '');
   const resolvedTitle = cleanText(raw.title || payload.title || '');
   const resolvedAuthor = cleanText(raw.author || payload.author || '');
   const aiTags = normalizeTags(Array.isArray(raw.tags) ? raw.tags : []);
@@ -306,6 +307,51 @@ function coerceProfile(raw = {}, payload = {}, webEvidence = null) {
     sectionLabel: cleanText(raw.sectionLabel || fallbackSection(genre)),
     tags: tags.slice(0, 10)
   };
+}
+
+async function callAnthropicJson({ apiKey, model, systemPrompt, userPayload, temperature = 0.2 }) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1024,
+      temperature,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: JSON.stringify(userPayload) }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(cleanText(errorText) || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data?.content?.[0]?.text || '';
+  return safeParseJson(content);
+}
+
+async function callAiJson({ systemPrompt, userPayload, temperature = 0.2 }) {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (anthropicKey) {
+    const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
+    return callAnthropicJson({ apiKey: anthropicKey, model, systemPrompt, userPayload, temperature });
+  }
+
+  if (openaiKey) {
+    return callOpenAiJson({ apiKey: openaiKey, model: process.env.OPENAI_MODEL || 'gpt-4o-mini', systemPrompt, userPayload, temperature });
+  }
+
+  return null;
 }
 
 async function callOpenAiJson({ apiKey, model, systemPrompt, userPayload, temperature = 0.2 }) {
@@ -356,31 +402,44 @@ export default async function handler(req, res) {
 
   const webEvidence = await collectWebEvidence(payload);
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const hasAiKey = !!(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
+  if (!hasAiKey) {
     res.status(200).json({
       ok: false,
-      reason: 'OPENAI_API_KEY-not-configured',
+      reason: 'AI_API_KEY-not-configured',
       profile: null,
       webEvidence
     });
     return;
   }
 
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-
   const systemPrompt = [
-    'Você organiza fichas de livros em português do Brasil.',
-    'Responda apenas em JSON válido.',
-    'A sinopse deve ser enxuta (1-2 frases), com gancho e sem spoilers.',
-    'Nunca revele final, culpado, identidade secreta ou reviravolta completa.',
-    'NUNCA use nomes de autor(a), personagens, título do livro, editora ou termos genéricos como fiction/livro/romance sozinho nas tags.',
-    'Use gênero apenas dentre: Fantasia, Romantasy, Ficção Científica, Thriller, Romance Contemporâneo, Ficção Literária, Distopia.',
-    'Gere de 5 a 10 palavras-chave de tropos/atmosfera (ex.: triângulo amoroso, plot twist, narrador misterioso), sem spoiler, em minúsculas e sem hashtags.'
-  ].join(' ');
+    'Você é um curador profissional de fichas de livros em português do Brasil.',
+    'Responda APENAS em JSON válido, sem markdown, sem comentários.',
+    '',
+    'SINOPSE (campo "synopsis"):',
+    '- Escreva de 3 a 5 frases cativantes, na terceira pessoa.',
+    '- Apresente o protagonista, o conflito central e o gancho que prende o leitor.',
+    '- NUNCA revele finais, culpados, identidades secretas ou reviravoltas completas.',
+    '- NUNCA use frases como "este livro conta a história" — vá direto à ação.',
+    '- Exemplo de tom: "Lowen Ashleigh é uma escritora falida que aceita um trabalho irrecusável: terminar a série de livros da autora best-seller Verity Crawford. Ao se instalar na casa da família, encontra um manuscrito autobiográfico escondido — e as revelações são perturbadoras."',
+    '',
+    'TAGS (campo "tags"):',
+    '- Gere de 6 a 10 palavras-chave de tropos, dinâmicas e atmosfera da história.',
+    '- Exemplos válidos: thriller psicológico, narrador não confiável, plot twist, enemies to lovers, slow burn, dual POV, found family, triângulo amoroso, segredos de família, passado e presente, suspense gótico, romance proibido, manuscrito secreto, obsessão, stalking, casa com história, baseado em fato real.',
+    '- NUNCA use nomes do autor, personagens, título, editora ou termos genéricos sozinhos (fiction, livro, romance, drama).',
+    '- Tags em minúsculas, sem hashtags.',
+    '',
+    'GÊNERO (campo "genre"):',
+    '- Use exatamente um destes valores: Fantasia, Romantasy, Ficção Científica, Thriller, Romance Contemporâneo, Ficção Literária, Distopia.',
+    '',
+    'DEMAIS CAMPOS: title, author, publisher (editora brasileira se possível), pages (número real de páginas da edição brasileira).',
+    'Campo "sectionLabel": use a seção temática do catálogo (ex: "Thriller & Suspense Psicológico", "Romance Contemporâneo", "Fantasia Épica", "Romantasy", "Ficção Científica").',
+    'Campo "isSeries" (boolean), "series" (nome da série), "volume" (número), "totalVolumes" (total).'
+  ].join('\n');
 
   const userPrompt = {
-    instruction: 'Organize os metadados deste livro no padrão de catálogo literário, usando também as evidências coletadas na web para sugerir tropos e palavras-chave mais precisas.',
+    instruction: 'Organize os metadados deste livro para um catálogo literário brasileiro. Use todo o seu conhecimento sobre este livro, além das evidências web fornecidas. A sinopse deve ter 3-5 frases com gancho e sem spoilers. As tags devem descrever tropos, dinâmicas e atmosfera.',
     input: {
       title: payload.title || '',
       author: payload.author || '',
@@ -394,68 +453,38 @@ export default async function handler(req, res) {
     output_schema: {
       title: 'string',
       author: 'string',
-      publisher: 'string',
+      publisher: 'string (editora brasileira)',
       pages: 'number',
-      synopsis: 'string (1-2 frases curtas, sem spoiler)',
-      genre: 'one of allowed genres',
-      sectionLabel: 'string',
-      tags: 'string[] (5-10 itens, tropos/estilo da história sem spoilers)'
-    }
-  };
-
-  const tagSystemPrompt = [
-    'Você é especialista em recomendar palavras-chave de livros em português do Brasil.',
-    'Responda apenas em JSON válido.',
-    'Sua tarefa é gerar somente palavras-chave de tropos, atmosfera, dinâmica e tipo de história.',
-    'Nunca use nomes próprios (autor/personagens), título do livro, editora ou termos genéricos como fiction/livro.',
-    'Evite temas genéricos demais e evite spoilers.',
-    'Prefira expressões como: triângulo amoroso, plot twist, narrador misterioso, suspense psicológico, enemies to lovers, found family.',
-    'Retorne entre 6 e 10 tags curtas, em minúsculas, sem hashtags.'
-  ].join(' ');
-
-  const tagPrompt = {
-    instruction: 'Sugira palavras-chave literárias de alto valor para este livro com base nas evidências disponíveis na web e nos metadados.',
-    input: {
-      title: payload.title || '',
-      author: payload.author || '',
-      synopsis: payload.synopsis || '',
-      categories: Array.isArray(payload.categories) ? payload.categories : [],
-      webEvidence,
-      examples_of_good_tags: [
-        'triângulo amoroso',
-        'plot twist',
-        'narrador misterioso',
-        'suspense psicológico',
-        'slow burn',
-        'mistério investigativo'
-      ]
-    },
-    output_schema: {
-      tags: 'string[] (6-10 itens, tropos/atmosfera sem spoilers)'
+      synopsis: 'string (3-5 frases, sem spoiler, tom cativante)',
+      genre: 'one of: Fantasia, Romantasy, Ficção Científica, Thriller, Romance Contemporâneo, Ficção Literária, Distopia',
+      sectionLabel: 'string (seção temática do catálogo)',
+      tags: 'string[] (6-10 itens: tropos, atmosfera, dinâmicas)',
+      isSeries: 'boolean',
+      series: 'string (nome da série, se aplicável)',
+      volume: 'number (0 se não for série)',
+      totalVolumes: 'number (0 se não for série)'
     }
   };
 
   try {
-    const [parsed, tagParsed] = await Promise.all([
-      callOpenAiJson({ apiKey, model, systemPrompt, userPayload: userPrompt, temperature: 0.2 }),
-      callOpenAiJson({ apiKey, model, systemPrompt: tagSystemPrompt, userPayload: tagPrompt, temperature: 0.3 })
-        .catch(() => null)
-    ]);
+    const parsed = await callAiJson({ systemPrompt, userPayload: userPrompt, temperature: 0.3 });
 
     if (!parsed || typeof parsed !== 'object') {
       res.status(502).json({ ok: false, error: 'ai-invalid-json' });
       return;
     }
 
-    const mergedProfile = {
-      ...parsed,
-      tags: normalizeTags([
-        ...(Array.isArray(parsed?.tags) ? parsed.tags : []),
-        ...(Array.isArray(tagParsed?.tags) ? tagParsed.tags : [])
-      ])
-    };
+    const profile = coerceProfile(parsed, payload, webEvidence);
 
-    res.status(200).json({ ok: true, profile: coerceProfile(mergedProfile, payload, webEvidence), webEvidence });
+    // Merge series info from AI response
+    if (parsed.isSeries) {
+      profile.isSeries = true;
+      profile.series = cleanText(parsed.series || '');
+      profile.volume = Number(parsed.volume) || 0;
+      profile.totalVolumes = Number(parsed.totalVolumes) || 0;
+    }
+
+    res.status(200).json({ ok: true, profile, webEvidence });
   } catch (error) {
     res.status(502).json({
       ok: false,
