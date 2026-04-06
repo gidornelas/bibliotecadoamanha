@@ -2265,9 +2265,13 @@
                 () => [...chatMessages].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
                 [chatMessages]
             );
+            const visibleChatMessages = useMemo(
+                () => sortedChatMessages.filter(msg => !msg.hiddenFor?.[activeProfile]),
+                [sortedChatMessages, activeProfile]
+            );
             const chatUnreadCount = useMemo(
-                () => chatMessages.filter(m => m.to === activeProfile && !m.readBy?.[activeProfile]).length,
-                [chatMessages, activeProfile]
+                () => visibleChatMessages.filter(m => m.to === activeProfile && !m.readBy?.[activeProfile]).length,
+                [visibleChatMessages, activeProfile]
             );
             const sortedNotifications = useMemo(
                 () => notifications
@@ -2280,8 +2284,8 @@
                 [notifications, myProfileId]
             );
             const firstUnreadChatIndex = useMemo(
-                () => sortedChatMessages.findIndex(msg => msg.to === activeProfile && !msg.readBy?.[activeProfile]),
-                [sortedChatMessages, activeProfile]
+                () => visibleChatMessages.findIndex(msg => msg.to === activeProfile && !msg.readBy?.[activeProfile]),
+                [visibleChatMessages, activeProfile]
             );
             const persistencePayload = useMemo(() => ({
                 readStatus,
@@ -2320,6 +2324,7 @@
                 setChatMessages(prev => {
                     let changed = false;
                     const next = prev.map(msg => {
+                        if (msg.hiddenFor?.[activeProfile]) return msg;
                         if (msg.to === activeProfile && !msg.readBy?.[activeProfile]) {
                             changed = true;
                             return {
@@ -2521,16 +2526,26 @@
             }, []);
 
             const clearChatConversation = useCallback(async () => {
-                if (!window.confirm('Tem certeza que deseja limpar toda a conversa do chat?')) return;
-                setChatMessages([]);
+                if (!window.confirm(`Tem certeza que deseja limpar a conversa apenas para ${currentProfile.label}?`)) return;
+                setChatMessages(prev => {
+                    let changed = false;
+                    const next = prev.map(msg => {
+                        if (msg.hiddenFor?.[activeProfile]) return msg;
+                        changed = true;
+                        return {
+                            ...msg,
+                            hiddenFor: {
+                                ...(msg.hiddenFor || {}),
+                                [activeProfile]: true
+                            }
+                        };
+                    });
+                    return changed ? next : prev;
+                });
                 setChatInput('');
-                if (user) {
-                    await saveToCloud(CHAT_STORAGE_KEY, []);
-                    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify([]));
-                }
-                notifyUser('Conversa limpa com sucesso.', 'success');
-                logActivity('Limpou o histórico do chat.', 'chat');
-            }, [user, logActivity]);
+                notifyUser(`Conversa limpa apenas para ${currentProfile.label}.`, 'success');
+                logActivity(`Limpou o histórico do chat apenas para ${currentProfile.label}.`, 'chat');
+            }, [activeProfile, currentProfile.label, logActivity]);
 
             useEffect(() => {
                 localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfile);
@@ -2765,7 +2780,7 @@
                     if (!chatMessagesContainerRef.current) return;
                     chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
                 }, 40);
-            }, [chatOpen, sortedChatMessages, registerTimeout]);
+            }, [chatOpen, visibleChatMessages, registerTimeout]);
 
             useEffect(() => {
                 if (previousChatUnreadRef.current === null) {
@@ -4156,12 +4171,12 @@
                                 </div>
 
                                 <div ref={chatMessagesContainerRef} className="flex-1 overflow-y-auto px-3 py-3 bg-[#F8F9FB] space-y-2">
-                                    {sortedChatMessages.length === 0 ? (
+                                    {visibleChatMessages.length === 0 ? (
                                         <div className="h-full flex items-center justify-center text-center text-xs text-gray-400 px-6">
                                             Envie a primeira mensagem para começar a conversa entre os perfis.
                                         </div>
                                     ) : (
-                                        sortedChatMessages.map((msg, idx) => {
+                                        visibleChatMessages.map((msg, idx) => {
                                             const isMine = msg.from === activeProfile;
                                             const senderLabel = PROFILE_OPTIONS.find(p => p.id === msg.from)?.label || 'Perfil';
                                             return (
