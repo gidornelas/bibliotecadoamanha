@@ -2244,6 +2244,9 @@
             const otherProfile = PROFILE_OPTIONS.find(profile => profile.id !== activeProfile);
             const loggedUserProfile = useMemo(() => resolveProfileForUser(user), [user]);
             const myProfileId = loggedUserProfile?.id || null;
+            const viewerProfileId = myProfileId || activeProfile;
+            const chatCurrentProfile = PROFILE_OPTIONS.find(profile => profile.id === viewerProfileId) || currentProfile;
+            const chatOtherProfile = PROFILE_OPTIONS.find(profile => profile.id !== viewerProfileId) || otherProfile;
             const profilePreferencesKey = useMemo(
                 () => `libdb-preferences-${PROFILE_PREFERENCES_VERSION}-${activeProfile}`,
                 [activeProfile]
@@ -2266,12 +2269,12 @@
                 [chatMessages]
             );
             const visibleChatMessages = useMemo(
-                () => sortedChatMessages.filter(msg => !msg.hiddenFor?.[activeProfile]),
-                [sortedChatMessages, activeProfile]
+                () => sortedChatMessages.filter(msg => !msg.hiddenFor?.[viewerProfileId]),
+                [sortedChatMessages, viewerProfileId]
             );
             const chatUnreadCount = useMemo(
-                () => visibleChatMessages.filter(m => m.to === activeProfile && !m.readBy?.[activeProfile]).length,
-                [visibleChatMessages, activeProfile]
+                () => visibleChatMessages.filter(m => m.to === viewerProfileId && !m.readBy?.[viewerProfileId]).length,
+                [visibleChatMessages, viewerProfileId]
             );
             const sortedNotifications = useMemo(
                 () => notifications
@@ -2284,8 +2287,8 @@
                 [notifications, myProfileId]
             );
             const firstUnreadChatIndex = useMemo(
-                () => visibleChatMessages.findIndex(msg => msg.to === activeProfile && !msg.readBy?.[activeProfile]),
-                [visibleChatMessages, activeProfile]
+                () => visibleChatMessages.findIndex(msg => msg.to === viewerProfileId && !msg.readBy?.[viewerProfileId]),
+                [visibleChatMessages, viewerProfileId]
             );
             const persistencePayload = useMemo(() => ({
                 readStatus,
@@ -2324,14 +2327,14 @@
                 setChatMessages(prev => {
                     let changed = false;
                     const next = prev.map(msg => {
-                        if (msg.hiddenFor?.[activeProfile]) return msg;
-                        if (msg.to === activeProfile && !msg.readBy?.[activeProfile]) {
+                        if (msg.hiddenFor?.[viewerProfileId]) return msg;
+                        if (msg.to === viewerProfileId && !msg.readBy?.[viewerProfileId]) {
                             changed = true;
                             return {
                                 ...msg,
                                 readBy: {
                                     ...(msg.readBy || {}),
-                                    [activeProfile]: true
+                                    [viewerProfileId]: true
                                 }
                             };
                         }
@@ -2339,7 +2342,7 @@
                     });
                     return changed ? next : prev;
                 });
-            }, [activeProfile]);
+            }, [viewerProfileId]);
 
             const markNotificationsAsRead = useCallback(() => {
                 if (!myProfileId) return;
@@ -2412,21 +2415,21 @@
             const sendChatMessage = useCallback(() => {
                 try {
                     const text = chatInput.trim();
-                    console.log('[Chat] Enviando mensagem:', { text, otherProfile: otherProfile?.id, activeProfile });
-                    if (!text || !otherProfile) {
+                    console.log('[Chat] Enviando mensagem:', { text, otherProfile: chatOtherProfile?.id, viewerProfileId });
+                    if (!text || !chatOtherProfile) {
                         console.warn('[Chat] Abortando: texto vazio ou sem perfil destino');
                         return;
                     }
                     const now = Date.now();
                     const newMessage = {
                         id: `msg-${now}-${Math.random().toString(36).slice(2, 8)}`,
-                        from: activeProfile,
-                        to: otherProfile.id,
+                        from: viewerProfileId,
+                        to: chatOtherProfile.id,
                         text,
                         createdAt: now,
                         readBy: {
-                            [activeProfile]: true,
-                            [otherProfile.id]: false
+                            [viewerProfileId]: true,
+                            [chatOtherProfile.id]: false
                         }
                     };
                     console.log('[Chat] Mensagem criada:', newMessage);
@@ -2441,7 +2444,7 @@
                     console.error('[Chat] Erro ao enviar mensagem:', err);
                     notifyUser('Erro ao enviar mensagem: ' + err.message, 'error');
                 }
-            }, [chatInput, otherProfile, activeProfile]);
+            }, [chatInput, chatOtherProfile, viewerProfileId]);
 
             const formatChatTime = (timestamp) => {
                 if (!timestamp) return '';
@@ -2526,26 +2529,26 @@
             }, []);
 
             const clearChatConversation = useCallback(async () => {
-                if (!window.confirm(`Tem certeza que deseja limpar a conversa apenas para ${currentProfile.label}?`)) return;
+                if (!window.confirm(`Tem certeza que deseja limpar a conversa apenas para ${chatCurrentProfile.label}?`)) return;
                 setChatMessages(prev => {
                     let changed = false;
                     const next = prev.map(msg => {
-                        if (msg.hiddenFor?.[activeProfile]) return msg;
+                        if (msg.hiddenFor?.[viewerProfileId]) return msg;
                         changed = true;
                         return {
                             ...msg,
                             hiddenFor: {
                                 ...(msg.hiddenFor || {}),
-                                [activeProfile]: true
+                                [viewerProfileId]: true
                             }
                         };
                     });
                     return changed ? next : prev;
                 });
                 setChatInput('');
-                notifyUser(`Conversa limpa apenas para ${currentProfile.label}.`, 'success');
-                logActivity(`Limpou o histórico do chat apenas para ${currentProfile.label}.`, 'chat');
-            }, [activeProfile, currentProfile.label, logActivity]);
+                notifyUser(`Conversa limpa apenas para ${chatCurrentProfile.label}.`, 'success');
+                logActivity(`Limpou o histórico do chat apenas para ${chatCurrentProfile.label}.`, 'chat');
+            }, [viewerProfileId, chatCurrentProfile.label, logActivity]);
 
             useEffect(() => {
                 localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfile);
@@ -4149,7 +4152,7 @@
                                 <div className="px-4 py-3 border-b border-gray-100 bg-[#1E3A5F] text-white flex items-center justify-between">
                                     <div>
                                         <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-black">Chat Entre Perfis</p>
-                                        <p className="text-sm font-bold">{currentProfile.label} e {otherProfile?.label || 'Outro perfil'}</p>
+                                        <p className="text-sm font-bold">{chatCurrentProfile.label} e {chatOtherProfile?.label || 'Outro perfil'}</p>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <button
@@ -4177,7 +4180,7 @@
                                         </div>
                                     ) : (
                                         visibleChatMessages.map((msg, idx) => {
-                                            const isMine = msg.from === activeProfile;
+                                            const isMine = msg.from === viewerProfileId;
                                             const senderLabel = PROFILE_OPTIONS.find(p => p.id === msg.from)?.label || 'Perfil';
                                             return (
                                                 <React.Fragment key={msg.id}>
@@ -4214,7 +4217,7 @@
                                         value={chatInput}
                                         onChange={(e) => setChatInput(e.target.value)}
                                         maxLength={400}
-                                        placeholder={`Mensagem de ${currentProfile.label} para ${otherProfile?.label || 'o outro perfil'}...`}
+                                        placeholder={`Mensagem de ${chatCurrentProfile.label} para ${chatOtherProfile?.label || 'o outro perfil'}...`}
                                         className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[#14B8A6]/30"
                                     />
                                     <button
