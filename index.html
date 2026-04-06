@@ -2865,6 +2865,7 @@
 
                 const PT_BR_PUBLISHER_PATTERN = /(companhia das letras|intrinseca|intrínseca|arqueiro|record|rocco|seguinte|aleph|suma|trama|morro branco|darkside|bertrand brasil|harpercollins|galera|planeta|paralela|globo|principis)/i;
                 const PT_BR_TEXT_PATTERN = /\b(de|da|do|dos|das|que|uma|para|com|sem|livro|romance|ficcao|ficção|edicao|edição|serie|série|brasil|brasileiro)\b/i;
+                const ENGLISH_TEXT_PATTERN = /\b(the|and|with|book|series|edition|volume|a\s|an\s|for\s|from\s|of\s)\b/i;
                 const isPortugueseLanguage = (language = '') => /^pt(-|$)/i.test(String(language || '').trim());
                 const extractPublishedYear = (publishedDate = '') => {
                     const match = String(publishedDate || '').match(/\b(19\d{2}|20\d{2}|21\d{2})\b/);
@@ -2880,18 +2881,28 @@
                     if (age <= 6) return 4;
                     return 0;
                 };
-                const isLikelyPtBrVolume = (volume = {}) => {
+                const getPtBrConfidence = (volume = {}) => {
                     const language = String(volume?.language || '').trim();
-                    if (isPortugueseLanguage(language)) return true;
-
                     const title = String(volume?.title || '').trim();
                     const description = String(volume?.description || '').trim();
                     const publisher = String(volume?.publisher || '').trim();
                     const categoriesText = Array.isArray(volume?.categories) ? volume.categories.join(' ') : '';
-                    const fullText = `${title} ${description} ${categoriesText}`.toLowerCase();
+                    const fullText = `${title} ${description} ${categoriesText}`;
 
-                    if (PT_BR_PUBLISHER_PATTERN.test(publisher) && PT_BR_TEXT_PATTERN.test(fullText)) return true;
-                    return false;
+                    let score = 0;
+                    if (isPortugueseLanguage(language)) score += 3;
+                    if (PT_BR_PUBLISHER_PATTERN.test(publisher)) score += 3;
+                    if (PT_BR_TEXT_PATTERN.test(fullText.toLowerCase())) score += 2;
+
+                    // Penaliza resultados claramente em ingles sem sinais fortes de edicao brasileira.
+                    if (!isPortugueseLanguage(language) && ENGLISH_TEXT_PATTERN.test(fullText.toLowerCase()) && !PT_BR_PUBLISHER_PATTERN.test(publisher)) {
+                        score -= 3;
+                    }
+
+                    return score;
+                };
+                const isLikelyPtBrVolume = (volume = {}) => {
+                    return getPtBrConfidence(volume) >= 4;
                 };
 
                 const GLOBAL_FALLBACK_CURATION = [
@@ -2932,9 +2943,13 @@
                             return key && key !== '|' && !catalogKeySet.has(key);
                         });
 
+                    const brazilianSeedPool = onlyNotInCatalog(SEED_BOOKS.filter(book => !!book?.isBrazilianAuthor));
+                    const ptBrPublisherExternalPool = onlyNotInCatalog(
+                        GLOBAL_FALLBACK_CURATION.filter(book => PT_BR_PUBLISHER_PATTERN.test(String(book?.publisher || '')))
+                    );
                     const externalPool = onlyNotInCatalog(GLOBAL_FALLBACK_CURATION);
                     const seedPool = onlyNotInCatalog(SEED_BOOKS);
-                    const merged = [...externalPool, ...seedPool];
+                    const merged = [...brazilianSeedPool, ...ptBrPublisherExternalPool, ...seedPool, ...externalPool];
                     const uniqueMap = new Map();
                     merged.forEach(book => {
                         const title = (book?.title || '').trim();
@@ -2955,6 +2970,8 @@
                             const seed = simpleHash(`${book.title}|${book.author}`);
                             const avg = 4 + ((seed % 10) / 10); // 4.0-4.9
                             const count = 120 + (seed % 5000);
+                            const brBoost = book?.isBrazilianAuthor ? 22 : 0;
+                            const ptPublisherBoost = PT_BR_PUBLISHER_PATTERN.test(String(book?.publisher || '')) ? 10 : 0;
                             const safeCover = (book.coverUrl || '').replace(/^http:\/\//i, 'https://');
                             return {
                                 id: `local-${seed}`,
@@ -2970,7 +2987,7 @@
                                 olAverageRating: 0,
                                 olRatingsCount: 0,
                                 olWantsCount: 0,
-                                curationScore: (avg * 18) + Math.log10(count + 1) * 18,
+                                curationScore: (avg * 18) + Math.log10(count + 1) * 18 + brBoost + ptPublisherBoost,
                                 coverUrl: safeCover,
                                 coverCandidates: [
                                     `https://covers.openlibrary.org/b/title/${encodeURIComponent(book.title || '')}-L.jpg?default=false`,
@@ -3003,8 +3020,16 @@
                     }
 
                     const ranked = candidates
-                        .filter(item => isLikelyPtBrVolume(item?.volumeInfo || {}))
-                        .map(item => ({ item, score: scoreTitleMatch(title, item?.volumeInfo?.title || '') }))
+                        .map(item => {
+                            const volume = item?.volumeInfo || {};
+                            const ptScore = getPtBrConfidence(volume);
+                            return {
+                                item,
+                                ptScore,
+                                score: scoreTitleMatch(title, volume?.title || '') + (ptScore * 6)
+                            };
+                        })
+                        .filter(item => item.ptScore >= 4)
                         .sort((a, b) => b.score - a.score);
                     const best = ranked[0]?.item;
                     const bestScore = ranked[0]?.score || 0;
@@ -3103,6 +3128,7 @@
                             pages: volume.pageCount || 0,
                             gbAverageRating: Number(volume.averageRating) || 0,
                             gbRatingsCount: Number(volume.ratingsCount) || 0,
+                            ptBrConfidence: getPtBrConfidence(volume),
                             coverUrl: cover,
                             coverCandidates: uniqueCoverCandidates,
                             description: volume.description || 'Sem descrição disponível.',
@@ -3116,7 +3142,8 @@
                         const { best, bestScore } = await findBestGoogleMatch(candidate.title);
                         const volume = best?.volumeInfo || {};
 
-                        if (!best || bestScore < 28 || NON_BOOK_PATTERN.test(volume.title || '') || !isLikelyPtBrVolume(volume)) {
+                        const ptBrConfidence = getPtBrConfidence(volume);
+                        if (!best || bestScore < 28 || NON_BOOK_PATTERN.test(volume.title || '') || ptBrConfidence < 4) {
                             return null;
                         }
 
@@ -3169,6 +3196,7 @@
                             ratingsCount: communityCount,
                             gbAverageRating,
                             gbRatingsCount,
+                            ptBrConfidence,
                             olAverageRating,
                             olRatingsCount,
                             olWantsCount,
@@ -3211,6 +3239,7 @@
                                 const popularity = (Number(book?.ratingsCount) || 0) + (Number(book?.olWantsCount) || 0);
                                 return popularity >= 35;
                             })
+                            .filter(book => Number(book?.ptBrConfidence) >= 4)
                             .sort((a, b) => (b.curationScore || 0) - (a.curationScore || 0));
                         if (validBooks.length === 0) {
                             const localFallback = buildLocalCuratedFallback();
