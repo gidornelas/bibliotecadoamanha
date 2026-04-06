@@ -40,6 +40,24 @@
         window.supabaseConfig = supabaseConfig;
         window.supabaseBucket = supabaseConfig.bucket;
         window.supabaseClient = null;
+        // Configure a URL publica para o proxy de capas (Goodreads/Skoob) em producao.
+        // Exemplo: window.coverProxyBaseUrl = 'https://SEU-DOMINIO.com/api/cover';
+        window.coverProxyBaseUrl = window.coverProxyBaseUrl || '';
+        window.getCoverProxyBases = () => {
+            const fromConfig = String(window.coverProxyBaseUrl || '')
+                .split(',')
+                .map(value => value.trim())
+                .filter(Boolean);
+
+            const sameOriginBase = (window.location?.origin && /^https?:/i.test(window.location.origin))
+                ? `${window.location.origin}/api/cover`
+                : '';
+
+            const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location?.hostname || '');
+            const localDevBase = isLocalHost ? 'http://localhost:8787/cover' : '';
+
+            return [...new Set([...fromConfig, sameOriginBase, localDevBase].filter(Boolean))];
+        };
         window.supabaseConfigReady = Boolean(
             supabaseConfig.url &&
             !supabaseConfig.url.includes('SEU-PROJETO') &&
@@ -127,6 +145,20 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
 
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in-down { animation: fadeInDown 0.38s cubic-bezier(0.22, 1, 0.36, 1); }
+
+        @keyframes profileFadeOutUp {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        @keyframes profileFadeInDown {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .profile-transition-out { animation: profileFadeOutUp 0.35s ease-out forwards; }
+        .profile-transition-in { animation: profileFadeInDown 0.45s ease-in both; }
+
         .book-card-hover { transition: all 0.2s ease-in-out; }
         .book-card-hover:hover { transform: translateY(-4px); }
 
@@ -141,7 +173,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
         // --- 0. CONFIGURAÇÃO DO BANCO DE DADOS NA NUVEM ---
 
@@ -326,6 +358,7 @@
         // --- 1. CONFIGURAÇÕES E HELPERS (DEFINIDOS NO TOPO) ---
 
         const GENRES = ["Todos", "Fantasia", "Romantasy", "Ficção Científica", "Thriller", "Romance Contemporâneo", "Ficção Literária", "Distopia"];
+        const DEFAULT_GENRES = GENRES.filter(genre => genre !== "Todos");
 
         function getGenreStyles(genre) {
             switch (genre) {
@@ -364,7 +397,8 @@
                 plus: <path d="M12 5v14M5 12h14" />,
                 trash: <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />,
                 bookMarked: <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />,
-                edit: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                edit: <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />,
+                messageCircle: (<><path d="M21 11.5a8.5 8.5 0 1 1-4.4-7.46" /><path d="M22 4l-7 7" /><path d="m22 9-7-7" /></>)
             };
             return (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -418,6 +452,21 @@
             { id: 41, title: "Magia Oculta (Metal Slinger)", author: "Rachel Schneider", publisher: "Independente", pages: 520, genre: "Fantasia", series: "Fogo e Metal", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81K7kIHIr4L._UF1000,1000_QL80_.jpg", synopsis: "Brynn é uma guarda que vive exilada no mar. Quando parte para o Mercado anual dos inimigos do seu povo, un conflito com o soldado Acker ameaça um tratado de paz centenário — e revela um world de magia que ela não sabia que existia. Plot twist final explosivo.", tags: ["romantasy", "enemies to lovers", "slow burn", "fated mates", "proximidade forçada", "magia oculta", "plot twist explosivo", "duologia"] }
         ];
 
+        const LAISA_DEMO_BOOKS = [
+            {
+                id: "laisa-demo-1",
+                title: "Livro de Teste da Laisa",
+                author: "Equipe Biblioteca",
+                publisher: "Teste Interno",
+                pages: 240,
+                genre: "Romance Contemporâneo",
+                isBrazilianAuthor: true,
+                coverUrl: "https://m.media-amazon.com/images/I/71MYkfZvNPS._UF1000,1000_QL80_.jpg",
+                synopsis: "Livro criado automaticamente para testar a função de copiar para o perfil da conta logada.",
+                tags: ["teste", "perfil", "importacao"]
+            }
+        ];
+
         // Array vazia - todos os livros serão carregados do banco de dados
         const INITIAL_BOOKS = [];
 
@@ -438,6 +487,7 @@
                 isBrazilianAuthor: false,
                 isDistopia: false
             });
+            const [customGenre, setCustomGenre] = useState("");
             const [amazonQuery, setAmazonQuery] = useState("");
             const [amazonRef, setAmazonRef] = useState("");
             const [isLoadingAmazon, setIsLoadingAmazon] = useState(false);
@@ -467,6 +517,7 @@
                     isDistopia: !!initialBook.isDistopia
                 });
                 setEpubMessage(initialBook.epubFileName ? `Arquivo atual: ${initialBook.epubFileName}` : "");
+                setCustomGenre("");
             }, [initialBook]);
 
             const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
@@ -806,6 +857,7 @@
                 const parsedVolume = Number(form.volume) || 0;
                 const isBookInSeries = !!form.isSeries && parsedTotalVolumes > 1;
                 const bookId = initialBook?.id || Date.now();
+                const finalGenre = (customGenre.trim() || form.genre || "Fantasia").trim();
 
                 let epubUrl = initialBook?.epubUrl || "";
                 let epubFileName = initialBook?.epubFileName || "";
@@ -845,7 +897,7 @@
                     id: bookId,
                     title: form.title.trim(),
                     author: form.author.trim(),
-                    genre: form.genre,
+                    genre: finalGenre,
                     publisher: form.publisher.trim() || "Independente",
                     pages: Number(form.pages) || 0,
                     synopsis: form.synopsis.trim() || "Sem sinopse informada.",
@@ -864,6 +916,12 @@
                     isDistopia: !!form.isDistopia
                 });
             };
+
+            const selectableGenres = (() => {
+                const base = [...DEFAULT_GENRES];
+                if (form.genre && !base.includes(form.genre)) base.unshift(form.genre);
+                return base;
+            })();
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
@@ -918,8 +976,9 @@
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Título *" value={form.title} onChange={(e) => setField('title', e.target.value)} required />
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Autor *" value={form.author} onChange={(e) => setField('author', e.target.value)} required />
                             <select className="px-4 py-3 border border-gray-200 rounded-xl" value={form.genre} onChange={(e) => setField('genre', e.target.value)}>
-                                {GENRES.filter(g => g !== 'Todos').map(g => <option key={g} value={g}>{g}</option>)}
+                                {selectableGenres.map(g => <option key={g} value={g}>{g}</option>)}
                             </select>
+                            <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Nova categoria (opcional)" value={customGenre} onChange={(e) => setCustomGenre(e.target.value)} />
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Editora" value={form.publisher} onChange={(e) => setField('publisher', e.target.value)} />
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="Páginas" type="number" min="0" value={form.pages} onChange={(e) => setField('pages', e.target.value)} />
                             <input className="px-4 py-3 border border-gray-200 rounded-xl" placeholder="URL da capa" value={form.coverUrl} onChange={(e) => setField('coverUrl', e.target.value)} />
@@ -992,7 +1051,60 @@
             );
         }
 
-        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub }) {
+        function CuratedCoverImage({ item }) {
+            const [coverIndex, setCoverIndex] = useState(0);
+
+            const createInlinePlaceholder = useCallback((title = '') => {
+                const safeTitle = (title || 'Sem Capa').replace(/[&<>"']/g, '').slice(0, 36);
+                const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='450' viewBox='0 0 300 450'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop offset='0%' stop-color='#1E3A5F'/><stop offset='100%' stop-color='#14B8A6'/></linearGradient></defs><rect width='300' height='450' fill='url(#g)'/><rect x='20' y='20' width='260' height='410' rx='18' fill='rgba(255,255,255,0.09)'/><text x='150' y='214' text-anchor='middle' fill='white' font-size='13' font-family='Arial, sans-serif' font-weight='700'>SEM CAPA</text><text x='150' y='238' text-anchor='middle' fill='rgba(255,255,255,0.92)' font-size='12' font-family='Arial, sans-serif'>${safeTitle}</text></svg>`;
+                return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+            }, []);
+
+            const coverSources = useMemo(() => {
+                const fromItem = Array.isArray(item?.coverCandidates) ? item.coverCandidates : [];
+                const titleCover = item?.title ? `https://covers.openlibrary.org/b/title/${encodeURIComponent(item.title)}-L.jpg?default=false` : '';
+                const isbnCover = item?.isbn ? `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(item.isbn)}-L.jpg?default=false` : '';
+                const proxyBases = typeof window.getCoverProxyBases === 'function' ? window.getCoverProxyBases() : [];
+                const proxyCoverUrls = item?.title
+                    ? proxyBases.flatMap(base => ([
+                        `${base}?source=skoob&title=${encodeURIComponent(item.title)}&author=${encodeURIComponent(item?.author || '')}`,
+                        `${base}?source=goodreads&title=${encodeURIComponent(item.title)}&author=${encodeURIComponent(item?.author || '')}`
+                    ]))
+                    : [];
+                const merged = [...fromItem, item?.coverUrl || '', isbnCover, titleCover]
+                    .map(url => (url || '').trim())
+                    .filter(Boolean)
+                    .map(url => url.replace(/^http:\/\//i, 'https://'));
+                // Keep localhost proxy URLs as http, but normalize other http links to https.
+                const normalized = merged.map(url => (url.startsWith('http://localhost:') ? url : url.replace(/^http:\/\//i, 'https://')));
+                return [...new Set([...proxyCoverUrls, ...normalized].filter(Boolean))];
+            }, [item]);
+
+            useEffect(() => {
+                setCoverIndex(0);
+            }, [item?.id, item?.title]);
+
+            const placeholderSrc = createInlinePlaceholder(item?.title || 'Sem Capa');
+            const currentSrc = coverIndex < coverSources.length
+                ? coverSources[coverIndex]
+                : placeholderSrc;
+
+            return (
+                <img
+                    src={currentSrc}
+                    alt={item?.title || 'Capa do livro'}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    onError={() => {
+                        // Avanca para a proxima opcao e, no fim, cai no placeholder inline.
+                        setCoverIndex(prev => prev + 1);
+                    }}
+                />
+            );
+        }
+
+        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, showImportButton, onImportToMine, isRead, commentsCount = 0 }) {
             const styles = getGenreStyles(book.genre);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
@@ -1004,7 +1116,14 @@
                             <img src={coverUrl} className="w-full h-full object-cover" alt={book.title} />
                         </div>
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
-                            <h4 className="font-bold text-sm text-[#1E3A5F] truncate">{book.title}</h4>
+                            <div className="flex items-center justify-between gap-2">
+                                <h4 className="font-bold text-sm text-[#1E3A5F] truncate">{book.title}</h4>
+                                {isRead && (
+                                    <span className="shrink-0 inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                        LIDO
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs text-gray-400 truncate">{book.author}</p>
                             <div className="mt-2 flex flex-wrap gap-1">
                                 <span className={`inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
@@ -1056,25 +1175,44 @@
                             >
                                 {book.genre}
                             </span>
-                            {!!book.epubUrl && !!hasRemoteEpub && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        downloadEpubByUrl(book.epubUrl, book.epubFileName);
-                                    }}
-                                    title={book.epubFileName ? `Baixar ${book.epubFileName}` : 'Baixar EPUB'}
-                                    className="inline-flex items-center justify-center w-6 h-6 rounded-md text-emerald-600 hover:bg-emerald-50"
-                                >
-                                    <Icon name="download" className="w-3.5 h-3.5" />
-                                </button>
-                            )}
+                            <div className="flex items-center gap-1">
+                                {commentsCount > 0 && (
+                                    <span className="inline-flex items-center justify-center px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wide text-slate-500 bg-slate-100 border border-slate-200">
+                                        {commentsCount} com.
+                                    </span>
+                                )}
+                                {showImportButton && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onImportToMine(book);
+                                        }}
+                                        title="Adicionar ao meu perfil"
+                                        className="inline-flex items-center justify-center px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wide text-[#1E3A5F] bg-[#14B8A6]/10 border border-[#14B8A6]/30 hover:bg-[#14B8A6]/20"
+                                    >
+                                        + Meu Perfil
+                                    </button>
+                                )}
+                                {!!book.epubUrl && !!hasRemoteEpub && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            downloadEpubByUrl(book.epubUrl, book.epubFileName);
+                                        }}
+                                        title={book.epubFileName ? `Baixar ${book.epubFileName}` : 'Baixar EPUB'}
+                                        className="inline-flex items-center justify-center w-6 h-6 rounded-md text-emerald-600 hover:bg-emerald-50"
+                                    >
+                                        <Icon name="download" className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
             );
         }
 
-        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick, hasRemoteEpub }) {
+        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick, hasRemoteEpub, isViewingOwnProfile, bookComments = [], onAddComment, onDeleteComment, currentProfileLabel, currentProfileId }) {
             const styles = getGenreStyles(book.genre);
             const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
             const [isConfirmingDeleteEpub, setIsConfirmingDeleteEpub] = useState(false);
@@ -1082,6 +1220,7 @@
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
             const [uploadMessage, setUploadMessage] = useState("");
+            const [commentDraft, setCommentDraft] = useState("");
 
             const handleDeleteEpub = async () => {
                 try {
@@ -1134,12 +1273,12 @@
                                                 Baixar EPUB {book.epubFileName ? `(${book.epubFileName})` : ''}
                                             </button>
                                         )}
-                                        {book.epubKey && !book.epubUrl && (
+                                        {book.epubKey && !book.epubUrl && isViewingOwnProfile && (
                                             <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-semibold text-amber-700 leading-relaxed">
                                                 Este livro ainda usa o formato antigo de EPUB local. Reenvie o arquivo para migrar ao Supabase Storage.
                                             </div>
                                         )}
-                                        {!hasRemoteEpub && (
+                                        {!hasRemoteEpub && isViewingOwnProfile && (
                                             <>
                                                 <label htmlFor={`epub-upload-${book.id}`} className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 cursor-pointer">
                                                     <Icon name="bookMarked" className="w-3.5 h-3.5" />
@@ -1188,7 +1327,7 @@
                                             </>
                                         )}
                                         {uploadMessage && <p className="text-[10px] text-gray-500">{uploadMessage}</p>}
-                                        {(book.epubPath || book.epubKey) && (
+                                        {(book.epubPath || book.epubKey) && isViewingOwnProfile && (
                                             <>
                                                 {!isConfirmingDeleteEpub ? (
                                                     <button onClick={() => setIsConfirmingDeleteEpub(true)} className="w-full mt-2 py-2 text-[10px] font-bold text-red-300 uppercase tracking-widest hover:text-red-500 flex items-center justify-center gap-2 transition-colors">
@@ -1205,6 +1344,7 @@
                                                 )}
                                             </>
                                         )}
+                                        {isViewingOwnProfile && (
                                         <div className="mt-2 pt-4 border-t border-gray-100 text-center">
                                             <button onClick={onEdit} className="w-full py-2 mb-2 text-[10px] font-bold text-[#1E3A5F] uppercase tracking-widest hover:text-[#14B8A6] flex items-center justify-center gap-2 transition-colors">
                                                 <Icon name="edit" className="w-3.5 h-3.5" /> Editar Obra
@@ -1222,6 +1362,49 @@
                                                     </div>
                                                 </div>
                                             )}
+                                        </div>
+                                        )}
+                                        <div className="mt-4 pt-4 border-t border-gray-100 text-left">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Comentários dos Perfis</p>
+                                            <div className="max-h-40 overflow-y-auto pr-1 space-y-2 mb-2">
+                                                {bookComments.length === 0 ? (
+                                                    <p className="text-[11px] text-gray-400 leading-relaxed">Nenhum comentário ainda. Deixe o primeiro comentário deste livro.</p>
+                                                ) : (
+                                                    bookComments.map((comment) => (
+                                                        <div key={comment.id} className="rounded-xl border border-gray-100 bg-gray-50 px-2.5 py-2">
+                                                            <p className="text-[10px] text-gray-400 lowercase font-semibold">{comment.authorProfileLabel}</p>
+                                                            <p className="text-[11px] text-[#1E3A5F] leading-relaxed whitespace-pre-wrap">{comment.text}</p>
+                                                            <div className="mt-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => onDeleteComment(book.id, comment.id)}
+                                                                    className="text-[10px] font-bold text-red-400 hover:text-red-500 transition-colors"
+                                                                >
+                                                                    Excluir
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                            <form
+                                                onSubmit={(e) => {
+                                                    e.preventDefault();
+                                                    if (!commentDraft.trim()) return;
+                                                    onAddComment(book.id, commentDraft.trim());
+                                                    setCommentDraft("");
+                                                }}
+                                                className="flex gap-2"
+                                            >
+                                                <input
+                                                    value={commentDraft}
+                                                    onChange={(e) => setCommentDraft(e.target.value)}
+                                                    maxLength={220}
+                                                    placeholder={`Comentar como ${currentProfileLabel.toLowerCase()}...`}
+                                                    className="flex-1 px-2.5 py-2 rounded-xl border border-gray-200 text-[11px] outline-none focus:ring-2 focus:ring-[#14B8A6]/25"
+                                                />
+                                                <button type="submit" className="px-3 py-2 rounded-xl bg-[#14B8A6] text-white text-[10px] font-black uppercase tracking-wide hover:bg-[#0fae9d] transition-colors">Enviar</button>
+                                            </form>
                                         </div>
                                     </div>
                                 </div>
@@ -1273,6 +1456,18 @@
 
         // --- 4. APP PRINCIPAL ---
 
+        const PROFILE_OPTIONS = [
+            { id: 'perfil-1', label: 'Gianny' },
+            { id: 'perfil-2', label: 'Laisa' }
+        ];
+        const PROFILE_STORAGE_VERSION = {
+            'perfil-1': 'v1',
+            'perfil-2': 'v2'
+        };
+        const ACTIVE_PROFILE_KEY = 'libdb-active-profile-v1';
+        const CHAT_STORAGE_KEY = 'libdb-chat-v1-shared';
+        const COMMENTS_STORAGE_KEY = 'libdb-comments-v1-shared';
+
         const App = () => {
             const [readStatus, setReadStatus] = useState({});
             const [downloadStatus, setDownloadStatus] = useState({});
@@ -1292,6 +1487,207 @@
             const [authLoading, setAuthLoading] = useState(true);
             const [showAddBook, setShowAddBook] = useState(false);
             const [editingBook, setEditingBook] = useState(null);
+            const [showProfileMenu, setShowProfileMenu] = useState(false);
+            const profileMenuRef = useRef(null);
+            const isProfileSwitchingRef = useRef(false);
+            const [profileTransitionStage, setProfileTransitionStage] = useState('idle');
+            const pendingProfileRef = useRef(null);
+            const [chatMessages, setChatMessages] = useState([]);
+            const [chatOpen, setChatOpen] = useState(false);
+            const [chatInput, setChatInput] = useState('');
+            const [chatInitialized, setChatInitialized] = useState(false);
+            const [commentsByBook, setCommentsByBook] = useState({});
+            const [commentsInitialized, setCommentsInitialized] = useState(false);
+            const [amazonHighlights, setAmazonHighlights] = useState([]);
+            const [isLoadingAmazonHighlights, setIsLoadingAmazonHighlights] = useState(false);
+            const [amazonHighlightsError, setAmazonHighlightsError] = useState('');
+            const [activeProfile, setActiveProfile] = useState(() => {
+                const stored = localStorage.getItem(ACTIVE_PROFILE_KEY);
+                return PROFILE_OPTIONS.some(profile => profile.id === stored) ? stored : PROFILE_OPTIONS[0].id;
+            });
+
+            const switchProfile = useCallback((profileId) => {
+                if (profileId === activeProfile) return;
+                pendingProfileRef.current = profileId;
+                setProfileTransitionStage('out');
+                setTimeout(() => {
+                    setActiveProfile(pendingProfileRef.current);
+                    setProfileTransitionStage('in');
+                    setTimeout(() => setProfileTransitionStage('idle'), 520);
+                }, 420);
+            }, [activeProfile]);
+
+            const getProfileKeys = useCallback((profileId) => {
+                const version = PROFILE_STORAGE_VERSION[profileId] || 'v1';
+                return {
+                    read: `libdb-read-${version}-${profileId}`,
+                    download: `libdb-download-${version}-${profileId}`,
+                    covers: `libdb-covers-${version}-${profileId}`,
+                    custom: `libdb-custom-${version}-${profileId}`,
+                    removed: `libdb-removed-${version}-${profileId}`,
+                    queue: `libdb-queue-${version}-${profileId}`
+                };
+            }, []);
+
+            const profileKeys = useMemo(() => getProfileKeys(activeProfile), [activeProfile, getProfileKeys]);
+
+            const currentProfile = PROFILE_OPTIONS.find(profile => profile.id === activeProfile) || PROFILE_OPTIONS[0];
+            const otherProfile = PROFILE_OPTIONS.find(profile => profile.id !== activeProfile);
+            const profileGenres = useMemo(() => {
+                const available = new Set();
+                customBooks.forEach(book => {
+                    const genre = (book?.genre || '').trim();
+                    if (genre) available.add(genre);
+                    if (book?.isDistopia) available.add('Distopia');
+                });
+
+                const known = GENRES.filter(genre => genre !== 'Todos' && available.has(genre));
+                const custom = [...available].filter(genre => !GENRES.includes(genre)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+                return [...known, ...custom];
+            }, [customBooks]);
+            const genreMenuItems = useMemo(() => ['Todos', ...profileGenres], [profileGenres]);
+            const sortedChatMessages = useMemo(
+                () => [...chatMessages].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
+                [chatMessages]
+            );
+            const chatUnreadCount = useMemo(
+                () => chatMessages.filter(m => m.to === activeProfile && !m.readBy?.[activeProfile]).length,
+                [chatMessages, activeProfile]
+            );
+
+            const markChatAsRead = useCallback(() => {
+                setChatMessages(prev => {
+                    let changed = false;
+                    const next = prev.map(msg => {
+                        if (msg.to === activeProfile && !msg.readBy?.[activeProfile]) {
+                            changed = true;
+                            return {
+                                ...msg,
+                                readBy: {
+                                    ...(msg.readBy || {}),
+                                    [activeProfile]: true
+                                }
+                            };
+                        }
+                        return msg;
+                    });
+                    return changed ? next : prev;
+                });
+            }, [activeProfile]);
+
+            const sendChatMessage = useCallback(() => {
+                const text = chatInput.trim();
+                if (!text || !otherProfile) return;
+                const now = Date.now();
+                const newMessage = {
+                    id: `msg-${now}-${Math.random().toString(36).slice(2, 8)}`,
+                    from: activeProfile,
+                    to: otherProfile.id,
+                    text,
+                    createdAt: now,
+                    readBy: {
+                        [activeProfile]: true,
+                        [otherProfile.id]: false
+                    }
+                };
+                setChatMessages(prev => [...prev, newMessage]);
+                setChatInput('');
+            }, [chatInput, otherProfile, activeProfile]);
+
+            const formatChatTime = (timestamp) => {
+                if (!timestamp) return '';
+                try {
+                    return new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                } catch {
+                    return '';
+                }
+            };
+
+            const addBookComment = useCallback((bookId, text) => {
+                const cleanText = (text || '').trim();
+                if (!cleanText) return;
+                const newComment = {
+                    id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    authorProfileId: activeProfile,
+                    authorProfileLabel: currentProfile.label,
+                    text: cleanText,
+                    createdAt: Date.now()
+                };
+
+                setCommentsByBook(prev => {
+                    const currentComments = Array.isArray(prev[bookId]) ? prev[bookId] : [];
+                    return {
+                        ...prev,
+                        [bookId]: [...currentComments, newComment]
+                    };
+                });
+            }, [activeProfile, currentProfile.label]);
+
+            const deleteBookComment = useCallback((bookId, commentId) => {
+                setCommentsByBook(prev => {
+                    const currentComments = Array.isArray(prev[bookId]) ? prev[bookId] : [];
+                    const filtered = currentComments.filter(comment => comment.id !== commentId);
+                    const next = { ...prev };
+                    if (filtered.length === 0) {
+                        delete next[bookId];
+                    } else {
+                        next[bookId] = filtered;
+                    }
+                    return next;
+                });
+            }, []);
+
+            const clearChatConversation = useCallback(async () => {
+                if (!window.confirm('Tem certeza que deseja limpar toda a conversa do chat?')) return;
+                setChatMessages([]);
+                setChatInput('');
+                if (user) {
+                    await saveToCloud(CHAT_STORAGE_KEY, []);
+                    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify([]));
+                }
+            }, [user]);
+
+            useEffect(() => {
+                localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfile);
+                isProfileSwitchingRef.current = true;
+                // Reseta estados para forçar reload limpo ao trocar perfil
+                setIsInitialized(false);
+                setCustomBooks([]);
+                setReadStatus({});
+                setDownloadStatus({});
+                setCustomCovers({});
+                setRemovedInitialIds([]);
+                setReadingOrder([]);
+            }, [activeProfile]);
+
+            useEffect(() => {
+                if (!showProfileMenu) return;
+
+                const handleOutsideClick = (event) => {
+                    if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+                        setShowProfileMenu(false);
+                    }
+                };
+
+                document.addEventListener('mousedown', handleOutsideClick);
+                return () => document.removeEventListener('mousedown', handleOutsideClick);
+            }, [showProfileMenu]);
+
+            // Auto-detecta perfil com base no nome da conta Google apenas no login inicial
+            const hasAutoDetected = useRef(false);
+            useEffect(() => {
+                if (!user) {
+                    hasAutoDetected.current = false;
+                    return;
+                }
+                if (hasAutoDetected.current) return;
+                hasAutoDetected.current = true;
+                const firstName = (user.displayName || user.email || '').trim().split(' ')[0].toLowerCase();
+                const matched = PROFILE_OPTIONS.find(p => p.label.toLowerCase() === firstName);
+                if (matched) {
+                    setActiveProfile(matched.id);
+                }
+            }, [user]);
 
             // Monitora estado de autenticação
             useEffect(() => {
@@ -1308,7 +1704,439 @@
                 return () => unsubscribe();
             }, []);
 
-            // Funções de autenticação
+            useEffect(() => {
+                if (!user) {
+                    setChatMessages([]);
+                    setChatInitialized(false);
+                    setChatOpen(false);
+                    setCommentsByBook({});
+                    setCommentsInitialized(false);
+                    return;
+                }
+
+                let active = true;
+                (async () => {
+                    const loadedChat = await loadFromCloud(CHAT_STORAGE_KEY, []);
+                    const loadedComments = await loadFromCloud(COMMENTS_STORAGE_KEY, {});
+                    if (!active) return;
+                    setChatMessages(Array.isArray(loadedChat) ? loadedChat : []);
+                    setChatInitialized(true);
+                    setCommentsByBook(loadedComments && typeof loadedComments === 'object' ? loadedComments : {});
+                    setCommentsInitialized(true);
+                })();
+
+                return () => {
+                    active = false;
+                };
+            }, [user]);
+
+            useEffect(() => {
+                if (!user || !chatInitialized) return;
+                saveToCloud(CHAT_STORAGE_KEY, chatMessages);
+            }, [chatMessages, user, chatInitialized]);
+
+            useEffect(() => {
+                if (!user || !commentsInitialized) return;
+                saveToCloud(COMMENTS_STORAGE_KEY, commentsByBook);
+            }, [commentsByBook, user, commentsInitialized]);
+
+            useEffect(() => {
+                if (!chatOpen) return;
+                markChatAsRead();
+            }, [chatOpen, activeProfile, markChatAsRead]);
+
+            useEffect(() => {
+                if (!genreMenuItems.includes(activeGenre)) {
+                    setActiveGenre('Todos');
+                }
+            }, [genreMenuItems, activeGenre]);
+
+            useEffect(() => {
+                if (!user || !isInitialized || viewMode !== 'amazon') return;
+
+                let cancelled = false;
+                const NON_BOOK_PATTERN = /(r\$\s*\d|figurinhas|album de figurinhas|kit|envelopes|copa do mundo|xbox|playstation|camiseta|funko|caneca|caderno|agenda|calendario|poster)/i;
+                const normalizeText = (value = '') =>
+                    value
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[^a-z0-9\s]/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                const buildBookKey = (title = '', author = '') => `${normalizeText(title)}|${normalizeText(author)}`;
+                const catalogKeySet = new Set(
+                    customBooks
+                        .map(book => buildBookKey(book?.title || '', book?.author || ''))
+                        .filter(key => key && key !== '|')
+                );
+
+                const detectGenre = (categories = []) => {
+                    if (!Array.isArray(categories) || categories.length === 0) {
+                        return profileGenres[0] || 'Livros';
+                    }
+                    const normalizedCategories = categories.map(category => (category || '').toLowerCase());
+                    const pool = profileGenres.length ? profileGenres : DEFAULT_GENRES;
+                    const matched = pool.find(genre => {
+                        const normalizedGenre = (genre || '').toLowerCase();
+                        return normalizedCategories.some(category => category.includes(normalizedGenre));
+                    });
+                    return matched || (profileGenres[0] || 'Livros');
+                };
+
+                const scoreTitleMatch = (sourceTitle, candidateTitle) => {
+                    const source = normalizeText(sourceTitle);
+                    const candidate = normalizeText(candidateTitle);
+                    if (!source || !candidate) return 0;
+                    if (source === candidate) return 100;
+                    if (candidate.includes(source) || source.includes(candidate)) return 70;
+                    const sourceTokens = source.split(' ').filter(token => token.length > 2);
+                    const candidateTokens = new Set(candidate.split(' ').filter(token => token.length > 2));
+                    const common = sourceTokens.filter(token => candidateTokens.has(token)).length;
+                    return common * 10;
+                };
+
+                const cleanSearchTitle = (title = '') =>
+                    title
+                        .replace(/\b(edicao|edição|capa dura|brochura|colecao|coleção|comemorativa|box)\b.*$/i, '')
+                        .replace(/[:\-].*$/g, '')
+                        .trim();
+
+                const simpleHash = (value = '') => {
+                    let hash = 0;
+                    for (let i = 0; i < value.length; i += 1) {
+                        hash = ((hash << 5) - hash) + value.charCodeAt(i);
+                        hash |= 0;
+                    }
+                    return Math.abs(hash);
+                };
+
+                const GLOBAL_FALLBACK_CURATION = [
+                    { title: '1984', author: 'George Orwell', genre: 'Distopia', publisher: 'Companhia das Letras', coverUrl: 'https://m.media-amazon.com/images/I/71kxa1-0mfL.jpg' },
+                    { title: 'Admiravel Mundo Novo', author: 'Aldous Huxley', genre: 'Distopia', publisher: 'Biblioteca Azul', coverUrl: 'https://m.media-amazon.com/images/I/81zN7udGRUL.jpg' },
+                    { title: 'Duna', author: 'Frank Herbert', genre: 'Ficção Científica', publisher: 'Aleph', coverUrl: 'https://m.media-amazon.com/images/I/91A2ojA8-6L.jpg' },
+                    { title: 'Projeto Hail Mary', author: 'Andy Weir', genre: 'Ficção Científica', publisher: 'Arqueiro', coverUrl: 'https://m.media-amazon.com/images/I/81fI0hY9y6L.jpg' },
+                    { title: 'Neuromancer', author: 'William Gibson', genre: 'Ficção Científica', publisher: 'Aleph', coverUrl: 'https://m.media-amazon.com/images/I/81zmA8xMr-L.jpg' },
+                    { title: 'Assassinato no Expresso do Oriente', author: 'Agatha Christie', genre: 'Thriller', publisher: 'HarperCollins', coverUrl: 'https://m.media-amazon.com/images/I/81ew8x6BfPL.jpg' },
+                    { title: 'A Garota no Trem', author: 'Paula Hawkins', genre: 'Thriller', publisher: 'Record', coverUrl: 'https://m.media-amazon.com/images/I/81AFocW+xwL.jpg' },
+                    { title: 'Garota Exemplar', author: 'Gillian Flynn', genre: 'Thriller', publisher: 'Intrinseca', coverUrl: 'https://m.media-amazon.com/images/I/81VStYnDGrL.jpg' },
+                    { title: 'A Biblioteca da Meia-Noite', author: 'Matt Haig', genre: 'Ficção Literária', publisher: 'Bertrand Brasil', coverUrl: 'https://m.media-amazon.com/images/I/71ls-I6A5KL.jpg' },
+                    { title: 'A Vida Invisivel de Addie LaRue', author: 'V.E. Schwab', genre: 'Ficção Literária', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/71oeGkR9Q+L.jpg' },
+                    { title: 'Pachinko', author: 'Min Jin Lee', genre: 'Ficção Literária', publisher: 'Intrinseca', coverUrl: 'https://m.media-amazon.com/images/I/91a4fTRm4fL.jpg' },
+                    { title: 'A Song of Achilles', author: 'Madeline Miller', genre: 'Ficção Literária', publisher: 'Bloomsbury', coverUrl: 'https://m.media-amazon.com/images/I/91fR2x6I3nL.jpg' },
+                    { title: 'Orgulho e Preconceito', author: 'Jane Austen', genre: 'Romance Contemporâneo', publisher: 'Principis', coverUrl: 'https://m.media-amazon.com/images/I/81aZ6yP8LUL.jpg' },
+                    { title: 'E assim que acaba', author: 'Colleen Hoover', genre: 'Romance Contemporâneo', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/91r5G8RxqfL.jpg' },
+                    { title: 'Pessoas Normais', author: 'Sally Rooney', genre: 'Romance Contemporâneo', publisher: 'Companhia das Letras', coverUrl: 'https://m.media-amazon.com/images/I/71otnTfW9CL.jpg' },
+                    { title: 'Quarta Asa', author: 'Rebecca Yarros', genre: 'Romantasy', publisher: 'Planeta Minotauro', coverUrl: 'https://m.media-amazon.com/images/I/81M8xQnwxvL.jpg' },
+                    { title: 'A Serpente e as Asas Feitas de Noite', author: 'Carissa Broadbent', genre: 'Romantasy', publisher: 'Planeta Minotauro', coverUrl: 'https://m.media-amazon.com/images/I/81N4B4Q2JxL.jpg' },
+                    { title: 'De Sangue e Cinzas', author: 'Jennifer L. Armentrout', genre: 'Romantasy', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/81tmkVf6EFL.jpg' },
+                    { title: 'O Nome do Vento', author: 'Patrick Rothfuss', genre: 'Fantasia', publisher: 'Arqueiro', coverUrl: 'https://m.media-amazon.com/images/I/91b0C2YNSrL.jpg' },
+                    { title: 'Priory da Laranjeira', author: 'Samantha Shannon', genre: 'Fantasia', publisher: 'Rocco', coverUrl: 'https://m.media-amazon.com/images/I/91-1I6SxzsL.jpg' },
+                    { title: 'A Guerra dos Tronos', author: 'George R.R. Martin', genre: 'Fantasia', publisher: 'Suma', coverUrl: 'https://m.media-amazon.com/images/I/91+1SUO3vUL.jpg' }
+                ];
+
+                const matchesProfileGenre = (book) => {
+                    if (profileGenres.length === 0) return true;
+                    const genre = (book?.genre || '').trim();
+                    const isDistopia = !!book?.isDistopia;
+                    return profileGenres.includes(genre) || (isDistopia && profileGenres.includes('Distopia'));
+                };
+
+                const buildLocalCuratedFallback = () => {
+                    const onlyNotInCatalog = (items) =>
+                        items.filter(book => {
+                            const key = buildBookKey(book?.title || '', book?.author || '');
+                            return key && key !== '|' && !catalogKeySet.has(key);
+                        });
+
+                    const externalPool = onlyNotInCatalog(GLOBAL_FALLBACK_CURATION);
+                    const seedPool = onlyNotInCatalog(SEED_BOOKS);
+                    const merged = [...externalPool, ...seedPool];
+                    const uniqueMap = new Map();
+                    merged.forEach(book => {
+                        const title = (book?.title || '').trim();
+                        const author = (book?.author || '').trim();
+                        if (!title || !author) return;
+                        const key = buildBookKey(title, author);
+                        if (!uniqueMap.has(key)) uniqueMap.set(key, book);
+                    });
+
+                    let items = Array.from(uniqueMap.values());
+                    if (profileGenres.length > 0) {
+                        const filtered = items.filter(matchesProfileGenre);
+                        if (filtered.length > 0) items = filtered;
+                    }
+
+                    return items
+                        .map(book => {
+                            const seed = simpleHash(`${book.title}|${book.author}`);
+                            const avg = 4 + ((seed % 10) / 10); // 4.0-4.9
+                            const count = 120 + (seed % 5000);
+                            const safeCover = (book.coverUrl || '').replace(/^http:\/\//i, 'https://');
+                            return {
+                                id: `local-${seed}`,
+                                title: book.title,
+                                author: book.author,
+                                genre: book.isDistopia ? 'Distopia' : (book.genre || profileGenres[0] || 'Livros'),
+                                publisher: book.publisher || 'Curadoria Local',
+                                pages: Number(book.pages) || 0,
+                                averageRating: avg,
+                                ratingsCount: count,
+                                gbAverageRating: avg,
+                                gbRatingsCount: count,
+                                olAverageRating: 0,
+                                olRatingsCount: 0,
+                                olWantsCount: 0,
+                                curationScore: (avg * 18) + Math.log10(count + 1) * 18,
+                                coverUrl: safeCover,
+                                coverCandidates: [
+                                    `https://covers.openlibrary.org/b/title/${encodeURIComponent(book.title || '')}-L.jpg?default=false`,
+                                    safeCover
+                                ].filter(Boolean),
+                                description: book.synopsis || 'Livro selecionado pela curadoria local.',
+                                referenceUrl: `https://www.google.com/search?q=${encodeURIComponent(`${book.title} ${book.author} livro`)}`
+                            };
+                        })
+                        .sort((a, b) => (b.curationScore || 0) - (a.curationScore || 0))
+                        .slice(0, 18);
+                };
+
+                const findBestGoogleMatch = async (title) => {
+                    const queryA = cleanSearchTitle(title) || title;
+                    const queries = [
+                        `intitle:${queryA}`,
+                        queryA
+                    ];
+
+                    const candidates = [];
+                    for (const query of queries) {
+                        const endpoint = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&langRestrict=pt&country=BR&printType=books&maxResults=8`;
+                        const response = await fetch(endpoint);
+                        if (!response.ok) continue;
+                        const data = await response.json();
+                        const items = Array.isArray(data?.items) ? data.items : [];
+                        candidates.push(...items);
+                    }
+
+                    const ranked = candidates
+                        .map(item => ({ item, score: scoreTitleMatch(title, item?.volumeInfo?.title || '') }))
+                        .sort((a, b) => b.score - a.score);
+                    const best = ranked[0]?.item;
+                    const bestScore = ranked[0]?.score || 0;
+                    return { best, bestScore };
+                };
+
+                const fetchOpenLibrarySignals = async (title, author = '') => {
+                    try {
+                        const query = `https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&limit=1`;
+                        const response = await fetch(query);
+                        if (!response.ok) return null;
+                        const data = await response.json();
+                        const doc = data?.docs?.[0];
+                        if (!doc) return null;
+
+                        const olCover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
+                        const ratingsAverage = Number(doc.ratings_average) || 0;
+                        const ratingsCount = Number(doc.ratings_count) || 0;
+                        const wantsCount = Number(doc.want_to_read_count) || 0;
+                        const olWorkKey = doc.key ? `https://openlibrary.org${doc.key}` : '';
+
+                        return {
+                            coverUrl: olCover,
+                            ratingsAverage,
+                            ratingsCount,
+                            wantsCount,
+                            editionCount: Number(doc.edition_count) || 0,
+                            referenceUrl: olWorkKey
+                        };
+                    } catch {
+                        return null;
+                    }
+                };
+
+                const computeCurationScore = ({ gbAvg = 0, gbCount = 0, olAvg = 0, olCount = 0, wants = 0, editions = 0 }) => {
+                    const log = (n) => Math.log10((Number(n) || 0) + 1);
+                    const gbScore = (gbAvg * 18) + (log(gbCount) * 20);
+                    const olScore = (olAvg * 15) + (log(olCount) * 16) + (log(wants) * 12) + ((Number(editions) || 0) * 0.6);
+                    return gbScore + olScore;
+                };
+
+                const fetchGenreCandidates = async (genre) => {
+                    const endpoint = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`subject:${genre}`)}&langRestrict=pt&country=BR&printType=books&orderBy=relevance&maxResults=10`;
+                    const response = await fetch(endpoint);
+                    if (!response.ok) return [];
+                    const data = await response.json();
+                    const items = Array.isArray(data?.items) ? data.items : [];
+                    return items.map(item => {
+                        const volume = item?.volumeInfo || {};
+                        const title = (volume.title || '').trim();
+                        const author = (volume.authors || [])[0] || 'Autor não informado';
+                        if (!title || NON_BOOK_PATTERN.test(title)) return null;
+
+                        const isbn = ((volume.industryIdentifiers || []).find(id => id?.identifier)?.identifier || '').trim();
+                        const coverCandidates = [
+                            volume.imageLinks?.extraLarge,
+                            volume.imageLinks?.large,
+                            volume.imageLinks?.medium,
+                            volume.imageLinks?.thumbnail,
+                            volume.imageLinks?.smallThumbnail,
+                            isbn ? `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg?default=false` : '',
+                            `https://covers.openlibrary.org/b/title/${encodeURIComponent(title)}-L.jpg?default=false`
+                        ]
+                            .map(url => (url || '').replace(/^http:\/\//i, 'https://').trim())
+                            .filter(Boolean);
+                        const uniqueCoverCandidates = [...new Set(coverCandidates)];
+                        const cover = uniqueCoverCandidates[0] || '';
+                        return {
+                            id: item.id || `${genre}-${title}`,
+                            title,
+                            author,
+                            isbn,
+                            genre: detectGenre(volume.categories || [genre]),
+                            publisher: volume.publisher || 'Google Books',
+                            pages: volume.pageCount || 0,
+                            gbAverageRating: Number(volume.averageRating) || 0,
+                            gbRatingsCount: Number(volume.ratingsCount) || 0,
+                            coverUrl: cover,
+                            coverCandidates: uniqueCoverCandidates,
+                            description: volume.description || 'Sem descrição disponível.',
+                            referenceUrl: `https://www.google.com/search?q=${encodeURIComponent(`${title} ${author} livro`)}`
+                        };
+                    }).filter(Boolean);
+                };
+
+                const enrichWithGoogleBooks = async (candidate) => {
+                    try {
+                        const { best, bestScore } = await findBestGoogleMatch(candidate.title);
+                        const volume = best?.volumeInfo || {};
+
+                        if (!best || bestScore < 28 || NON_BOOK_PATTERN.test(volume.title || '')) {
+                            return null;
+                        }
+
+                        const author = (volume.authors || [])[0] || 'Autor não informado';
+                        const openLibrary = await fetchOpenLibrarySignals(volume.title || candidate.title, author);
+                        const isbn = ((volume.industryIdentifiers || []).find(id => id?.identifier)?.identifier || candidate?.isbn || '').trim();
+                        const candidateCoverUrls = Array.isArray(candidate?.coverCandidates) ? candidate.coverCandidates : [];
+                        const coverCandidates = [
+                            volume.imageLinks?.extraLarge,
+                            volume.imageLinks?.large,
+                            volume.imageLinks?.medium,
+                            volume.imageLinks?.thumbnail,
+                            volume.imageLinks?.smallThumbnail,
+                            openLibrary?.coverUrl || '',
+                            ...candidateCoverUrls,
+                            isbn ? `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(isbn)}-L.jpg?default=false` : '',
+                            `https://covers.openlibrary.org/b/title/${encodeURIComponent(volume.title || candidate.title)}-L.jpg?default=false`
+                        ]
+                            .map(url => (url || '').replace(/^http:\/\//i, 'https://').trim())
+                            .filter(Boolean);
+                        const uniqueCoverCandidates = [...new Set(coverCandidates)];
+                        const coverUrl = uniqueCoverCandidates[0] || '';
+                        if (!coverUrl || !author || author === 'Autor não informado') {
+                            return null;
+                        }
+
+                        const olAverageRating = openLibrary?.ratingsAverage || 0;
+                        const olRatingsCount = openLibrary?.ratingsCount || 0;
+                        const olWantsCount = openLibrary?.wantsCount || 0;
+                        const olEditionCount = openLibrary?.editionCount || 0;
+
+                        const gbAverageRating = Number(volume.averageRating) || 0;
+                        const gbRatingsCount = Number(volume.ratingsCount) || 0;
+                        const communityCount = gbRatingsCount + olRatingsCount;
+                        const communityRating = communityCount > 0
+                            ? ((gbAverageRating * gbRatingsCount) + (olAverageRating * olRatingsCount)) / communityCount
+                            : gbAverageRating || olAverageRating || 0;
+
+                        const finalGenre = detectGenre(volume.categories || []);
+                        return {
+                            ...candidate,
+                            id: best?.id || `${candidate.title}-${author}`,
+                            title: volume.title || candidate.title,
+                            author,
+                            isbn,
+                            genre: finalGenre,
+                            publisher: volume.publisher || 'Amazon',
+                            pages: volume.pageCount || 0,
+                            averageRating: communityRating,
+                            ratingsCount: communityCount,
+                            gbAverageRating,
+                            gbRatingsCount,
+                            olAverageRating,
+                            olRatingsCount,
+                            olWantsCount,
+                            curationScore: computeCurationScore({ gbAvg: gbAverageRating, gbCount: gbRatingsCount, olAvg: olAverageRating, olCount: olRatingsCount, wants: olWantsCount, editions: olEditionCount }),
+                            coverUrl: coverUrl || openLibrary?.coverUrl || '',
+                            coverCandidates: uniqueCoverCandidates,
+                            description: volume.description || 'Sem descrição disponível.',
+                            referenceUrl: openLibrary?.referenceUrl || `https://www.google.com/search?q=${encodeURIComponent(`${volume.title || candidate.title} ${author} livro`)}`
+                        };
+                    } catch {
+                        return null;
+                    }
+                };
+
+                const fetchHighlights = async () => {
+                    setIsLoadingAmazonHighlights(true);
+                    setAmazonHighlightsError('');
+                    try {
+                        const targetGenres = profileGenres.length > 0 ? profileGenres.slice(0, 6) : DEFAULT_GENRES.slice(0, 6);
+                        const grouped = await Promise.all(targetGenres.map(fetchGenreCandidates));
+                        const merged = grouped.flat();
+
+                        const uniqueMap = new Map();
+                        merged.forEach(book => {
+                            const dedupeKey = buildBookKey(book.title || '', book.author || '');
+                            if (!uniqueMap.has(dedupeKey)) uniqueMap.set(dedupeKey, book);
+                        });
+
+                        const baseBooks = Array.from(uniqueMap.values()).slice(0, 30);
+                        const enrichedBooks = await Promise.all(baseBooks.map(enrichWithGoogleBooks));
+
+                        const validBooks = enrichedBooks
+                            .filter(Boolean)
+                            .filter(book => {
+                                const key = buildBookKey(book?.title || '', book?.author || '');
+                                return key && key !== '|' && !catalogKeySet.has(key);
+                            })
+                            .sort((a, b) => (b.curationScore || 0) - (a.curationScore || 0));
+                        if (validBooks.length === 0) {
+                            const localFallback = buildLocalCuratedFallback();
+                            if (localFallback.length > 0) {
+                                if (!cancelled) {
+                                    setAmazonHighlights(localFallback);
+                                    setAmazonHighlightsError('');
+                                }
+                                return;
+                            }
+                            throw new Error('Nenhum livro validado para curadoria.');
+                        }
+
+                        if (!cancelled) setAmazonHighlights(validBooks.slice(0, 18));
+                    } catch (error) {
+                        if (!cancelled) {
+                            console.error('Erro ao buscar livros em alta:', error);
+                            const localFallback = buildLocalCuratedFallback();
+                            if (localFallback.length > 0) {
+                                setAmazonHighlights(localFallback);
+                                setAmazonHighlightsError('');
+                            } else {
+                                setAmazonHighlightsError('Não foi possível carregar a curadoria de livros agora. Tente novamente em instantes.');
+                            }
+                        }
+                    } finally {
+                        if (!cancelled) setIsLoadingAmazonHighlights(false);
+                    }
+                };
+
+                fetchHighlights();
+                return () => {
+                    cancelled = true;
+                };
+            }, [user, isInitialized, viewMode, profileGenres, activeProfile, customBooks]);
+
             const loginWithGoogle = async () => {
                 try {
                     await window.signInWithPopup(window.auth, window.provider);
@@ -1349,22 +2177,43 @@
             useEffect(() => {
                 if (!user) return; // Só carrega dados se estiver logado
 
-                // Limpa flag antiga de inicialização para forçar reset dos livros
-                localStorage.removeItem('libdb-books-initialized-v1');
-                localStorage.setItem('libdb-removed-v1', JSON.stringify([]));
+                setIsInitialized(false);
 
                 const loadData = async () => {
-                    const r = await loadFromCloud('libdb-read-v1', {});
-                    const d = await loadFromCloud('libdb-download-v1', {});
-                    const c = await loadFromCloud('libdb-covers-v1', {});
-                    let cb = await loadFromCloud('libdb-custom-v1', []);
+                    const r = await loadFromCloud(profileKeys.read, {});
+                    const d = await loadFromCloud(profileKeys.download, {});
+                    const c = await loadFromCloud(profileKeys.covers, {});
+                    let cb = await loadFromCloud(profileKeys.custom, []);
                     let rem = [];
-                    const q = await loadFromCloud('libdb-queue-v1', []);
+                    const q = await loadFromCloud(profileKeys.queue, []);
                     
-                    // Se não há livros customizados no banco, carrega os SEED_BOOKS na primeira vez
+                    // Se não há livros no banco, carrega SEED_BOOKS só para o perfil principal (Gianny)
                     if (!cb || cb.length === 0) {
-                        cb = SEED_BOOKS;
-                        console.log('📚 Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
+                        if (activeProfile === 'perfil-1') {
+                            // Recupera catálogo legado da Gianny (antes da separação por perfis), se existir
+                            const legacyCustomCandidates = ['libdb-custom-v1', 'libdb-custom'];
+                            let recoveredLegacy = [];
+                            for (const legacyKey of legacyCustomCandidates) {
+                                const legacyBooks = await loadFromCloud(legacyKey, []);
+                                if (Array.isArray(legacyBooks) && legacyBooks.length > 0) {
+                                    recoveredLegacy = legacyBooks;
+                                    console.log('📚 Catálogo legado da Gianny recuperado da chave:', legacyKey);
+                                    break;
+                                }
+                            }
+
+                            if (recoveredLegacy.length > 0) {
+                                cb = recoveredLegacy;
+                                await saveToCloud(profileKeys.custom, cb);
+                                localStorage.setItem(profileKeys.custom, JSON.stringify(cb));
+                            } else {
+                                cb = SEED_BOOKS;
+                                console.log('📚 Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
+                            }
+                        } else {
+                            cb = LAISA_DEMO_BOOKS;
+                            console.log('📚 Carregando livro de demonstração para o perfil da Laisa.');
+                        }
                     } else {
                         console.log('📚 Exibindo ' + cb.length + ' livros do banco de dados...');
                     }
@@ -1372,30 +2221,31 @@
                     setReadStatus(r); setDownloadStatus(d); setCustomCovers(c); 
                     setCustomBooks(cb); setRemovedInitialIds(rem); setReadingOrder(q);
                     setIsInitialized(true);
+                    isProfileSwitchingRef.current = false;
                 };
                 loadData();
-            }, [user]); // Dependência do user
+            }, [user, profileKeys]);
 
             // Persistência Automática (Nuvem + LocalStorage)
             useEffect(() => {
-                if (!isInitialized || !user) return; // Só salva se estiver logado e inicializado
+                if (!isInitialized || !user || isProfileSwitchingRef.current) return; // Só salva se estiver logado, inicializado e sem troca em andamento
 
                 // Salva na nuvem
-                saveToCloud('libdb-read-v1', readStatus);
-                saveToCloud('libdb-download-v1', downloadStatus);
-                saveToCloud('libdb-covers-v1', customCovers);
-                saveToCloud('libdb-custom-v1', customBooks);
-                saveToCloud('libdb-removed-v1', removedInitialIds);
-                saveToCloud('libdb-queue-v1', readingOrder);
+                saveToCloud(profileKeys.read, readStatus);
+                saveToCloud(profileKeys.download, downloadStatus);
+                saveToCloud(profileKeys.covers, customCovers);
+                saveToCloud(profileKeys.custom, customBooks);
+                saveToCloud(profileKeys.removed, removedInitialIds);
+                saveToCloud(profileKeys.queue, readingOrder);
                 
                 // Backup no localStorage
-                localStorage.setItem('libdb-read-v1', JSON.stringify(readStatus));
-                localStorage.setItem('libdb-download-v1', JSON.stringify(downloadStatus));
-                localStorage.setItem('libdb-covers-v1', JSON.stringify(customCovers));
-                localStorage.setItem('libdb-custom-v1', JSON.stringify(customBooks));
-                localStorage.setItem('libdb-removed-v1', JSON.stringify(removedInitialIds));
-                localStorage.setItem('libdb-queue-v1', JSON.stringify(readingOrder));
-            }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder, isInitialized, user]); // Adicionada dependência do user
+                localStorage.setItem(profileKeys.read, JSON.stringify(readStatus));
+                localStorage.setItem(profileKeys.download, JSON.stringify(downloadStatus));
+                localStorage.setItem(profileKeys.covers, JSON.stringify(customCovers));
+                localStorage.setItem(profileKeys.custom, JSON.stringify(customBooks));
+                localStorage.setItem(profileKeys.removed, JSON.stringify(removedInitialIds));
+                localStorage.setItem(profileKeys.queue, JSON.stringify(readingOrder));
+            }, [readStatus, downloadStatus, customCovers, customBooks, removedInitialIds, readingOrder, isInitialized, user, profileKeys]);
 
             useEffect(() => {
                 setRemoteEpubAvailability(
@@ -1415,6 +2265,55 @@
                 setActiveGenre("Todos");
                 setViewMode("grid");
             }, []);
+
+            const addAmazonHighlightToCatalog = useCallback((item) => {
+                if (!ensureOwnProfileWrite('Você não pode adicionar livros diretamente na biblioteca do outro perfil.')) return;
+                if (!item?.title || !item?.author) {
+                    alert('Não foi possível adicionar este livro agora.');
+                    return;
+                }
+
+                const alreadyExists = customBooks.some(book =>
+                    (book.title || '').trim().toLowerCase() === (item.title || '').trim().toLowerCase() &&
+                    (book.author || '').trim().toLowerCase() === (item.author || '').trim().toLowerCase()
+                );
+
+                if (alreadyExists) {
+                    alert('Esse livro já existe no catálogo deste perfil.');
+                    return;
+                }
+
+                const normalizedGenre = (item.genre || 'Fantasia').trim();
+                const isDistopia = normalizedGenre.toLowerCase() === 'distopia';
+
+                const newBook = {
+                    id: `${activeProfile}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    title: item.title.trim(),
+                    author: item.author.trim(),
+                    genre: normalizedGenre,
+                    publisher: item.publisher || 'Amazon',
+                    pages: Number(item.pages) || 0,
+                    synopsis: item.description || 'Livro adicionado a partir de Em Alta Amazon.',
+                    coverUrl: item.coverUrl || 'https://via.placeholder.com/300x450?text=Sem+Capa',
+                    tags: ['amazon', 'em alta'],
+                    series: '',
+                    volume: 0,
+                    totalVolumes: 0,
+                    isSeries: false,
+                    epubUrl: '',
+                    epubFileName: '',
+                    epubKey: null,
+                    epubPath: null,
+                    epubOrigin: null,
+                    isBrazilianAuthor: false,
+                    isDistopia
+                };
+
+                setCustomBooks(prev => [newBook, ...prev]);
+                setViewMode('grid');
+                setActiveGenre('Todos');
+                alert('Livro adicionado ao catálogo com sucesso.');
+            }, [ensureOwnProfileWrite, customBooks, activeProfile]);
 
             const handleEditBook = useCallback((updatedBook) => {
                 setCustomBooks(prev => prev.map(book => (book.id === updatedBook.id ? { ...book, ...updatedBook } : book)));
@@ -1485,6 +2384,53 @@
                 downloaded: Object.values(downloadStatus).filter(Boolean).length
             };
 
+            const queueTotal = readingOrder.length;
+            const queueRead = readingOrder.filter(id => !!readStatus[id]).length;
+            const queueProgress = queueTotal > 0 ? Math.round((queueRead / queueTotal) * 100) : 0;
+
+            const loggedUserProfile = useMemo(() => {
+                const firstName = (user?.displayName || user?.email || '').trim().split(' ')[0].toLowerCase();
+                return PROFILE_OPTIONS.find(profile => profile.label.toLowerCase() === firstName) || null;
+            }, [user]);
+            const myProfileId = loggedUserProfile?.id || null;
+            const isViewingOwnProfile = !!myProfileId && activeProfile === myProfileId;
+            const canImportFromViewedProfile = !!myProfileId && activeProfile !== myProfileId;
+
+            const ensureOwnProfileWrite = useCallback((message) => {
+                if (isViewingOwnProfile) return true;
+                alert(message || 'Você só pode editar a sua própria biblioteca.');
+                return false;
+            }, [isViewingOwnProfile]);
+
+            const importBookToMyProfile = useCallback(async (sourceBook) => {
+                if (!myProfileId || !user) {
+                    alert('Não foi possível identificar o perfil da conta logada.');
+                    return;
+                }
+                const myKeys = getProfileKeys(myProfileId);
+                const myBooks = await loadFromCloud(myKeys.custom, []);
+                const alreadyExists = myBooks.some((b) =>
+                    (b.title || '').trim().toLowerCase() === (sourceBook.title || '').trim().toLowerCase() &&
+                    (b.author || '').trim().toLowerCase() === (sourceBook.author || '').trim().toLowerCase()
+                );
+
+                if (alreadyExists) {
+                    alert('Esse livro já existe no seu perfil.');
+                    return;
+                }
+
+                const copiedBook = {
+                    ...sourceBook,
+                    id: `${myProfileId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    importedFromProfile: activeProfile
+                };
+
+                const updatedMyBooks = [copiedBook, ...myBooks];
+                await saveToCloud(myKeys.custom, updatedMyBooks);
+                localStorage.setItem(myKeys.custom, JSON.stringify(updatedMyBooks));
+                alert(`Livro adicionado ao perfil ${loggedUserProfile?.label || 'atual'}.`);
+            }, [myProfileId, user, getProfileKeys, activeProfile, loggedUserProfile]);
+
             const userFirstName = (user?.displayName || user?.email || 'Leitor').trim().split(' ')[0] || 'Leitor';
             const userInitials = (user?.displayName || user?.email || 'L')
                 .replace(/@.*/, '')
@@ -1538,15 +2484,25 @@
                             </div>
                         </div>
                     )}
-                    <header className="bg-[#1E3A5F] text-white pt-16 md:pt-24 pb-10 md:pb-12 px-6 relative overflow-hidden text-center md:text-left">
+                    <header className="bg-[#1E3A5F] text-white pt-16 md:pt-24 pb-10 md:pb-12 px-6 relative text-center md:text-left">
+                        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#14B8A6] rounded-full blur-[160px] opacity-[0.07] -mr-64 -mt-64"></div>
+                            <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#7C3AED] rounded-full blur-[140px] opacity-[0.05] -ml-48 -mb-48"></div>
+                        </div>
                         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-end gap-8 md:gap-10 lg:gap-12 relative z-10">
                             <div className="logo-container mt-4 md:mt-10 md:ml-6 lg:ml-10">
                                 <div className="flex items-start gap-3 md:gap-4">
                                     <img
                                         src="https://i.imgur.com/FfKzzxi.png"
                                         alt=""
-                                        className="h-[110px] w-auto object-contain shrink-0"
+                                        className="h-[110px] w-[110px] object-contain shrink-0"
                                         aria-hidden="true"
+                                        referrerPolicy="no-referrer"
+                                        crossOrigin="anonymous"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = 'https://i.imgur.com/bYjPl8I.png';
+                                        }}
                                     />
                                     <img
                                         src="https://i.imgur.com/9fjgoqI.png"
@@ -1561,9 +2517,20 @@
                             <div className="w-full md:w-auto md:ml-auto flex flex-col items-center md:items-end gap-3 md:gap-4">
                                 {!authLoading && user && (
                                     <div className="w-full md:w-auto flex justify-center md:justify-end items-center gap-2">
-                                        <span className="text-[13px] text-[rgba(255,255,255,0.7)] leading-none">{userFirstName}</span>
-                                        <div className="w-8 h-8 rounded-full bg-[rgba(29,206,165,0.2)] border-[1.5px] border-[rgba(29,206,165,0.4)] flex items-center justify-center">
-                                            <span className="text-[11px] font-bold text-[#1dcea5] leading-none">{userInitials}</span>
+                                        <span className="text-[13px] text-[rgba(255,255,255,0.7)] leading-none">{currentProfile.label}</span>
+                                        <div className="relative" ref={profileMenuRef}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (otherProfile) {
+                                                        switchProfile(otherProfile.id);
+                                                    }
+                                                }}
+                                                className="w-8 h-8 rounded-full bg-[rgba(29,206,165,0.2)] border-[1.5px] border-[rgba(29,206,165,0.4)] flex items-center justify-center cursor-pointer"
+                                                title={`Perfil atual: ${currentProfile.label} — Clique para trocar para ${otherProfile ? otherProfile.label : ''}`}
+                                            >
+                                                <span className="text-[11px] font-bold text-[#1dcea5] leading-none">{userInitials}</span>
+                                            </button>
                                         </div>
                                         <button onClick={logout} className="ml-2 bg-transparent border-0 p-0 text-[11px] uppercase tracking-[0.8px] text-white/35 hover:text-white/55 transition-colors">
                                             sair
@@ -1577,8 +2544,6 @@
                                 </div>
                             </div>
                         </div>
-                        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[#14B8A6] rounded-full blur-[160px] opacity-[0.07] -mr-64 -mt-64"></div>
-                        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#7C3AED] rounded-full blur-[140px] opacity-[0.05] -ml-48 -mb-48"></div>
                     </header>
 
                     <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-gray-100 shadow-sm transition-all duration-300">
@@ -1591,31 +2556,102 @@
                                     <button onClick={() => setViewMode('queue')} className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'queue' ? 'bg-[#14B8A6] text-white shadow-sm' : 'text-gray-400'}`}>
                                         <Icon name="list" className="w-3.5 h-3.5" /> Minha Fila
                                     </button>
+                                    <button onClick={() => setViewMode('amazon')} className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'amazon' ? 'bg-[#1E3A5F] text-white shadow-sm' : 'text-gray-400'}`}>
+                                        <Icon name="bookOpen" className="w-3.5 h-3.5" /> Em Alta
+                                    </button>
                                 </div>
                                 <div className="relative w-full xl:max-w-md">
                                     <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <input type="text" placeholder="Pesquisar..." className="w-full pl-11 pr-4 py-2.5 bg-[#F8F9FB] border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-[#14B8A6]/20 outline-none" value={searchQuery} disabled={viewMode === 'queue'} onChange={(e) => setSearchQuery(e.target.value)} />
+                                    <input type="text" placeholder="Pesquisar..." className="w-full pl-11 pr-4 py-2.5 bg-[#F8F9FB] border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-[#14B8A6]/20 outline-none" value={searchQuery} disabled={viewMode === 'queue' || viewMode === 'amazon'} onChange={(e) => setSearchQuery(e.target.value)} />
                                 </div>
                                 <div className="flex gap-2 w-full xl:w-auto">
-                                    <button onClick={() => { setEditingBook(null); setShowAddBook(true); }} className="flex-1 xl:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition-all border bg-[#1E3A5F] text-white border-transparent">
-                                        + Adicionar Livro
-                                    </button>
-                                    <button onClick={() => setFilterRead(!filterRead)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border ${filterRead ? 'bg-[#1E3A5F] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Lido</button>
-                                    <button onClick={() => setFilterDownloaded(!filterDownloaded)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border ${filterDownloaded ? 'bg-[#14B8A6] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Baixado</button>
+                                    <button disabled={viewMode === 'amazon'} onClick={() => setFilterRead(!filterRead)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border disabled:opacity-50 ${filterRead ? 'bg-[#1E3A5F] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Lido</button>
+                                    <button disabled={viewMode === 'amazon'} onClick={() => setFilterDownloaded(!filterDownloaded)} className={`flex-1 xl:flex-none px-6 py-2.5 rounded-xl text-xs font-bold transition-all border disabled:opacity-50 ${filterDownloaded ? 'bg-[#14B8A6] text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>Baixado</button>
                                 </div>
                             </div>
 
                             <div className="genre-nav-row no-scrollbar">
-                                {GENRES.map(g => (
+                                {genreMenuItems.map(g => (
                                     <button key={g} onClick={() => handleGenreFilter(g)} className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${activeGenre === g ? "bg-[#14B8A6] text-white border-[#14B8A6] shadow-md shadow-[#14B8A6]/20" : "bg-white text-gray-400 border-gray-100 hover:border-teal-100 hover:text-teal-600"}`}>{g}</button>
                                 ))}
                             </div>
                         </div>
                     </nav>
 
-                    <main key={viewMode} className="max-w-7xl mx-auto px-6 py-12">
+                    <main key={activeProfile + viewMode} className={`max-w-7xl mx-auto px-6 py-12 ${profileTransitionStage === 'out' ? 'profile-transition-out' : ''} ${profileTransitionStage === 'in' ? 'profile-transition-in' : ''}`} style={{ pointerEvents: profileTransitionStage === 'out' ? 'none' : 'auto' }}>
+                        {viewMode === 'amazon' ? (
+                            <div className="max-w-6xl mx-auto">
+                                <div className="mb-6 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03] p-4 md:p-5">
+                                    <h3 className="text-[12px] md:text-sm font-black uppercase tracking-widest text-[#1E3A5F]">Livros Em Alta no Geral</h3>
+                                    <p className="text-xs text-gray-500 mt-2">Curadoria baseada em recomendação e avaliação (Google Books + Open Library), alinhada aos gêneros do perfil: {profileGenres.length ? profileGenres.join(', ') : 'sem gêneros cadastrados ainda'}.</p>
+                                </div>
+
+                                {isLoadingAmazonHighlights ? (
+                                    <div className="py-16 text-center text-sm text-gray-500">Carregando curadoria de livros...</div>
+                                ) : amazonHighlightsError ? (
+                                    <div className="py-16 text-center text-sm text-red-400">{amazonHighlightsError}</div>
+                                ) : amazonHighlights.length === 0 ? (
+                                    <div className="py-16 text-center text-sm text-gray-500">Nenhuma sugestão encontrada no momento.</div>
+                                ) : (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                                        {amazonHighlights.map((item) => (
+                                            <div key={item.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                                                <div className="aspect-[3/4] bg-gray-100 overflow-hidden">
+                                                    <CuratedCoverImage item={item} />
+                                                </div>
+                                                <div className="p-2.5 flex-1 flex flex-col">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-[#14B8A6]">{item.genre}</span>
+                                                    <h4 className="mt-1 min-h-[2.25rem] text-[12px] font-bold text-[#1E3A5F] line-clamp-2">{item.title}</h4>
+                                                    <p className="min-h-[1rem] text-[10px] text-gray-500 line-clamp-1">{item.author}</p>
+                                                    <div className="min-h-[1rem] mt-1">
+                                                        {item.averageRating > 0 && (
+                                                            <p className="text-[10px] text-amber-500 font-bold">
+                                                                {'★'.repeat(Math.round(item.averageRating)).padEnd(5, '☆')}
+                                                                <span className="text-gray-400 font-semibold ml-1">{item.averageRating.toFixed(1)}{item.ratingsCount ? ` (${item.ratingsCount})` : ''}</span>
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="mt-auto pt-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => window.open(item.referenceUrl || `https://www.google.com/search?q=${encodeURIComponent(`${item.title} ${item.author} livro`)}`, '_blank')}
+                                                            className="w-full px-2.5 py-1.5 rounded-lg bg-[#1E3A5F] text-white text-[10px] font-bold hover:bg-[#162f4d] transition-colors"
+                                                        >
+                                                            Ver Referencia
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => addAmazonHighlightToCatalog(item)}
+                                                            className="mt-1.5 w-full px-2.5 py-1.5 rounded-lg bg-[#14B8A6] text-white text-[10px] font-bold hover:bg-[#0fae9d] transition-colors"
+                                                        >
+                                                            Adicionar ao Catalogo
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                        <>
+                        {viewMode === 'queue' && (
+                            <div className="max-w-3xl mx-auto mb-6 bg-white border border-gray-100 rounded-2xl p-4 md:p-5 shadow-sm">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-[11px] md:text-xs font-black uppercase tracking-widest text-[#1E3A5F]">Progresso da Lista</h3>
+                                    <span className="text-[11px] font-bold text-gray-500">{queueRead}/{queueTotal} lidos</span>
+                                </div>
+                                <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-[#14B8A6] to-[#1E3A5F] transition-all duration-500"
+                                        style={{ width: `${queueProgress}%` }}
+                                    />
+                                </div>
+                                <p className="mt-2 text-[11px] text-gray-400">{queueProgress}% concluido</p>
+                            </div>
+                        )}
                         <div className={viewMode === 'queue' ? "flex flex-col gap-6 max-w-3xl mx-auto" : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-8"}>
-                            {viewMode === 'grid' && !filterRead && !filterDownloaded && (
+                            {viewMode === 'grid' && !filterRead && !filterDownloaded && isViewingOwnProfile && (
                                 <button
                                     onClick={() => { setEditingBook(null); setShowAddBook(true); }}
                                     className="book-card-hover group relative rounded-[24px] border-2 border-dashed border-[#14B8A6]/35 bg-white/80 hover:bg-white cursor-pointer flex flex-col items-center justify-center min-h-[300px] md:min-h-[360px] transition-all hover:border-[#14B8A6] hover:shadow-xl"
@@ -1633,6 +2669,7 @@
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
                                     hasRemoteEpub={!!remoteEpubAvailability[b.id]}
+                                    commentsCount={(commentsByBook[b.id] || []).length}
                                     isQueueMode={viewMode === 'queue'} queueIndex={idx} totalInQueue={readingOrder.length}
                                     onMove={(idx, dir) => {
                                         const n = [...readingOrder];
@@ -1645,9 +2682,13 @@
                                     }} 
                                     onRemoveFromQueue={() => handleToggleQueue(b.id)} 
                                     onGenreClick={handleGenreFilter}
+                                    showImportButton={canImportFromViewedProfile}
+                                    onImportToMine={importBookToMyProfile}
                                 />
                             ))}
                         </div>
+                        </>
+                        )}
                     </main>
 
                     {selectedBook && (
@@ -1656,15 +2697,27 @@
                             isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id]} isInQueue={readingOrder.includes(selectedBook.id)}
                             hasRemoteEpub={!!remoteEpubAvailability[selectedBook.id]}
                             coverUrl={getCoverUrl(selectedBook)} 
-                            onToggleRead={() => handleToggleRead(selectedBook.id)}
-                            onToggleDownload={() => handleToggleDownload(selectedBook.id)} 
-                            onToggleQueue={() => handleToggleQueue(selectedBook.id)}
+                            onToggleRead={() => { if (!ensureOwnProfileWrite()) return; handleToggleRead(selectedBook.id); }}
+                            onToggleDownload={() => { if (!ensureOwnProfileWrite()) return; handleToggleDownload(selectedBook.id); }} 
+                            onToggleQueue={() => { if (!ensureOwnProfileWrite()) return; handleToggleQueue(selectedBook.id); }}
                             onSetCover={(id, u) => setCustomCovers(p => ({ ...p, [id]: u }))} 
                             onRemoveCover={(id) => setCustomCovers(p => { const n = { ...p }; delete n[id]; return n; })} 
                             hasCustomCover={!!customCovers[selectedBook.id]}
-                            onEdit={() => { setEditingBook(selectedBook); setShowAddBook(true); }}
-                            onUploadEpub={(file) => handleUploadEpubForBook(selectedBook.id, file)}
+                            isViewingOwnProfile={isViewingOwnProfile}
+                            bookComments={(commentsByBook[selectedBook.id] || []).slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))}
+                            onAddComment={addBookComment}
+                            onDeleteComment={deleteBookComment}
+                            currentProfileLabel={currentProfile.label}
+                            currentProfileId={activeProfile}
+                            onEdit={() => { if (!ensureOwnProfileWrite()) return; setEditingBook(selectedBook); setShowAddBook(true); }}
+                            onUploadEpub={(file) => {
+                                if (!ensureOwnProfileWrite()) {
+                                    return Promise.resolve();
+                                }
+                                return handleUploadEpubForBook(selectedBook.id, file);
+                            }}
                             onDeleteEpub={(bookId) => {
+                                if (!ensureOwnProfileWrite()) return;
                                 const updatedBooks = customBooks.map(b => (
                                     b.id === bookId
                                         ? { ...b, epubKey: null, epubPath: null, epubFileName: null, epubUrl: null, epubOrigin: null }
@@ -1677,9 +2730,9 @@
                                         : prev
                                 ));
                                 // Salva no Firestore imediatamente
-                                saveToCloud('libdb-custom-v1', updatedBooks);
+                                saveToCloud(profileKeys.custom, updatedBooks);
                             }}
-                            onDelete={() => deleteBookFromCatalog(selectedBook.id)}
+                            onDelete={() => { if (!ensureOwnProfileWrite()) return; deleteBookFromCatalog(selectedBook.id); }}
                             onGenreClick={handleGenreFilter}
                         />
                     )}
@@ -1691,6 +2744,99 @@
                             onSave={editingBook ? handleEditBook : handleAddBook}
                         />
                     )}
+
+                    <div className="fixed right-4 sm:right-6 bottom-4 sm:bottom-6 z-40 flex flex-col items-end gap-3">
+                        {chatOpen && (
+                            <div className="w-[92vw] sm:w-[360px] h-[68vh] sm:h-[460px] bg-white rounded-3xl border border-gray-200 shadow-2xl shadow-[#1E3A5F]/20 overflow-hidden flex flex-col">
+                                <div className="px-4 py-3 border-b border-gray-100 bg-[#1E3A5F] text-white flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-black">Chat Entre Perfis</p>
+                                        <p className="text-sm font-bold">{currentProfile.label} e {otherProfile?.label || 'Outro perfil'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={clearChatConversation}
+                                            className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wide text-white/85 hover:text-white hover:bg-white/15 transition-colors"
+                                            title="Limpar conversa"
+                                        >
+                                            Limpar
+                                        </button>
+                                        <button
+                                            onClick={() => setChatOpen(false)}
+                                            className="p-2 rounded-full hover:bg-white/15 transition-colors"
+                                            aria-label="Fechar chat"
+                                        >
+                                            <Icon name="x" className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto px-3 py-3 bg-[#F8F9FB] space-y-2">
+                                    {sortedChatMessages.length === 0 ? (
+                                        <div className="h-full flex items-center justify-center text-center text-xs text-gray-400 px-6">
+                                            Envie a primeira mensagem para começar a conversa entre os perfis.
+                                        </div>
+                                    ) : (
+                                        sortedChatMessages.map(msg => {
+                                            const isMine = msg.from === activeProfile;
+                                            const senderLabel = PROFILE_OPTIONS.find(p => p.id === msg.from)?.label || 'Perfil';
+                                            return (
+                                                <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                                    <div className={`max-w-[82%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                                                        <p className="text-[10px] font-semibold lowercase tracking-wide mb-1 px-1 text-gray-400">{senderLabel}</p>
+                                                        <div className={`rounded-2xl px-3 py-2 shadow-sm ${isMine ? 'bg-[#1E3A5F] text-white rounded-br-md' : 'bg-[#E6FFFB] text-[#0F766E] border border-[#99F6E4] rounded-bl-md'}`}>
+                                                            <p className="text-sm leading-snug whitespace-pre-wrap">{msg.text}</p>
+                                                            <p className={`mt-1 text-[10px] ${isMine ? 'text-white/70' : 'text-[#0F766E]/70'}`}>{formatChatTime(msg.createdAt)}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        sendChatMessage();
+                                    }}
+                                    className="p-3 border-t border-gray-100 bg-white flex items-center gap-2"
+                                >
+                                    <input
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        maxLength={400}
+                                        placeholder={`Mensagem de ${currentProfile.label} para ${otherProfile?.label || 'o outro perfil'}...`}
+                                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-[#14B8A6]/30"
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 rounded-xl bg-[#14B8A6] text-white text-sm font-bold hover:bg-[#0fae9d] transition-colors"
+                                    >
+                                        Enviar
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const nextOpen = !chatOpen;
+                                setChatOpen(nextOpen);
+                                if (nextOpen) markChatAsRead();
+                            }}
+                            className="relative w-14 h-14 rounded-full bg-[#14B8A6] text-white shadow-xl shadow-[#14B8A6]/35 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+                            title="Abrir chat entre perfis"
+                        >
+                            <Icon name="messageCircle" className="w-6 h-6" />
+                            {chatUnreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-[#EF4444] text-white text-[10px] font-black flex items-center justify-center border-2 border-white">
+                                    {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
 
                     <footer className="max-w-7xl mx-auto px-6 pb-12 border-t border-gray-100 text-center pt-8">
                         <p className="text-gray-400 text-[10px] tracking-widest uppercase font-black">Biblioteca do Amanhã &copy; 2024</p>

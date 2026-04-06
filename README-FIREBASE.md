@@ -1,61 +1,90 @@
-# Firebase + GitHub Pages (Biblioteca do Amanha)
+# Cenario Gratis Recomendado (GitHub Pages + Firebase + Supabase + Vercel)
 
-## 1) Publicacao no GitHub Pages
+Este projeto ja esta preparado para o melhor cenario sem custo:
 
-1. Continue editando seu arquivo atual `index- modificações.html` normalmente.
-2. Antes de publicar, renomeie para `index.html` na raiz do repositorio.
-2. Envie os arquivos para o GitHub.
-3. Em `Settings > Pages`, selecione:
-	 - `Source`: Deploy from a branch
-	 - `Branch`: `main` (ou `master`), pasta `/ (root)`
-4. Aguarde o link final, no formato:
-	 - `https://SEU-USUARIO.github.io/NOME-DO-REPO/`
+- Frontend: GitHub Pages
+- Auth e banco: Firebase (Spark/free)
+- EPUB/storage: Supabase (Free)
+- API de capas Goodreads/Skoob: Vercel (Hobby/free)
 
-## 2) Firebase Authentication
+## 1) O que ja foi configurado
+
+1. `index.html` ja contem a versao mais atual do app.
+2. `api/cover.js` ja existe para proxy de capas online.
+3. `vercel.json` ja esta pronto para runtime Node na Vercel.
+4. O frontend ja tenta capas nesta ordem:
+	1. `window.coverProxyBaseUrl` (quando definido)
+	2. `window.location.origin/api/cover` (mesmo dominio)
+	3. `http://localhost:8787/cover` (somente local)
+
+## 2) Deploy do frontend no GitHub Pages
+
+1. Suba o repositorio no GitHub.
+2. Em `Settings > Pages`:
+	- Source: `Deploy from a branch`
+	- Branch: `main`
+	- Folder: `/ (root)`
+3. URL final esperada:
+	- `https://SEU-USUARIO.github.io/NOME-DO-REPO/`
+
+## 3) Firebase (Spark/free)
 
 No Firebase Console:
 
-1. `Authentication > Sign-in method`
-2. Ative `Google`
-3. Em `Authentication > Settings > Authorized domains`, adicione:
-	 - `SEU-USUARIO.github.io`
-
-Sem este dominio autorizado, o login Google no GitHub Pages falha.
-
-## 3) Firestore Database
-
-No Firebase Console:
-
-1. Crie o banco em `Firestore Database`
-2. Use regras seguras por usuario autenticado:
+1. Authentication:
+	- Ativar Google Sign-in.
+2. Authorized domains:
+	- Adicionar `SEU-USUARIO.github.io`.
+3. Firestore rules (por usuario autenticado):
 
 ```firestore
 rules_version = '2';
 service cloud.firestore {
-	match /databases/{database}/documents {
-		match /users/{userId}/data/{docId} {
-			allow read, write: if request.auth != null && request.auth.uid == userId;
-		}
-	}
+  match /databases/{database}/documents {
+	 match /users/{userId}/data/{docId} {
+		allow read, write: if request.auth != null && request.auth.uid == userId;
+	 }
+  }
 }
 ```
 
-## 4) Como o app salva os dados
+## 4) Supabase (Free)
 
-- O app salva em: `users/{uid}/data/{key}`
-- Cada usuario logado grava apenas os proprios dados
+1. Criar bucket `biblioteca-epubs`.
+2. Confirmar URL e anon key no frontend.
+3. Mantem o plano Free para custo zero.
 
-## 5) Teste final apos deploy
+## 5) API de capas na Vercel (Hobby/free)
 
-1. Abra o link do GitHub Pages
-2. Clique em `Entrar com Google`
-3. Marque livros como lido/baixado e fila
-4. Recarregue a pagina
-5. Confirme que os dados continuam salvos
+1. Importar o mesmo repositorio na Vercel.
+2. Deploy padrao (sem mudancas extras).
+3. Endpoint publicado:
+	- `https://SEU-PROJETO.vercel.app/api/cover`
 
-## 6) Observacoes
+## 6) Conectar GitHub Pages -> API da Vercel
 
-- `apiKey` do Firebase no frontend e normal.
-- Seguranca real vem de:
-	- Firebase Auth
-	- Regras do Firestore
+Como o frontend vai estar no GitHub Pages (dominio diferente da Vercel), defina no topo do HTML:
+
+```html
+<script>
+  window.coverProxyBaseUrl = 'https://SEU-PROJETO.vercel.app/api/cover';
+</script>
+```
+
+Coloque esse trecho antes do script principal do app.
+
+## 7) Checklist custo zero
+
+1. Firebase no plano Spark (nao Blaze).
+2. Supabase no plano Free.
+3. Vercel no plano Hobby.
+4. Alertas de uso ativados nas tres plataformas.
+5. Nao habilitar upgrades automaticos.
+
+## 8) Teste final
+
+1. Abrir site no GitHub Pages.
+2. Login Google funcionando.
+3. Ler/escrever dados no Firestore.
+4. Upload/download EPUB via Supabase.
+5. Cards da curadoria carregando capas sem depender de localhost.
