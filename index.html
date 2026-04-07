@@ -909,29 +909,16 @@
                 isDistopia: false
             });
             const [customGenre, setCustomGenre] = useState("");
-            const [amazonQuery, setAmazonQuery] = useState("");
-            const [amazonRef, setAmazonRef] = useState("");
-            const [isLoadingAmazon, setIsLoadingAmazon] = useState(false);
-            const [amazonMessage, setAmazonMessage] = useState("");
-            const [searchResults, setSearchResults] = useState([]);
-            const [selectedResultId, setSelectedResultId] = useState(null);
+            const [bookSearchQuery, setBookSearchQuery] = useState("");
+            const [bookSearchResults, setBookSearchResults] = useState([]);
+            const [isSearching, setIsSearching] = useState(false);
+            const [isEnriching, setIsEnriching] = useState(false);
+            const [searchError, setSearchError] = useState("");
+            const [claudeError, setClaudeError] = useState("");
             const [epubFile, setEpubFile] = useState(null);
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
             const [epubMessage, setEpubMessage] = useState("");
 
-            const buildVolumeFromOpenLibraryDoc = useCallback((doc) => {
-                if (!doc) return null;
-                const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
-                return {
-                    title: doc.title,
-                    authors: doc.author_name || [],
-                    publisher: doc.publisher?.[0] || '',
-                    pageCount: doc.number_of_pages_median || '',
-                    description: '',
-                    categories: doc.subject?.slice(0, 4) || [],
-                    imageLinks: { thumbnail: cover, smallThumbnail: cover }
-                };
-            }, []);
 
             useEffect(() => {
                 if (!initialBook) return;
@@ -1067,14 +1054,6 @@
                 return uniqueTags(out).slice(0, 10);
             };
 
-            const extractWebEvidenceTags = (webEvidence = null) => {
-                if (!webEvidence || typeof webEvidence !== 'object') return [];
-                return uniqueTags([
-                    ...(Array.isArray(webEvidence.subjects) ? webEvidence.subjects : []),
-                    ...(Array.isArray(webEvidence.googleBooks?.categories) ? webEvidence.googleBooks.categories : []),
-                    ...(Array.isArray(webEvidence.openLibrary?.subjects) ? webEvidence.openLibrary.subjects.slice(0, 8) : [])
-                ]).slice(0, 12);
-            };
 
             const inferGenreFromSignals = (categories = [], synopsis = '') => {
                 const pool = `${(categories || []).join(' ')} ${synopsis || ''}`.toLowerCase();
@@ -1097,432 +1076,222 @@
                 return 'Literatura Geral';
             };
 
-            const buildFallbackProfile = (volume, fallbackQuery = '', webEvidence = null) => {
-                const cleanSynopsis = makeLeanSynopsis(volume?.description || '');
-                const evidenceTags = extractWebEvidenceTags(webEvidence);
-                const categories = uniqueTags([...(Array.isArray(volume?.categories) ? volume.categories : []), ...evidenceTags]);
-                const inferredGenre = inferGenreFromSignals(categories, cleanSynopsis);
-                const genre = inferredGenre || form.genre || 'Fantasia';
-                const allTropeTags = inferTropeTags(categories, cleanSynopsis, genre);
-                const olSubjects = Array.isArray(webEvidence?.openLibrary?.subjects)
-                    ? webEvidence.openLibrary.subjects.slice(0, 6) : [];
-                const tags = sanitizeStoryTags([
-                    ...allTropeTags,
-                    ...olSubjects
-                ], volume?.title || '', (volume?.authors || []).join(', '));
-
-                // Use the best synopsis available from web evidence
-                const wikiSynopsis = webEvidence?.wikipedia?.extract || '';
-                const gbSynopsis = webEvidence?.googleBooks?.description || '';
-                const bestSynopsis = cleanSynopsis || makeLeanSynopsis(gbSynopsis) || makeLeanSynopsis(wikiSynopsis);
-
-                // Use publisher from web evidence if missing from volume
-                const publisher = volume?.publisher
-                    || webEvidence?.googleBooks?.publisher
-                    || (webEvidence?.openLibrary?.publishers || [])[0]
-                    || '';
-                const pages = Number(volume?.pageCount)
-                    || Number(webEvidence?.googleBooks?.pageCount)
-                    || 0;
-
+            // ── Open Library ─────────────────────────────────────────
+            const olNormalize = (doc) => {
+                const isbns = doc.isbn || [];
+                const isbn13 = isbns.find(i => i.length === 13);
+                const isbn10 = isbns.find(i => i.length === 10);
+                const coverId = doc.cover_i;
+                const coverUrl = coverId
+                    ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
+                    : (isbn13 ? `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`
+                        : (isbn10 ? `https://covers.openlibrary.org/b/isbn/${isbn10}-L.jpg` : null));
                 return {
-                    title: volume?.title || '',
-                    author: (volume?.authors || []).join(', '),
-                    publisher,
-                    pages,
-                    synopsis: bestSynopsis,
-                    genre,
-                    sectionLabel: sectionLabelFromGenre(genre),
-                    tags
+                    title: doc.title || '',
+                    author: (doc.author_name || [])[0] || '',
+                    allAuthors: doc.author_name || [],
+                    publisher: (doc.publisher || [])[0] || '',
+                    publishYear: doc.first_publish_year || null,
+                    pages: doc.number_of_pages_median || null,
+                    synopsis: null,
+                    coverUrl: coverUrl || null,
+                    rawCategories: (doc.subject || []).slice(0, 8),
+                    isbn13: isbn13 || null,
+                    isbn10: isbn10 || null,
                 };
             };
 
-            const fetchAiBookProfile = async (volume, fallbackQuery = '') => {
-                const payload = {
-                    title: volume?.title || '',
-                    author: (volume?.authors || []).join(', '),
-                    synopsis: stripHtml(volume?.description || ''),
-                    categories: Array.isArray(volume?.categories) ? volume.categories : [],
-                    publisher: volume?.publisher || '',
-                    pages: Number(volume?.pageCount) || 0,
-                    query: fallbackQuery || ''
-                };
-
+            const searchOpenLibrary = async (query) => {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 8000);
                 try {
-                    const response = await withUiTimeout(
-                        fetch('/api/book-profile', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        }),
-                        12000,
-                        'Serviço de IA sem resposta.'
-                    );
-
-                    if (!response.ok) return null;
-                    const data = await response.json();
-                    const profile = data?.profile;
-                    const webEvidence = data?.webEvidence || null;
-                    if (!profile || typeof profile !== 'object') return webEvidence ? { webEvidenceOnly: true, webEvidence } : null;
-
-                    const genre = GENRES.includes(profile.genre) ? profile.genre : '';
-                    const evidenceTags = extractWebEvidenceTags(webEvidence);
-                    const allCategorySignals = uniqueTags([...(payload.categories || []), ...evidenceTags]);
-                    return {
-                        title: profile.title || payload.title,
-                        author: profile.author || payload.author,
-                        publisher: profile.publisher || payload.publisher,
-                        pages: Number(profile.pages) || payload.pages,
-                        synopsis: profile.synopsis || makeLeanSynopsis(payload.synopsis),
-                        genre: genre || inferGenreFromSignals(allCategorySignals, profile.synopsis || payload.synopsis),
-                        sectionLabel: String(profile.sectionLabel || '').trim(),
-                        tags: sanitizeStoryTags([
-                            ...(Array.isArray(profile.tags) ? profile.tags : []),
-                            ...inferTropeTags(allCategorySignals, profile.synopsis || payload.synopsis, genre)
-                        ], profile.title || payload.title, profile.author || payload.author),
-                        isSeries: !!profile.isSeries,
-                        series: profile.series || '',
-                        volume: Number(profile.volume) || 0,
-                        totalVolumes: Number(profile.totalVolumes) || 0,
-                        webEvidence
-                    };
-                } catch {
-                    return null;
-                }
+                    const params = new URLSearchParams({ title: query, limit: '5' });
+                    const res = await fetch(`https://openlibrary.org/search.json?${params}`, { signal: controller.signal });
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    return (data.docs || []).slice(0, 5).map(olNormalize);
+                } catch { return []; }
+                finally { clearTimeout(timeout); }
             };
 
-            const getVolumeScore = (v, query) => {
-                const q = (query || '').toLowerCase();
-                const title = (v?.title || '').toLowerCase();
+            // ── Google Books ──────────────────────────────────────────
+            const gbNormalize = (vol) => {
+                const info = vol.volumeInfo || {};
+                const ids = info.industryIdentifiers || [];
+                const isbn13 = (ids.find(i => i.type === 'ISBN_13') || {}).identifier || null;
+                const isbn10 = (ids.find(i => i.type === 'ISBN_10') || {}).identifier || null;
+                const thumb = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '';
+                const coverUrl = thumb
+                    ? thumb.replace('http://', 'https://').replace(/zoom=\d+/, 'zoom=3')
+                    : null;
+                return {
+                    title: info.title || '',
+                    author: (info.authors || [])[0] || '',
+                    allAuthors: info.authors || [],
+                    publisher: info.publisher || '',
+                    publishYear: info.publishedDate ? parseInt(info.publishedDate.slice(0, 4)) : null,
+                    pages: info.pageCount || null,
+                    synopsis: (info.description || '').replace(/<[^>]+>/g, '').trim() || null,
+                    coverUrl,
+                    rawCategories: info.categories || [],
+                    isbn13,
+                    isbn10,
+                };
+            };
+
+            const searchGoogleBooks = async (query) => {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 8000);
+                try {
+                    const q = `intitle:${encodeURIComponent(query)}`;
+                    const res = await fetch(
+                        `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&orderBy=relevance`,
+                        { signal: controller.signal }
+                    );
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    return (data.items || []).slice(0, 5).map(gbNormalize);
+                } catch { return []; }
+                finally { clearTimeout(timeout); }
+            };
+
+            // ── Deduplicate + score ───────────────────────────────────
+            const scoreBook = (r) => {
                 let s = 0;
-                if (title && q && (title.includes(q) || q.includes(title))) s += 4;
-                if ((v?.language || '').toLowerCase().startsWith('pt')) s += 4;
-                if (v?.description) s += 3;
-                if (v?.pageCount) s += 2;
-                if (v?.publisher) s += 2;
-                if (v?.imageLinks?.thumbnail || v?.imageLinks?.smallThumbnail) s += 2;
-                if (Array.isArray(v?.categories) && v.categories.length) s += 1;
+                if (r.isbn13 || r.isbn10) s++;
+                if (r.synopsis && r.synopsis.length > 50) s++;
+                if (r.coverUrl) s++;
+                if (r.pages) s++;
+                if (r.publisher) s++;
                 return s;
             };
 
-            const pickTopVolumes = (items, query, limit = 5) => {
-                if (!Array.isArray(items) || !items.length) return [];
-                return items
-                    .map(item => item?.volumeInfo)
-                    .filter(Boolean)
-                    .sort((a, b) => getVolumeScore(b, query) - getVolumeScore(a, query))
-                    .slice(0, limit);
-            };
-
-            const pickBestVolume = (items, query) => {
-                const top = pickTopVolumes(items, query, 1);
-                return top[0] || null;
-            };
-
-            const mergeUniqueVolumes = (volumes) => {
-                const map = new Map();
-                for (const v of volumes) {
-                    const key = `${(v?.title || '').toLowerCase()}|${(v?.authors?.[0] || '').toLowerCase()}`;
-                    if (!key || key === "|") continue;
-                    if (!map.has(key)) map.set(key, v);
+            const deduplicateBooks = (list) => {
+                const seen = new Map();
+                for (const r of list) {
+                    const key = r.isbn13 || r.isbn10 || `${r.title.toLowerCase()}|${(r.author || '').toLowerCase()}`;
+                    if (!seen.has(key)) {
+                        seen.set(key, r);
+                    } else {
+                        const ex = seen.get(key);
+                        seen.set(key, {
+                            ...ex,
+                            synopsis:      ex.synopsis      || r.synopsis,
+                            publisher:     ex.publisher     || r.publisher,
+                            pages:         ex.pages         || r.pages,
+                            coverUrl:      ex.coverUrl      || r.coverUrl,
+                            rawCategories: uniqueTags([...ex.rawCategories, ...r.rawCategories]),
+                            isbn13:        ex.isbn13        || r.isbn13,
+                            isbn10:        ex.isbn10        || r.isbn10,
+                        });
+                    }
                 }
-                return Array.from(map.values());
+                return [...seen.values()];
             };
 
-            const applyVolumeToForm = (volume, profile = null) => {
-                if (!volume) return;
-                const categories = volume.categories || [];
-                const matchedGenre = GENRES.find(g => g !== "Todos" && categories.some(c => c.toLowerCase().includes(g.toLowerCase())));
-                const resolvedGenre = profile?.genre || matchedGenre || form.genre || 'Fantasia';
-                const resolvedSynopsis = profile?.synopsis || makeLeanSynopsis(volume.description || '') || form.synopsis;
-                const resolvedTags = sanitizeStoryTags([
-                    ...((profile?.tags || []).length ? profile.tags : []),
-                    ...inferTropeTags(categories, resolvedSynopsis, resolvedGenre)
-                ], profile?.title || volume?.title || '', profile?.author || volume?.authors?.join(', ') || '');
+            // ── Search handler ────────────────────────────────────────
+            const handleBookSearch = async () => {
+                const q = bookSearchQuery.trim();
+                if (!q) return;
+                setIsSearching(true);
+                setSearchError('');
+                setBookSearchResults([]);
+                setClaudeError('');
+                try {
+                    const [ol, gb] = await Promise.all([
+                        searchOpenLibrary(q),
+                        searchGoogleBooks(q),
+                    ]);
+                    const merged = deduplicateBooks([...gb, ...ol])
+                        .sort((a, b) => scoreBook(b) - scoreBook(a))
+                        .slice(0, 5);
+                    if (!merged.length) setSearchError(`Nenhum resultado para "${q}".`);
+                    else setBookSearchResults(merged);
+                } catch {
+                    setSearchError('Erro ao buscar. Verifique sua conexão.');
+                } finally {
+                    setIsSearching(false);
+                }
+            };
 
+            // ── Apply result (calls /api/claude-enrich server-side) ───
+            const applyBookResult = async (result) => {
+                setBookSearchResults([]);
+                setSearchError('');
+                setClaudeError('');
+                setIsEnriching(true);
+
+                try {
+                    const res = await fetch('/api/claude-enrich', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title:         result.title,
+                            author:        result.author,
+                            publisher:     result.publisher,
+                            publishYear:   result.publishYear,
+                            pages:         result.pages,
+                            synopsis:      result.synopsis,
+                            rawCategories: result.rawCategories,
+                        }),
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.ok && data.profile) {
+                            const p = data.profile;
+                            const resolvedGenre = GENRES.includes(p.genre) ? p.genre
+                                : inferGenreFromSignals(result.rawCategories, p.synopsis || result.synopsis || '')
+                                || form.genre || 'Fantasia';
+                            const resolvedTags = sanitizeStoryTags([
+                                ...p.tags,
+                                ...inferTropeTags(result.rawCategories, p.synopsis || '', resolvedGenre),
+                            ], p.title || result.title, p.author || result.author);
+                            setForm(prev => ({
+                                ...prev,
+                                title:     p.title     || result.title   || prev.title,
+                                author:    p.author    || result.author   || prev.author,
+                                publisher: p.publisher || result.publisher || prev.publisher,
+                                pages:     p.pages     || result.pages    || prev.pages,
+                                synopsis:  p.synopsis  || makeLeanSynopsis(result.synopsis || '') || prev.synopsis,
+                                coverUrl:  toHttps(result.coverUrl || '') || prev.coverUrl,
+                                genre:     resolvedGenre,
+                                tags:      resolvedTags.join(', '),
+                                isSeries:  !!p.isSeries,
+                                series:    p.series || prev.series,
+                                volume:    p.volume || prev.volume,
+                            }));
+                            return;
+                        }
+                        if (!data.ok) setClaudeError(data.error || 'Erro no servidor');
+                    } else {
+                        const errData = await res.json().catch(() => ({}));
+                        setClaudeError(errData.error || `Erro ${res.status}`);
+                    }
+                } catch (err) {
+                    setClaudeError(err.message || 'Erro de conexão.');
+                } finally {
+                    setIsEnriching(false);
+                }
+
+                // Fallback: apply raw data without AI enrichment
+                const resolvedGenre = inferGenreFromSignals(result.rawCategories, result.synopsis || '') || form.genre || 'Fantasia';
+                const resolvedSynopsis = makeLeanSynopsis(result.synopsis || '');
+                const resolvedTags = sanitizeStoryTags(
+                    inferTropeTags(result.rawCategories, resolvedSynopsis, resolvedGenre),
+                    result.title, result.author
+                );
                 setForm(prev => ({
                     ...prev,
-                    title: profile?.title || volume.title || prev.title,
-                    author: profile?.author || volume.authors?.join(', ') || prev.author,
-                    publisher: profile?.publisher || volume.publisher || prev.publisher,
-                    pages: profile?.pages || volume.pageCount || prev.pages,
-                    synopsis: resolvedSynopsis,
-                    coverUrl: toHttps(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) || prev.coverUrl,
-                    genre: resolvedGenre,
-                    tags: resolvedTags.length ? resolvedTags.join(', ') : prev.tags,
-                    isSeries: profile?.isSeries || prev.isSeries,
-                    series: profile?.series || prev.series,
-                    volume: profile?.volume || prev.volume,
-                    totalVolumes: profile?.totalVolumes || prev.totalVolumes
+                    title:     result.title     || prev.title,
+                    author:    result.author    || prev.author,
+                    publisher: result.publisher || prev.publisher,
+                    pages:     result.pages     || prev.pages,
+                    synopsis:  resolvedSynopsis || prev.synopsis,
+                    coverUrl:  toHttps(result.coverUrl || '') || prev.coverUrl,
+                    genre:     resolvedGenre,
+                    tags:      resolvedTags.join(', '),
                 }));
-            };
-
-            const fetchGoogleVolumePtBr = async (query, authorHint = "") => {
-                const queries = [query, `intitle:${query}`];
-                if (authorHint) queries.unshift(`intitle:${query} inauthor:${authorHint}`);
-
-                for (const q of queries) {
-                    const endpointPt = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&langRestrict=pt&country=BR&printType=books&maxResults=10&orderBy=relevance`;
-                    const endpointAny = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&printType=books&maxResults=10&orderBy=relevance`;
-
-                    const resPt = await fetch(endpointPt);
-                    const dataPt = await resPt.json();
-                    const bestPt = pickBestVolume(dataPt?.items, query);
-                    if (bestPt) return bestPt;
-
-                    const resAny = await fetch(endpointAny);
-                    const dataAny = await resAny.json();
-                    const bestAny = pickBestVolume(dataAny?.items, query);
-                    if (bestAny) return bestAny;
-                }
-
-                return null;
-            };
-
-            const fetchGoogleCandidatesPtBr = async (query, authorHint = "") => {
-                const queries = [query, `intitle:${query}`];
-                if (authorHint) queries.unshift(`intitle:${query} inauthor:${authorHint}`);
-
-                const all = [];
-                for (const q of queries) {
-                    const endpointPt = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&langRestrict=pt&country=BR&printType=books&maxResults=10&orderBy=relevance`;
-                    const endpointAny = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&printType=books&maxResults=10&orderBy=relevance`;
-
-                    const resPt = await fetch(endpointPt);
-                    const dataPt = await resPt.json();
-                    all.push(...pickTopVolumes(dataPt?.items, query, 5));
-
-                    const resAny = await fetch(endpointAny);
-                    const dataAny = await resAny.json();
-                    all.push(...pickTopVolumes(dataAny?.items, query, 5));
-                }
-
-                return mergeUniqueVolumes(all)
-                    .sort((a, b) => getVolumeScore(b, query) - getVolumeScore(a, query))
-                    .slice(0, 5);
-            };
-
-            const enrichVolumeData = async (volume, fallbackQuery) => {
-                if (!volume || !fallbackQuery) return volume;
-
-                const needExtra = !volume.description || !volume.pageCount || !volume.publisher || !(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail);
-                if (!needExtra) return volume;
-
-                const googleExtra = await fetchGoogleVolumePtBr(volume.title || fallbackQuery, (volume.authors || [])[0] || form.author || "");
-                if (googleExtra) {
-                    if (!volume.publisher && googleExtra.publisher) volume.publisher = googleExtra.publisher;
-                    if (!volume.pageCount && googleExtra.pageCount) volume.pageCount = googleExtra.pageCount;
-                    if (!volume.description && googleExtra.description) volume.description = googleExtra.description;
-                    if (!(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) && (googleExtra.imageLinks?.thumbnail || googleExtra.imageLinks?.smallThumbnail)) {
-                        volume.imageLinks = googleExtra.imageLinks;
-                    }
-                    if ((!volume.categories || !volume.categories.length) && Array.isArray(googleExtra.categories) && googleExtra.categories.length) {
-                        volume.categories = googleExtra.categories;
-                    }
-                }
-
-                const olResExtra = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(volume.title || fallbackQuery)}&author=${encodeURIComponent((volume.authors || [])[0] || '')}&limit=1`);
-                const olDataExtra = await olResExtra.json();
-                const extra = olDataExtra?.docs?.[0];
-
-                if (extra) {
-                    const extraCover = extra.cover_i ? `https://covers.openlibrary.org/b/id/${extra.cover_i}-L.jpg` : '';
-                    if (!volume.publisher && extra.publisher?.[0]) volume.publisher = extra.publisher[0];
-                    if (!volume.pageCount && extra.number_of_pages_median) volume.pageCount = extra.number_of_pages_median;
-                    if (!(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) && extraCover) {
-                        volume.imageLinks = { thumbnail: extraCover, smallThumbnail: extraCover };
-                    }
-                    if ((!volume.categories || !volume.categories.length) && extra.subject?.length) {
-                        volume.categories = extra.subject.slice(0, 5);
-                    }
-                }
-
-                return volume;
-            };
-
-            const openAmazonSearch = () => {
-                const query = (amazonQuery || form.title || form.author).trim();
-                if (!query) return;
-                window.open(`https://www.amazon.com.br/s?k=${encodeURIComponent(query)}&i=stripbooks`, '_blank');
-            };
-
-            const normalizeBookCode = (value) => {
-                const code = (value || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
-                if (!code) return null;
-                if (code.length === 13 && (code.startsWith('978') || code.startsWith('979'))) return code;
-                if (code.length === 10) return code;
-                return null;
-            };
-
-            const extractBookReference = (value) => {
-                const clean = (value || '').trim();
-                if (!clean) return { code: null, queryText: '' };
-
-                const normalizeHumanQuery = (text) =>
-                    (text || '')
-                        .replace(/[-_]+/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .replace(/\b(dp|product|gp|books|asin)\b/gi, ' ')
-                        .trim();
-
-                const isbn13 = clean.match(/(?:ISBN(?:-13)?:?\s*)?(97[89][\d\s-]{10,16})/i);
-                if (isbn13) {
-                    const code = normalizeBookCode(isbn13[1]);
-                    if (code) return { code, queryText: '' };
-                }
-
-                const isbn10 = clean.match(/(?:ISBN(?:-10)?:?\s*)?([\dXx][\d\s-]{8,15})/i);
-                if (isbn10) {
-                    const code = normalizeBookCode(isbn10[1]);
-                    if (code) return { code, queryText: '' };
-                }
-
-                const directCode = normalizeBookCode(clean);
-                if (directCode) return { code: directCode, queryText: '' };
-
-                const amazonLooseMatch = clean.match(/amazon\.[^/]+\/([^?]+)/i);
-                if (amazonLooseMatch?.[1]) {
-                    const rawPath = amazonLooseMatch[1];
-                    const safeDecoded = (() => {
-                        try { return decodeURIComponent(rawPath); } catch { return rawPath; }
-                    })();
-                    const looseQuery = normalizeHumanQuery(safeDecoded);
-                    if (looseQuery) return { code: null, queryText: looseQuery };
-                }
-
-                try {
-                    const asUrl = clean.startsWith('http') ? clean : `https://${clean}`;
-                    const url = new URL(asUrl);
-                    const path = decodeURIComponent(url.pathname || '');
-
-                    const pathPatterns = [
-                        /\/(?:dp|gp\/product|product|exec\/obidos\/ASIN|asin)\/([A-Z0-9]{10,13})/i,
-                        /\/([A-Z0-9]{10,13})(?:[/?]|$)/i
-                    ];
-
-                    for (const pattern of pathPatterns) {
-                        const match = path.match(pattern);
-                        if (match) {
-                            const code = normalizeBookCode(match[1]);
-                            if (code) {
-                                const slugPart = path.split('/dp/')[0].split('/').pop() || '';
-                                const queryText = slugPart.replace(/-/g, ' ').trim();
-                                return { code, queryText };
-                            }
-                        }
-                    }
-
-                    const paramCode = normalizeBookCode(url.searchParams.get('asin') || url.searchParams.get('isbn') || '');
-                    if (paramCode) return { code: paramCode, queryText: '' };
-
-                    const paramQuery = (url.searchParams.get('k') || '').trim();
-                    if (paramQuery) return { code: null, queryText: paramQuery };
-
-                    const pathText = normalizeHumanQuery(
-                        path
-                            .split('/')
-                            .filter(Boolean)
-                            .filter(part => !/^(dp|gp|product|exec|obidos|asin)$/i.test(part))
-                            .join(' ')
-                    );
-                    if (pathText) return { code: null, queryText: pathText };
-                } catch {
-                    // Não é URL
-                }
-
-                return { code: null, queryText: clean };
-            };
-
-            const fillFromAmazonReference = async () => {
-                setAmazonMessage("");
-                setSearchResults([]);
-                setSelectedResultId(null);
-                const { code, queryText } = extractBookReference(amazonRef);
-                const sanitizedQueryFromLink = /^https?:\/\//i.test(queryText) ? '' : queryText;
-                const fallbackQuery = (amazonQuery || form.title || form.author || sanitizedQueryFromLink || '').trim();
-
-                if (!code && !fallbackQuery) {
-                    setAmazonMessage("Cole URL/ISBN da Amazon ou digite título + autor.");
-                    return;
-                }
-
-                try {
-                    setIsLoadingAmazon(true);
-                    const lookups = [];
-                    if (code) {
-                        lookups.push(`isbn:${code}`);
-                        lookups.push(code);
-                    }
-                    if (fallbackQuery) {
-                        lookups.push(`intitle:${fallbackQuery}`);
-                        lookups.push(fallbackQuery);
-                    }
-
-                    let volume = null;
-                    let candidatePool = [];
-                    for (const q of lookups) {
-                        const candidates = await fetchGoogleCandidatesPtBr(q, (form.author || '').trim());
-                        candidatePool = [...candidatePool, ...candidates];
-                        volume = await fetchGoogleVolumePtBr(q, (form.author || '').trim());
-                        if (volume) break;
-                    }
-
-                    const uniqueCandidates = mergeUniqueVolumes(candidatePool)
-                        .sort((a, b) => getVolumeScore(b, fallbackQuery) - getVolumeScore(a, fallbackQuery))
-                        .slice(0, 5);
-                    if (uniqueCandidates.length) setSearchResults(uniqueCandidates);
-
-                    if (!volume && fallbackQuery) {
-                        const olRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(fallbackQuery)}&limit=1`);
-                        const olData = await olRes.json();
-                        const doc = olData?.docs?.[0];
-                        if (doc) {
-                            const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
-                            volume = buildVolumeFromOpenLibraryDoc(doc);
-                        }
-                    }
-
-                    if (!volume && fallbackQuery) {
-                        const olResByQ = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(fallbackQuery)}&limit=1`);
-                        const olDataByQ = await olResByQ.json();
-                        const doc = olDataByQ?.docs?.[0];
-                        if (doc) {
-                            volume = buildVolumeFromOpenLibraryDoc(doc);
-                        }
-                    }
-
-                    if (volume && fallbackQuery) volume = await enrichVolumeData(volume, fallbackQuery);
-
-                    if (!volume) {
-                        setAmazonMessage("Não encontrei dados automáticos para este link. Preencha manualmente ou tente título + autor.");
-                        return;
-                    }
-
-                    const aiProfile = await fetchAiBookProfile(volume, fallbackQuery);
-                    const finalProfile = aiProfile?.webEvidenceOnly
-                        ? buildFallbackProfile(volume, fallbackQuery, aiProfile.webEvidence)
-                        : (aiProfile || buildFallbackProfile(volume, fallbackQuery));
-                    applyVolumeToForm(volume, finalProfile);
-
-                    if (aiProfile && !aiProfile.webEvidenceOnly) {
-                        setAmazonMessage(uniqueCandidates.length > 1
-                            ? `Ficha organizada no formato do catálogo (${finalProfile.sectionLabel || 'Literatura Geral'}). Se quiser, escolha outro resultado abaixo.`
-                            : `Ficha organizada no formato do catálogo (${finalProfile.sectionLabel || 'Literatura Geral'}). Revise e salve no banco.`);
-                    } else if (aiProfile?.webEvidenceOnly) {
-                        setAmazonMessage(uniqueCandidates.length > 1
-                            ? `Ficha organizada com pesquisa web (${finalProfile.sectionLabel || 'Literatura Geral'}). Se quiser, escolha outro resultado abaixo.`
-                            : `Ficha organizada com pesquisa web (${finalProfile.sectionLabel || 'Literatura Geral'}). Revise e salve no banco.`);
-                    } else {
-                        setAmazonMessage(uniqueCandidates.length > 1
-                            ? `Ficha preenchida e organizada com fallback local (${finalProfile.sectionLabel || 'Literatura Geral'}). Se quiser, escolha outro resultado abaixo.`
-                            : `Ficha preenchida e organizada com fallback local (${finalProfile.sectionLabel || 'Literatura Geral'}). Revise e salve no banco.`);
-                    }
-                } catch (error) {
-                    console.error(error);
-                    setAmazonMessage("Não foi possível completar automaticamente agora.");
-                } finally {
-                    setIsLoadingAmazon(false);
-                }
             };
 
             const submit = async (e) => {
@@ -1606,55 +1375,64 @@
                         <h3 className="text-2xl font-serif font-bold text-[#1E3A5F]  mb-6">{initialBook ? 'Editar Livro' : 'Adicionar Livro'}</h3>
 
                         <div className="mb-5 p-4 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03]">
-                            <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black mb-3">Assistente Amazon</p>
-                            <div className="relative mb-3">
-                                <input className="w-full pl-4 pr-12 py-2.5 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Pesquisar livro na Amazon" value={amazonQuery} onChange={(e) => setAmazonQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && openAmazonSearch()} />
-                                <button type="button" onClick={openAmazonSearch} title="Abrir Amazon" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-[#1E3A5F] text-white hover:bg-[#162d4a] transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                                    </svg>
+                            <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black mb-3">Buscar Livro</p>
+                            <div className="flex gap-2">
+                                <input
+                                    className="flex-1 pl-4 pr-4 py-2.5 border border-gray-200 bg-white text-gray-900 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14B8A6]/30 focus:border-[#14B8A6] transition-all"
+                                    placeholder="Digite o título do livro..."
+                                    value={bookSearchQuery}
+                                    onChange={(e) => setBookSearchQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleBookSearch())}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleBookSearch}
+                                    disabled={isSearching || !bookSearchQuery.trim()}
+                                    className="px-4 py-2.5 rounded-xl bg-[#1E3A5F] text-white text-sm font-semibold disabled:opacity-50 hover:bg-[#162d4a] transition-colors flex items-center justify-center"
+                                >
+                                    {isSearching ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                                        </svg>
+                                    )}
                                 </button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
-                                <input className="px-4 py-2.5 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Cole URL da Amazon ou ISBN" value={amazonRef} onChange={(e) => setAmazonRef(e.target.value)} />
-                                <button type="button" onClick={fillFromAmazonReference} disabled={isLoadingAmazon} className="px-4 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold text-sm disabled:opacity-60">
-                                    {isLoadingAmazon ? 'Importando...' : 'Completar Ficha'}
-                                </button>
-                            </div>
-                            {searchResults.length > 0 && (
+                            {isEnriching && (
+                                <div className="mt-3 flex items-center gap-2 text-xs text-[#14B8A6]">
+                                    <div className="w-3.5 h-3.5 border-2 border-[#14B8A6]/30 border-t-[#14B8A6] rounded-full animate-spin" />
+                                    Organizando ficha com IA...
+                                </div>
+                            )}
+                            {searchError && <p className="mt-2 text-xs text-red-500">{searchError}</p>}
+                            {claudeError && <p className="mt-2 text-xs text-amber-600">IA indisponível ({claudeError}) — dados brutos aplicados.</p>}
+                            {bookSearchResults.length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                    <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black">Resultados (pt-BR)</p>
-                                    {searchResults.map((result, idx) => (
+                                    <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black">Selecione o resultado</p>
+                                    {bookSearchResults.map((result, idx) => (
                                         <button
-                                            key={`${result.title}-${(result.authors || [])[0] || idx}`}
+                                            key={`${result.title}-${result.author || idx}`}
                                             type="button"
-                                            onClick={async () => {
-                                                const resultId = `${result.title}-${(result.authors || [])[0] || idx}`;
-                                                setSelectedResultId(resultId);
-                                                setIsLoadingAmazon(true);
-                                                try {
-                                                    const fallbackQuery = `${result.title || ''} ${(result.authors || [])[0] || ''}`.trim();
-                                                    const enriched = await enrichVolumeData({ ...result }, fallbackQuery);
-                                                    const aiProfile = await fetchAiBookProfile(enriched, fallbackQuery);
-                                                    const finalProfile = aiProfile?.webEvidenceOnly
-                                                        ? buildFallbackProfile(enriched, fallbackQuery, aiProfile.webEvidence)
-                                                        : (aiProfile || buildFallbackProfile(enriched, fallbackQuery));
-                                                    applyVolumeToForm(enriched, finalProfile);
-                                                    setAmazonMessage(`Resultado aplicado e organizado (${finalProfile.sectionLabel || 'Literatura Geral'}).`);
-                                                } finally {
-                                                    setIsLoadingAmazon(false);
-                                                }
-                                            }}
-                                            className={`w-full text-left px-3 py-2 rounded-xl border transition ${selectedResultId === `${result.title}-${(result.authors || [])[0] || idx}` ? 'border-[#14B8A6] bg-teal-50' : 'border-gray-200 bg-white hover:border-[#1E3A5F]/30'}`}
+                                            onClick={() => applyBookResult(result)}
+                                            className="w-full text-left px-3 py-2.5 rounded-xl border border-gray-200 bg-white hover:border-[#14B8A6]/50 hover:bg-teal-50/50 transition-colors flex gap-3"
                                         >
-                                            <p className="text-sm font-semibold text-[#1E3A5F]">{result.title || 'Sem título'}</p>
-                                            <p className="text-xs text-gray-500">{(result.authors || []).join(', ') || 'Autor não informado'}</p>
-                                            <p className="text-[11px] text-gray-400 mt-1">{result.publisher || 'Editora não informada'} {result.pageCount ? `• ${result.pageCount} págs` : ''}</p>
+                                            {result.coverUrl ? (
+                                                <img src={result.coverUrl} alt="" className="w-9 h-12 object-cover rounded shrink-0" onError={(e) => e.target.style.display='none'} />
+                                            ) : (
+                                                <div className="w-9 h-12 rounded bg-gradient-to-br from-[#1E3A5F] to-[#14B8A6] shrink-0 flex items-center justify-center text-white text-[10px] font-bold">
+                                                    {(result.title || '?').slice(0, 2).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-[#1E3A5F] leading-tight truncate">{result.title || 'Sem título'}</p>
+                                                <p className="text-xs text-gray-500 truncate">{result.author || 'Autor não informado'}</p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">{result.publisher || ''}{result.publisher && result.pages ? ' · ' : ''}{result.pages ? `${result.pages} págs` : ''}</p>
+                                            </div>
                                         </button>
                                     ))}
                                 </div>
                             )}
-                            {amazonMessage && <p className="mt-2 text-xs text-gray-500">{amazonMessage}</p>}
                         </div>
 
                         <div className="mb-5">

@@ -3,6 +3,9 @@
     "api/book-profile.js": {
       "maxDuration": 30
     },
+    "api/claude-enrich.js": {
+      "maxDuration": 30
+    },
     "api/cover.js": {
       "maxDuration": 20
     }
