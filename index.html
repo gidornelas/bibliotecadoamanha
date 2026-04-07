@@ -4190,11 +4190,11 @@
                                 </div>
                             </div>
 
-                            <div className="genre-nav-row no-scrollbar">
-                                {genreMenuItems.map(g => (
-                                    <button key={g} onClick={() => handleGenreFilter(g)} className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${activeGenre === g ? "bg-[#14B8A6] text-white border-[#14B8A6] shadow-md shadow-[#14B8A6]/20" : "bg-white  text-gray-400  border-gray-100  hover:border-teal-100 hover:text-teal-600"}`}>{g}</button>
-                                ))}
-                            </div>
+                        </div>
+                        <div className="genre-nav-row no-scrollbar" style={{maxWidth:'80rem',margin:'0 auto'}}>
+                            {genreMenuItems.map(g => (
+                                <button key={g} onClick={() => handleGenreFilter(g)} className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${activeGenre === g ? "bg-[#14B8A6] text-white border-[#14B8A6] shadow-md shadow-[#14B8A6]/20" : "bg-white  text-gray-400  border-gray-100  hover:border-teal-100 hover:text-teal-600"}`}>{g}</button>
+                            ))}
                         </div>
                     </nav>
 
