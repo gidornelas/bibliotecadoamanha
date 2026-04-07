@@ -428,7 +428,7 @@ async function enrichWithClaude(bookData, apiKey) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -455,7 +455,9 @@ async function enrichWithClaude(bookData, apiKey) {
     pages:          enriched.pages          ?? bookData.pages,
     synopsis:       enriched.synopsis       || bookData.synopsis,
     suggestedGenre: enriched.suggestedGenre || bookData.suggestedGenre,
-    suggestedTags:  enriched.suggestedTags  || bookData.suggestedTags,
+    suggestedTags:  enriched.suggestedTags?.length
+      ? enriched.suggestedTags.map(t => typeof t === 'string' ? { label: t, type: 'gray' } : t)
+      : bookData.suggestedTags,
     seriesDetected: 'seriesDetected' in enriched ? enriched.seriesDetected : bookData.seriesDetected,
     enrichedByAI:   true,
   };
