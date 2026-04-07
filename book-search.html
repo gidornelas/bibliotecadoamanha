@@ -417,7 +417,37 @@ async function searchBookByISBN(isbn) {
 async function enrichWithClaude(bookData, apiKey) {
   if (!apiKey) throw new Error('Chave API não configurada.');
 
-  const prompt = `Você é um especialista em livros. Dados brutos de APIs sobre um livro:\n${JSON.stringify(bookData, null, 2)}\n\nRetorne SOMENTE um JSON válido com os campos: title, author, allAuthors (array), publisher, publishYear (número), pages (número), synopsis (em português), suggestedGenre, suggestedTags (array de strings), seriesDetected (boolean). Sem texto extra.`;
+  const prompt = `Você é um especialista em literatura. Analise os dados brutos abaixo sobre um livro e retorne um JSON enriquecido.
+
+DADOS BRUTOS:
+${JSON.stringify({ title: bookData.title, author: bookData.author, publisher: bookData.publisher, publishYear: bookData.publishYear, pages: bookData.pages, synopsis: bookData.synopsis, rawCategories: bookData.rawCategories }, null, 2)}
+
+INSTRUÇÕES:
+1. "synopsis": escreva em português (pt-BR), 3 a 5 frases descritivas. Se já houver, melhore e traduza.
+2. "suggestedGenre": escolha UM dos valores: thriller | fantasy | romantasy | romance | sci-fi | dystopia | literary | unknown
+3. "suggestedTags": array de objetos { "label": string, "type": string }. Gere entre 3 e 8 tags relevantes.
+   - Tipos disponíveis: "pink" (tropos de romance), "purple" (fantasia/magia), "thriller" (suspense/crime), "teal" (ficção histórica, autoras brasileiras, sci-fi), "amber" (YA, séries, prêmios, adaptações), "gray" (outros)
+   - Exemplos de labels úteis: "enemies to lovers", "slow burn", "dual POV", "plot twist", "YA", "série", "ficção histórica", "autora brasileira", "sistema de magia", "vingança", "mitologia", "premiado", "adaptado", "segunda chance", "amor proibido", "chosen one", "dark academia", "coming of age", "morally grey", "found family"
+4. "seriesName": nome da série se detectado, ou null
+5. "seriesVolume": número do volume se detectado, ou null
+6. "pages": número de páginas se souber com certeza, senão mantenha o original
+7. "publisher": editora se souber, senão mantenha o original
+
+Retorne SOMENTE JSON válido, sem texto extra:
+{
+  "title": string,
+  "author": string,
+  "allAuthors": string[],
+  "publisher": string,
+  "publishYear": number | null,
+  "pages": number | null,
+  "synopsis": string,
+  "suggestedGenre": string,
+  "suggestedTags": [{ "label": string, "type": string }],
+  "seriesName": string | null,
+  "seriesVolume": number | null,
+  "seriesDetected": boolean
+}`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -429,7 +459,7 @@ async function enrichWithClaude(bookData, apiKey) {
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
@@ -458,7 +488,9 @@ async function enrichWithClaude(bookData, apiKey) {
     suggestedTags:  enriched.suggestedTags?.length
       ? enriched.suggestedTags.map(t => typeof t === 'string' ? { label: t, type: 'gray' } : t)
       : bookData.suggestedTags,
-    seriesDetected: 'seriesDetected' in enriched ? enriched.seriesDetected : bookData.seriesDetected,
+    seriesDetected: enriched.seriesDetected ?? bookData.seriesDetected,
+    seriesName:     enriched.seriesName     || bookData.seriesName,
+    seriesVolume:   enriched.seriesVolume   ?? bookData.seriesVolume,
     enrichedByAI:   true,
   };
 }
