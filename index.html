@@ -915,10 +915,25 @@
             const [isEnriching, setIsEnriching] = useState(false);
             const [searchError, setSearchError] = useState("");
             const [claudeError, setClaudeError] = useState("");
+            const [localApiKey, setLocalApiKey] = useState(() => localStorage.getItem('anthropic_api_key') || '');
+            const [keyInput, setKeyInput] = useState('');
+            const [showKeyInput, setShowKeyInput] = useState(false);
             const [epubFile, setEpubFile] = useState(null);
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
             const [epubMessage, setEpubMessage] = useState("");
 
+            const saveLocalKey = () => {
+                const k = keyInput.trim();
+                if (!k) return;
+                localStorage.setItem('anthropic_api_key', k);
+                setLocalApiKey(k);
+                setKeyInput('');
+                setShowKeyInput(false);
+            };
+            const removeLocalKey = () => {
+                localStorage.removeItem('anthropic_api_key');
+                setLocalApiKey('');
+            };
 
             useEffect(() => {
                 if (!initialBook) return;
@@ -1214,7 +1229,71 @@
                 }
             };
 
-            // ── Apply result (calls /api/claude-enrich server-side) ───
+            // ── Helpers para enriquecimento ───────────────────────────
+            const applyProfileToForm = (p, result) => {
+                const resolvedGenre = GENRES.includes(p.genre) ? p.genre
+                    : inferGenreFromSignals(result.rawCategories, p.synopsis || result.synopsis || '')
+                    || form.genre || 'Fantasia';
+                const resolvedTags = sanitizeStoryTags([
+                    ...(Array.isArray(p.tags) ? p.tags : []),
+                    ...inferTropeTags(result.rawCategories, p.synopsis || '', resolvedGenre),
+                ], p.title || result.title, p.author || result.author);
+                setForm(prev => ({
+                    ...prev,
+                    title:     p.title     || result.title    || prev.title,
+                    author:    p.author    || result.author   || prev.author,
+                    publisher: p.publisher || result.publisher || prev.publisher,
+                    pages:     p.pages     || result.pages    || prev.pages,
+                    synopsis:  p.synopsis  || makeLeanSynopsis(result.synopsis || '') || prev.synopsis,
+                    coverUrl:  toHttps(result.coverUrl || '') || prev.coverUrl,
+                    genre:     resolvedGenre,
+                    tags:      resolvedTags.join(', '),
+                    isSeries:  !!p.isSeries,
+                    series:    p.series || prev.series,
+                    volume:    p.volume || prev.volume,
+                }));
+            };
+
+            // Chama Anthropic diretamente do browser (fallback para GitHub Pages)
+            const enrichBrowser = async (result, apiKey) => {
+                const prompt = `Você é um especialista em literatura. Analise os dados brutos e retorne JSON enriquecido.\nResponda APENAS JSON válido, sem markdown.\n"synopsis": PT-BR, 3-5 frases sem spoilers.\n"genre": exatamente um de: Fantasia|Romantasy|Ficção Científica|Thriller|Romance Contemporâneo|Ficção Literária|Distopia\n"tags": array 4-8 strings (tropos e atmosfera)\n"publisher": editora brasileira se possível\n"isSeries": boolean, "series": string, "volume": number`;
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 20000);
+                try {
+                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': apiKey,
+                            'anthropic-version': '2023-06-01',
+                            'anthropic-dangerous-direct-browser-access': 'true',
+                        },
+                        body: JSON.stringify({
+                            model: 'claude-haiku-4-5-20251001',
+                            max_tokens: 1024,
+                            messages: [{ role: 'user', content: JSON.stringify({
+                                title: result.title, author: result.author,
+                                publisher: result.publisher, pages: result.pages,
+                                synopsis: result.synopsis, rawCategories: result.rawCategories,
+                            }) }],
+                        }),
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err?.error?.message || `HTTP ${res.status}`);
+                    }
+                    const data = await res.json();
+                    const text = data?.content?.[0]?.text || '';
+                    const match = text.match(/\{[\s\S]*\}/);
+                    if (!match) throw new Error('Resposta inválida');
+                    return JSON.parse(match[0]);
+                } finally {
+                    clearTimeout(timeout);
+                }
+            };
+
+            // ── Apply result (tenta servidor → fallback browser) ──────
             const applyBookResult = async (result) => {
                 setBookSearchResults([]);
                 setSearchError('');
@@ -1222,54 +1301,41 @@
                 setIsEnriching(true);
 
                 try {
-                    const res = await fetch('/api/claude-enrich', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            title:         result.title,
-                            author:        result.author,
-                            publisher:     result.publisher,
-                            publishYear:   result.publishYear,
-                            pages:         result.pages,
-                            synopsis:      result.synopsis,
-                            rawCategories: result.rawCategories,
-                        }),
-                    });
-
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.ok && data.profile) {
-                            const p = data.profile;
-                            const resolvedGenre = GENRES.includes(p.genre) ? p.genre
-                                : inferGenreFromSignals(result.rawCategories, p.synopsis || result.synopsis || '')
-                                || form.genre || 'Fantasia';
-                            const resolvedTags = sanitizeStoryTags([
-                                ...p.tags,
-                                ...inferTropeTags(result.rawCategories, p.synopsis || '', resolvedGenre),
-                            ], p.title || result.title, p.author || result.author);
-                            setForm(prev => ({
-                                ...prev,
-                                title:     p.title     || result.title   || prev.title,
-                                author:    p.author    || result.author   || prev.author,
-                                publisher: p.publisher || result.publisher || prev.publisher,
-                                pages:     p.pages     || result.pages    || prev.pages,
-                                synopsis:  p.synopsis  || makeLeanSynopsis(result.synopsis || '') || prev.synopsis,
-                                coverUrl:  toHttps(result.coverUrl || '') || prev.coverUrl,
-                                genre:     resolvedGenre,
-                                tags:      resolvedTags.join(', '),
-                                isSeries:  !!p.isSeries,
-                                series:    p.series || prev.series,
-                                volume:    p.volume || prev.volume,
-                            }));
-                            return;
+                    // 1) Tenta endpoint serverless (funciona no Vercel)
+                    let serverOk = false;
+                    try {
+                        const res = await fetch('/api/claude-enrich', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                title: result.title, author: result.author,
+                                publisher: result.publisher, publishYear: result.publishYear,
+                                pages: result.pages, synopsis: result.synopsis,
+                                rawCategories: result.rawCategories,
+                            }),
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.ok && data.profile) {
+                                applyProfileToForm(data.profile, result);
+                                serverOk = true;
+                                return;
+                            }
                         }
-                        if (!data.ok) setClaudeError(data.error || 'Erro no servidor');
-                    } else {
-                        const errData = await res.json().catch(() => ({}));
-                        setClaudeError(errData.error || `Erro ${res.status}`);
+                    } catch (_) { /* servidor indisponível — tenta browser */ }
+
+                    // 2) Fallback: chama Anthropic direto do browser (GitHub Pages)
+                    if (!serverOk && localApiKey) {
+                        const profile = await enrichBrowser(result, localApiKey);
+                        applyProfileToForm(profile, result);
+                        return;
+                    }
+
+                    if (!serverOk && !localApiKey) {
+                        setClaudeError('Configure uma chave Anthropic abaixo para enriquecer os dados.');
                     }
                 } catch (err) {
-                    setClaudeError(err.message || 'Erro de conexão.');
+                    setClaudeError(err.message || 'Erro ao enriquecer com IA.');
                 } finally {
                     setIsEnriching(false);
                 }
@@ -1375,7 +1441,36 @@
                         <h3 className="text-2xl font-serif font-bold text-[#1E3A5F]  mb-6">{initialBook ? 'Editar Livro' : 'Adicionar Livro'}</h3>
 
                         <div className="mb-5 p-4 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03]">
-                            <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black mb-3">Buscar Livro</p>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black">Buscar Livro</p>
+                                <div className="flex flex-col items-end gap-1">
+                                    {localApiKey ? (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-[#14B8A6]/10 text-[#14B8A6] border border-[#14B8A6]/20 rounded-full px-2 py-0.5 font-bold">✦ Claude ativo</span>
+                                            <button type="button" onClick={removeLocalKey} className="text-[10px] text-red-400 hover:text-red-600">remover</button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-end gap-1">
+                                            <button type="button" onClick={() => setShowKeyInput(v => !v)} className="text-[10px] text-[#14B8A6] hover:underline">
+                                                {showKeyInput ? '✕ cancelar' : '+ chave Anthropic'}
+                                            </button>
+                                            {showKeyInput && (
+                                                <div className="flex gap-1">
+                                                    <input
+                                                        type="password"
+                                                        placeholder="sk-ant-..."
+                                                        value={keyInput}
+                                                        onChange={e => setKeyInput(e.target.value)}
+                                                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), saveLocalKey())}
+                                                        className="text-xs px-2 py-1 border border-gray-200 rounded-lg w-40 outline-none focus:ring-1 focus:ring-[#14B8A6]/40"
+                                                    />
+                                                    <button type="button" onClick={saveLocalKey} className="text-xs px-2 py-1 bg-[#14B8A6] text-white rounded-lg font-bold">Salvar</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                             <div className="flex gap-2">
                                 <input
                                     className="flex-1 pl-4 pr-4 py-2.5 border border-gray-200 bg-white text-gray-900 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14B8A6]/30 focus:border-[#14B8A6] transition-all"
