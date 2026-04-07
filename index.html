@@ -6,9 +6,12 @@
     <title>Biblioteca do Amanhã | By Meiyka</title>
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,700&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script>tailwind.config = { darkMode: 'class' }</script>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <!-- Tailwind CSS v4 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style type="text/tailwindcss">
+        @custom-variant dark (&:where(.dark, .dark *));
+    </style>
+    <script>document.documentElement.classList.remove('dark');</script>
     <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
