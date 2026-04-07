@@ -8,6 +8,7 @@ export default defineConfig({
         main:       resolve(__dirname, 'index.html'),
         login:      resolve(__dirname, 'login.html'),
         bookSearch: resolve(__dirname, 'book-search.html'),
+        dark:       resolve(__dirname, 'dark.html'),
       },
     },
   },
