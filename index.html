@@ -1887,7 +1887,7 @@
                             </div>
                             <p className="text-xs text-gray-400 truncate">{book.author}</p>
                             <div className="mt-2 flex flex-wrap gap-1">
-                                <span className={`inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
+                                <span className={`inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border text-center leading-tight ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre === 'Romance Contemporâneo' ? <>Romance<br/>Contemporâneo</> : book.genre}</span>
                                 {isMultiVolumeSeries && (
                                     <span className="inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">
                                         {seriesLabel}
@@ -1952,9 +1952,9 @@
                         <div className="flex items-center justify-between gap-2 mt-auto">
                             <span 
                                 onClick={(e) => { e.stopPropagation(); onGenreClick(book.genre); }}
-                                className="self-stretch flex items-center text-[8px] font-semibold uppercase tracking-wider px-2 py-1 rounded-lg bg-gray-100 text-gray-400 cursor-pointer hover:bg-gray-200 hover:text-gray-500 transition-all leading-tight"
+                                className="self-stretch flex items-center text-[8px] font-semibold uppercase tracking-wider px-2 py-1 rounded-lg bg-gray-100 text-gray-400 cursor-pointer hover:bg-gray-200 hover:text-gray-500 transition-all leading-tight text-center"
                             >
-                                {book.genre}
+                                {book.genre === 'Romance Contemporâneo' ? <>Romance<br/>Contemporâneo</> : book.genre}
                             </span>
                             <div className="flex items-center gap-1">
                                 {showImportButton && (
@@ -4062,6 +4062,13 @@
 
             return (
                 <div className="min-h-screen">
+                    <a
+                        href="dark.html"
+                        title="Modo escuro"
+                        style={{position:'fixed',top:'8px',right:'16px',zIndex:9999,width:'32px',height:'32px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,0.85)',backdropFilter:'blur(6px)',border:'1px solid #14B8A6',boxShadow:'0 2px 8px rgba(20,184,166,0.18)',textDecoration:'none',transition:'transform 0.15s'}}
+                        onMouseEnter={e => e.currentTarget.style.transform='scale(1.1)'}
+                        onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
+                    ><svg viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></a>
                     <ToastViewport toasts={toasts} onDismiss={removeToast} />
                     {authLoading ? (
                         <div className="flex items-center justify-center min-h-screen">
