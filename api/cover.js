@@ -1,10 +1,21 @@
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+const ALLOWED_ORIGINS = [
+  'https://biblioteca-do-amanha-capas.vercel.app',
+  'https://gidornelas.github.io',
+  'https://biblioteca-do-amanha.web.app',
+  'https://biblioteca-do-amanha.firebaseapp.com',
+];
+
+function setCors(res, req) {
+  const origin = (req && req.headers && req.headers.origin) ? req.headers.origin : '';
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || isLocal;
+  res.setHeader('Access-Control-Allow-Origin', isAllowed ? origin : ALLOWED_ORIGINS[0]);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
 }
 
 function htmlDecode(input = '') {
@@ -115,7 +126,7 @@ async function fetchImage(url) {
 
 export default async function handler(req, res) {
   try {
-    setCors(res);
+    setCors(res, req);
 
     if (req.method === 'OPTIONS') {
       res.status(204).end();

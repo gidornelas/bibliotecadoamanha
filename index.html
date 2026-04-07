@@ -245,6 +245,11 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
+        // Suprime console.log em produção; mantém console.error e console.warn
+        if (typeof location !== 'undefined' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            console.log = () => {};
+        }
+
         // --- 0. CONFIGURAÇÃO DO BANCO DE DADOS NA NUVEM ---
 
         const LOCAL_META_PREFIX = 'libdb-meta:';
@@ -2408,6 +2413,12 @@
             const viewerProfileId = myProfileId || activeProfile;
             const chatCurrentProfile = PROFILE_OPTIONS.find(profile => profile.id === viewerProfileId) || currentProfile;
             const chatOtherProfile = PROFILE_OPTIONS.find(profile => profile.id !== viewerProfileId) || otherProfile;
+
+            // Atualiza o título do browser com o perfil ativo
+            useEffect(() => {
+                document.title = `Biblioteca | ${currentProfile.label}`;
+            }, [currentProfile.label]);
+
             const profilePreferencesKey = useMemo(
                 () => `libdb-preferences-${PROFILE_PREFERENCES_VERSION}-${activeProfile}`,
                 [activeProfile]
