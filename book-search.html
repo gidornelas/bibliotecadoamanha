@@ -963,6 +963,11 @@ function App() {
   const handleSelect = useCallback(async (result) => {
     setResults([]);
     setClaudeError(null);
+    if (!apiKey) {
+      // Sem chave: usa dado bruto sem tentar enriquecer
+      setSelected(result);
+      return;
+    }
     setIsEnriching(true);
     try {
       const enriched = await enrichWithClaude(result, apiKey);
@@ -974,7 +979,7 @@ function App() {
     } finally {
       setIsEnriching(false);
     }
-  }, []);
+  }, [apiKey]);
 
   const handleConfirm = (data) => {
     setConfirmed(data);
@@ -1000,7 +1005,7 @@ function App() {
         </div>
 
         {/* Claude API Key */}
-        {!confirmed && !selected && !isEnriching && (
+        {!confirmed && !isEnriching && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 space-y-2">
             {apiKey ? (
               <div className="flex items-center justify-between">
