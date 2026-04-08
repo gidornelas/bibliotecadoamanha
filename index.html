@@ -1973,6 +1973,18 @@
                                                 Baixar EPUB {(effectiveEpub?.epubFileName || book.epubFileName) ? `(${effectiveEpub?.epubFileName || book.epubFileName})` : ''}
                                             </button>
                                         )}
+                                        {!!effectiveEpub?.epubUrl && (
+                                            <button
+                                                onClick={() => {
+                                                    const viewerUrl = `epub-viewer.html?url=${encodeURIComponent(effectiveEpub?.epubUrl || book.epubUrl)}&title=${encodeURIComponent(book.title || 'Livro')}`;
+                                                    window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+                                                }}
+                                                className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100"
+                                            >
+                                                <Icon name="bookOpen" className="w-3.5 h-3.5" />
+                                                Visualizar EPUB
+                                            </button>
+                                        )}
                                         {book.epubKey && !book.epubUrl && (
                                             <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-semibold text-amber-700 leading-relaxed">
                                                 Este livro ainda usa o formato antigo de EPUB local. Reenvie o arquivo para migrar ao Supabase Storage.

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador EPUB | Biblioteca do Amanhã</title>
+    <link rel="icon" type="image/png" href="https://i.imgur.com/FfKzzxi.png">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #F8FAFC;
+            color: #1E3A5F;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Topbar ── */
+        #topbar {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #E2E8F0;
+            padding: 12px 20px;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        #topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        #btn-back {
+            flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%;
+            border: none; background: #F1F5F9; color: #1E3A5F;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: background .15s;
+        }
+        #btn-back:hover { background: #E2E8F0; }
+        #book-title {
+            font-size: 13px; font-weight: 700; color: #1E3A5F;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .top-btn {
+            height: 32px; padding: 0 14px; border-radius: 8px;
+            border: 1px solid #E2E8F0; background: #fff;
+            color: #1E3A5F; font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .05em;
+            cursor: pointer; transition: background .15s, border-color .15s;
+        }
+        .top-btn:hover { background: #F1F5F9; border-color: #CBD5E1; }
+
+        /* ── Layout ── */
+        #main { flex: 1; display: flex; position: relative; overflow: hidden; }
+
+        /* ── TOC sidebar ── */
+        #toc-sidebar {
+            width: 260px; flex-shrink: 0;
+            background: #fff; border-right: 1px solid #E2E8F0;
+            overflow-y: auto; padding: 16px 0;
+            transition: transform .25s ease;
+        }
+        #toc-sidebar.hidden {
+            transform: translateX(-100%);
+            position: absolute; top: 0; left: 0; bottom: 0; z-index: 50;
+            box-shadow: 4px 0 20px rgba(0,0,0,.12);
+        }
+        #toc-title {
+            font-size: 10px; font-weight: 900;
+            text-transform: uppercase; letter-spacing: .25em; color: #94A3B8;
+            padding: 0 16px 12px; border-bottom: 1px solid #F1F5F9; margin-bottom: 8px;
+        }
+        #toc-list { list-style: none; }
+        #toc-list li a {
+            display: block; padding: 8px 16px;
+            font-size: 12px; color: #334155; text-decoration: none;
+            transition: background .1s, color .1s; line-height: 1.4;
+        }
+        #toc-list li a:hover { background: #F8FAFC; color: #14B8A6; }
+        #toc-list li a.active { background: #F0FDFA; color: #0F766E; font-weight: 700; }
+
+        /* ── Reader wrap ── */
+        #reader-wrap {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            padding: 24px 16px 88px; overflow-y: auto; min-width: 0;
+        }
+
+        /* States */
+        .state {
+            flex: 1; width: 100%;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 16px; padding: 40px; text-align: center;
+        }
+        .state-icon {
+            width: 64px; height: 64px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .state-title { font-size: 15px; font-weight: 700; color: #1E3A5F; }
+        .state-desc { font-size: 12px; color: #64748B; max-width: 320px; line-height: 1.6; }
+        .spinner {
+            width: 28px; height: 28px;
+            border: 3px solid #14B8A6; border-top-color: transparent;
+            border-radius: 50%; animation: spin .7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .upload-label {
+            display: inline-flex; align-items: center; gap: 8px;
+            margin-top: 12px; padding: 10px 22px; border-radius: 12px;
+            background: #1E3A5F; color: #fff;
+            font-size: 12px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .06em;
+            cursor: pointer; transition: background .15s;
+        }
+        .upload-label:hover { background: #14B8A6; }
+
+        /* Epub container */
+        #epub-container {
+            width: 100%; max-width: 720px;
+            background: #fff; border-radius: 16px;
+            box-shadow: 0 4px 32px rgba(30,58,95,.08); overflow: hidden;
+        }
+        #epub-iframe { width: 100%; border: none; display: block; min-height: 600px; }
+
+        /* ── Nav bar ── */
+        #nav-bar {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100;
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(30,58,95,.92); backdrop-filter: blur(12px);
+            padding: 10px 20px; border-radius: 99px;
+            box-shadow: 0 4px 24px rgba(0,0,0,.18);
+        }
+        .nav-btn {
+            width: 36px; height: 36px; border-radius: 50%;
+            border: none; background: rgba(255,255,255,.12); color: #fff;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: background .15s;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,.22); }
+        .nav-btn:disabled { opacity: .35; cursor: default; }
+        #progress-text {
+            font-size: 11px; font-weight: 700; color: rgba(255,255,255,.75);
+            min-width: 70px; text-align: center;
+        }
+
+        /* ── Font popup ── */
+        #font-popup {
+            position: fixed; top: 56px; right: 16px;
+            background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 14px; z-index: 200; min-width: 160px;
+        }
+        #font-popup.hidden { display: none; }
+        .fp-label { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .2em; color: #94A3B8; display: block; margin-bottom: 8px; }
+        .fp-row { display: flex; align-items: center; gap: 8px; }
+        .fp-btn {
+            width: 30px; height: 30px; border-radius: 8px; border: 1px solid #E2E8F0;
+            background: #F8FAFC; color: #1E3A5F; font-size: 14px; font-weight: 700;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .fp-btn:hover { background: #E2E8F0; }
+        #font-size-val { flex: 1; text-align: center; font-size: 12px; font-weight: 700; color: #1E3A5F; }
+
+        @media (max-width: 640px) {
+            #epub-iframe { min-height: 480px; }
+            #toc-sidebar { width: 220px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div id="topbar">
+    <div id="topbar-left">
+        <button id="btn-back" title="Voltar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span id="book-title">Carregando…</span>
+    </div>
+    <div id="topbar-right">
+        <button class="top-btn" id="btn-toc">Índice</button>
+        <button class="top-btn" id="btn-font">Aa</button>
+    </div>
+</div>
+
+<!-- Font popup -->
+<div id="font-popup" class="hidden">
+    <span class="fp-label">Tamanho da fonte</span>
+    <div class="fp-row">
+        <button class="fp-btn" id="font-dec">−</button>
+        <span id="font-size-val">100%</span>
+        <button class="fp-btn" id="font-inc">+</button>
+    </div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+    <aside id="toc-sidebar" class="hidden">
+        <p id="toc-title">Índice</p>
+        <ul id="toc-list"></ul>
+    </aside>
+
+    <div id="reader-wrap">
+
+        <!-- Loading -->
+        <div id="s-loading" class="state">
+            <div class="state-icon" style="background:#F0FDFA"><div class="spinner"></div></div>
+            <p class="state-title">Carregando EPUB…</p>
+            <p class="state-desc">Aguarde enquanto o livro é processado.</p>
+        </div>
+
+        <!-- Error -->
+        <div id="s-error" class="state" style="display:none">
+            <div class="state-icon" style="background:#FFF1F2">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r=".5" fill="#F87171"/>
+                </svg>
+            </div>
+            <p class="state-title">Não foi possível carregar o EPUB</p>
+            <p class="state-desc" id="error-msg">Verifique se o arquivo é um EPUB válido.</p>
+        </div>
+
+        <!-- Empty -->
+        <div id="s-empty" class="state" style="display:none">
+            <div class="state-icon" style="background:#F8FAFC">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                </svg>
+            </div>
+            <p class="state-title">Nenhum EPUB informado</p>
+            <p class="state-desc">Abra esta página a partir de um livro com EPUB, ou selecione um arquivo local para testar.</p>
+            <label class="upload-label" for="local-epub">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                </svg>
+                Selecionar arquivo EPUB
+            </label>
+            <input type="file" id="local-epub" accept=".epub,application/epub+zip" style="display:none">
+        </div>
+
+        <!-- Epub iframe -->
+        <div id="epub-container" style="display:none">
+            <iframe id="epub-iframe" title="Conteúdo do livro"></iframe>
+        </div>
+
+    </div>
+</div>
+
+<!-- Nav bar -->
+<div id="nav-bar" style="display:none">
+    <button class="nav-btn" id="btn-prev">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span id="progress-text">—</span>
+    <button class="nav-btn" id="btn-next">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    /* ── State ── */
+    var zipObj       = null;
+    var spine        = [];
+    var fileBlobUrls = {};
+    var currentIdx   = 0;
+    var fontSize     = 100;
+    var tocOpen      = false;
+
+    /* ── URL params ── */
+    var params    = new URLSearchParams(window.location.search);
+    var epubUrl   = params.get('url');
+    var bookName  = params.get('title') || 'Livro';
+
+    /* ── DOM ── */
+    function $(id) { return document.getElementById(id); }
+    var $title    = $('book-title');
+    var $iframe   = $('epub-iframe');
+    var $epubCont = $('epub-container');
+    var $navBar   = $('nav-bar');
+    var $progress = $('progress-text');
+    var $tocSide  = $('toc-sidebar');
+    var $tocList  = $('toc-list');
+    var $fontPop  = $('font-popup');
+    var $fontVal  = $('font-size-val');
+
+    /* ── Helpers ── */
+    function showState(which) {
+        ['s-loading', 's-error', 's-empty'].forEach(function(id) {
+            $(id).style.display = (id === 's-' + which) ? '' : 'none';
+        });
+        var isReader = which === 'reader';
+        $epubCont.style.display = isReader ? '' : 'none';
+        $navBar.style.display   = isReader ? '' : 'none';
+    }
+
+    function setTitle(t) {
+        $title.textContent = t;
+        document.title = t + ' | Biblioteca do Amanhã';
+    }
+
+    function dirOf(path) {
+        var idx = path.lastIndexOf('/');
+        return idx >= 0 ? path.substring(0, idx + 1) : '';
+    }
+
+    function resolveRelPath(base, rel) {
+        if (!rel) return base;
+        // Already absolute
+        if (/^[a-z][a-z0-9+\-.]*:/i.test(rel)) return rel;
+        var stack = base.split('/');
+        stack.pop(); // remove filename
+        rel.split('/').forEach(function(seg) {
+            if (seg === '..') stack.pop();
+            else if (seg !== '.') stack.push(seg);
+        });
+        return stack.join('/');
+    }
+
+    /* ── Load EPUB ── */
+    function loadEpub(source) {
+        // Cleanup previous
+        if (zipObj) {
+            Object.keys(fileBlobUrls).forEach(function(k) {
+                try { URL.revokeObjectURL(fileBlobUrls[k]); } catch(e) {}
+            });
+            fileBlobUrls = {};
+            zipObj = null;
+        }
+        spine = [];
+        $tocList.innerHTML = '';
+        showState('loading');
+
+        fetch(source)
+            .then(function(res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status + ' ao buscar o arquivo.');
+                return res.arrayBuffer();
+            })
+            .then(function(buffer) {
+                return JSZip.loadAsync(buffer);
+            })
+            .then(function(zip) {
+                zipObj = zip;
+
+                /* container.xml */
+                var containerEntry = zip.file('META-INF/container.xml');
+                if (!containerEntry) throw new Error('container.xml não encontrado.');
+                return containerEntry.async('text');
+            })
+            .then(function(containerXml) {
+                var parser = new DOMParser();
+                var containerDoc = parser.parseFromString(containerXml, 'application/xml');
+                var rootfileEl = containerDoc.querySelector('rootfile');
+                if (!rootfileEl) throw new Error('rootfile não encontrado no container.xml.');
+
+                var opfPath = rootfileEl.getAttribute('full-path');
+
+                var opfEntry = zipObj.file(opfPath);
+                if (!opfEntry) throw new Error('Arquivo OPF não encontrado: ' + opfPath);
+
+                return opfEntry.async('text').then(function(opfXml) {
+                    return { opfXml: opfXml, opfPath: opfPath, opfDir: dirOf(opfPath) };
+                });
+            })
+            .then(function(data) {
+                var parser = new DOMParser();
+                var opfDoc = parser.parseFromString(data.opfXml, 'application/xml');
+
+                /* Title */
+                var titleEl = opfDoc.querySelector('title') || opfDoc.querySelector('dc\\:title');
+                if (titleEl && titleEl.textContent.trim()) setTitle(titleEl.textContent.trim());
+
+                /* Manifest */
+                var manifest = {};
+                opfDoc.querySelectorAll('manifest item').forEach(function(item) {
+                    var id        = item.getAttribute('id');
+                    var href      = decodeURIComponent(item.getAttribute('href') || '');
+                    var mediaType = item.getAttribute('media-type') || '';
+                    manifest[id]  = { fullPath: data.opfDir + href, mediaType: mediaType };
+                });
+
+                /* Spine */
+                opfDoc.querySelectorAll('spine itemref').forEach(function(ref) {
+                    var id = ref.getAttribute('idref');
+                    if (manifest[id]) spine.push(manifest[id].fullPath);
+                });
+                if (spine.length === 0) throw new Error('Spine do EPUB está vazio.');
+
+                /* Pre-create blob URLs for assets (images, fonts, css) */
+                var assetPromises = [];
+                zipObj.forEach(function(relativePath, file) {
+                    if (file.dir) return;
+                    var isHtml = /\.(x?html?|xht)$/i.test(relativePath);
+                    if (isHtml) return; // html handled per-render
+                    assetPromises.push(
+                        file.async('blob').then(function(blob) {
+                            fileBlobUrls[relativePath] = URL.createObjectURL(blob);
+                        })
+                    );
+                });
+
+                return Promise.all(assetPromises).then(function() {
+                    return buildToc(opfDoc, data.opfDir, manifest, parser);
+                });
+            })
+            .then(function() {
+                currentIdx = 0;
+                return renderSpineItem(0);
+            })
+            .then(function() {
+                showState('reader');
+                updateProgress();
+            })
+            .catch(function(err) {
+                console.error('[epub-viewer]', err);
+                showState('error');
+                $('error-msg').textContent = err.message || 'Erro desconhecido.';
+            });
+    }
+
+    /* ── Build TOC ── */
+    function buildToc(opfDoc, opfDir, manifest, parser) {
+        var items = [];
+        var promises = [];
+
+        /* EPUB3 NAV */
+        var navId = null;
+        opfDoc.querySelectorAll('manifest item').forEach(function(el) {
+            if ((el.getAttribute('properties') || '').indexOf('nav') >= 0) {
+                navId = el.getAttribute('id');
+            }
+        });
+
+        if (navId && manifest[navId]) {
+            var navPath = manifest[navId].fullPath;
+            var navEntry = zipObj.file(navPath);
+            if (navEntry) {
+                promises.push(
+                    navEntry.async('text').then(function(html) {
+                        var doc    = parser.parseFromString(html, 'text/html');
+                        var navDir = dirOf(navPath);
+                        var navEl  = doc.querySelector('[epub\\:type="toc"]') || doc.querySelector('nav');
+                        if (navEl) {
+                            navEl.querySelectorAll('a[href]').forEach(function(a) {
+                                var raw   = a.getAttribute('href') || '';
+                                var clean = raw.split('#')[0];
+                                var frag  = raw.includes('#') ? raw.split('#')[1] : '';
+                                var path  = resolveRelPath(navDir, clean);
+                                var label = a.textContent.trim();
+                                if (label) items.push({ label: label, path: path, frag: frag });
+                            });
+                        }
+                    })
+                );
+            }
+        }
+
+        return Promise.all(promises).then(function() {
+            /* EPUB2 NCX fallback */
+            if (items.length === 0) {
+                var ncxEl = opfDoc.querySelector('manifest item[media-type="application/x-dtbncx+xml"]');
+                if (ncxEl) {
+                    var ncxHref  = decodeURIComponent(ncxEl.getAttribute('href') || '');
+                    var ncxPath  = opfDir + ncxHref;
+                    var ncxEntry = zipObj.file(ncxPath);
+                    if (ncxEntry) {
+                        return ncxEntry.async('text').then(function(xml) {
+                            var doc    = parser.parseFromString(xml, 'application/xml');
+                            var ncxDir = dirOf(ncxPath);
+                            doc.querySelectorAll('navPoint').forEach(function(np) {
+                                var label = np.querySelector('text') ? np.querySelector('text').textContent.trim() : '';
+                                var src   = np.querySelector('content') ? np.querySelector('content').getAttribute('src') || '' : '';
+                                if (label && src) {
+                                    var path = resolveRelPath(ncxDir, src.split('#')[0]);
+                                    var frag = src.includes('#') ? src.split('#')[1] : '';
+                                    items.push({ label: label, path: path, frag: frag });
+                                }
+                            });
+                            renderTocList(items);
+                        });
+                    }
+                }
+                /* Plain numbered fallback */
+                if (items.length === 0) {
+                    spine.forEach(function(p, i) {
+                        items.push({ label: 'Capítulo ' + (i + 1), path: p, frag: '' });
+                    });
+                }
+            }
+            renderTocList(items);
+        });
+    }
+
+    function renderTocList(items) {
+        $tocList.innerHTML = '';
+        items.forEach(function(item, i) {
+            var li = document.createElement('li');
+            var a  = document.createElement('a');
+            a.href = '#';
+            a.textContent = item.label;
+            a.dataset.path = item.path;
+            a.dataset.frag = item.frag || '';
+            a.addEventListener('click', function(e) {
+                e.preventDefault();
+                var idx = spine.indexOf(item.path);
+                if (idx < 0) idx = spine.findIndex(function(p) {
+                    return p.endsWith(item.path) || item.path.endsWith(p.split('/').pop());
+                });
+                renderSpineItem(idx >= 0 ? idx : 0).then(function() {
+                    updateProgress();
+                    if (item.frag) {
+                        try {
+                            var el = $iframe.contentDocument && $iframe.contentDocument.getElementById(item.frag);
+                            if (el) el.scrollIntoView();
+                        } catch(e2) {}
+                    }
+                });
+                if (window.innerWidth < 768) toggleToc(false);
+            });
+            li.appendChild(a);
+            $tocList.appendChild(li);
+        });
+    }
+
+    /* ── Render one spine item ── */
+    function renderSpineItem(idx) {
+        if (idx < 0 || idx >= spine.length) return Promise.resolve();
+        currentIdx = idx;
+
+        var path  = spine[idx];
+        var entry = zipObj.file(path);
+        if (!entry) {
+            console.warn('[epub-viewer] not in zip:', path);
+            return Promise.resolve();
+        }
+
+        var baseDir = dirOf(path);
+        var htmlParser = new DOMParser();
+
+        return entry.async('text')
+            .then(function(rawHtml) {
+                var doc = htmlParser.parseFromString(rawHtml, 'text/html');
+
+                /* Inline CSS with rewritten url() */
+                var linkEls = Array.from(doc.querySelectorAll('link[rel="stylesheet"][href]'));
+                var cssPromises = linkEls.map(function(link) {
+                    var href = link.getAttribute('href');
+                    if (/^https?:/i.test(href)) return Promise.resolve();
+                    var cssPath  = resolveRelPath(baseDir, href);
+                    var cssEntry = zipObj.file(cssPath);
+                    if (!cssEntry) return Promise.resolve();
+                    return cssEntry.async('text').then(function(cssText) {
+                        var cssDir = dirOf(cssPath);
+                        cssText = cssText.replace(/url\(\s*['"]?([^'")]+?)['"]?\s*\)/g, function(match, url) {
+                            if (/^(https?:|data:)/i.test(url)) return match;
+                            var resolved = resolveRelPath(cssDir, url);
+                            var blobUrl  = fileBlobUrls[resolved];
+                            return blobUrl ? 'url("' + blobUrl + '")' : match;
+                        });
+                        var style = doc.createElement('style');
+                        style.textContent = cssText;
+                        link.parentNode && link.parentNode.replaceChild(style, link);
+                    });
+                });
+
+                return Promise.all(cssPromises).then(function() { return doc; });
+            })
+            .then(function(doc) {
+                var baseDir2 = dirOf(path); // re-declare for closure
+
+                /* Rewrite img src */
+                doc.querySelectorAll('img[src]').forEach(function(el) {
+                    var src = el.getAttribute('src');
+                    if (!src || /^(https?:|data:)/i.test(src)) return;
+                    var resolved = resolveRelPath(baseDir2, src);
+                    var blobUrl  = fileBlobUrls[resolved];
+                    if (blobUrl) el.setAttribute('src', blobUrl);
+                });
+
+                /* Rewrite SVG <image> */
+                doc.querySelectorAll('image').forEach(function(el) {
+                    ['href', 'xlink:href'].forEach(function(attr) {
+                        var val = el.getAttribute(attr);
+                        if (!val || /^(https?:|data:)/i.test(val)) return;
+                        var resolved = resolveRelPath(baseDir2, val);
+                        var blobUrl  = fileBlobUrls[resolved];
+                        if (blobUrl) el.setAttribute(attr, blobUrl);
+                    });
+                });
+
+                /* Font size override */
+                var styleEl = doc.createElement('style');
+                styleEl.textContent =
+                    'html,body{font-size:' + fontSize + '% !important;}' +
+                    'body{padding:20px 32px 40px !important;max-width:100% !important;}';
+                var head = doc.head || doc.documentElement;
+                head.appendChild(styleEl);
+
+                /* Navigation interceptor injected into iframe */
+                var scriptEl = doc.createElement('script');
+                scriptEl.textContent = [
+                    'document.addEventListener("click",function(e){',
+                    '  var a=e.target.closest("a[href]");',
+                    '  if(!a)return;',
+                    '  var href=a.getAttribute("href");',
+                    '  if(!href||/^#/.test(href)||/^https?:/i.test(href))return;',
+                    '  e.preventDefault();',
+                    '  window.parent.postMessage({type:"epubNav",href:href},"*");',
+                    '});'
+                ].join('');
+                var body = doc.body || doc.documentElement;
+                body.appendChild(scriptEl);
+
+                /* Serialize and blobify */
+                var finalHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+                var blob      = new Blob([finalHtml], { type: 'text/html; charset=utf-8' });
+                var blobUrl   = URL.createObjectURL(blob);
+
+                if ($iframe._pageBlobUrl) {
+                    try { URL.revokeObjectURL($iframe._pageBlobUrl); } catch(e) {}
+                }
+                $iframe._pageBlobUrl = blobUrl;
+
+                return new Promise(function(resolve) {
+                    var done = false;
+                    function finish() {
+                        if (done) return;
+                        done = true;
+                        // Auto-height
+                        try {
+                            var h = $iframe.contentDocument && $iframe.contentDocument.documentElement.scrollHeight;
+                            if (h && h > 200) $iframe.style.height = h + 'px';
+                        } catch(e) {}
+                        resolve();
+                    }
+                    $iframe.onload = finish;
+                    setTimeout(finish, 6000); // safety fallback
+                    $iframe.src = blobUrl;
+                });
+            });
+    }
+
+    /* ── Progress / active state ── */
+    function updateProgress() {
+        $progress.textContent = (currentIdx + 1) + ' / ' + spine.length;
+        $('btn-prev').disabled = currentIdx <= 0;
+        $('btn-next').disabled = currentIdx >= spine.length - 1;
+        $tocList.querySelectorAll('a').forEach(function(a, i) {
+            a.classList.toggle('active', i === currentIdx);
+        });
+    }
+
+    /* ── Internal epub link navigation ── */
+    window.addEventListener('message', function(e) {
+        if (!e.data || e.data.type !== 'epubNav') return;
+        var href      = e.data.href || '';
+        var hrefClean = href.split('#')[0];
+        var frag      = href.includes('#') ? href.split('#')[1] : '';
+        var baseDir2  = dirOf(spine[currentIdx] || '');
+        var resolved  = resolveRelPath(baseDir2, hrefClean);
+
+        var idx = spine.indexOf(resolved);
+        if (idx < 0) {
+            idx = spine.findIndex(function(p) {
+                return p.endsWith(hrefClean) || hrefClean.endsWith(p.split('/').pop() || '');
+            });
+        }
+        if (idx >= 0) {
+            renderSpineItem(idx).then(function() {
+                updateProgress();
+                if (frag) {
+                    try {
+                        var el = $iframe.contentDocument && $iframe.contentDocument.getElementById(frag);
+                        if (el) el.scrollIntoView();
+                    } catch(e2) {}
+                }
+            });
+        }
+    });
+
+    /* ── TOC ── */
+    function toggleToc(force) {
+        tocOpen = force !== undefined ? force : !tocOpen;
+        $tocSide.classList.toggle('hidden', !tocOpen);
+    }
+
+    /* ── Font ── */
+    function setFontSize(pct) {
+        fontSize = Math.max(70, Math.min(200, pct));
+        $fontVal.textContent = fontSize + '%';
+        if (spine.length) renderSpineItem(currentIdx).then(updateProgress);
+    }
+
+    /* ── Events ── */
+    $('btn-back').addEventListener('click', function() { window.history.back(); });
+    $('btn-prev').addEventListener('click', function() { renderSpineItem(currentIdx - 1).then(updateProgress); });
+    $('btn-next').addEventListener('click', function() { renderSpineItem(currentIdx + 1).then(updateProgress); });
+    $('btn-toc').addEventListener('click', function() { toggleToc(); });
+
+    $('btn-font').addEventListener('click', function(e) {
+        e.stopPropagation();
+        $fontPop.classList.toggle('hidden');
+    });
+    $('font-dec').addEventListener('click', function() { setFontSize(fontSize - 10); });
+    $('font-inc').addEventListener('click', function() { setFontSize(fontSize + 10); });
+
+    document.addEventListener('click', function(e) {
+        if (!$fontPop.contains(e.target) && e.target !== $('btn-font')) {
+            $fontPop.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (!spine.length) return;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') renderSpineItem(currentIdx + 1).then(updateProgress);
+        if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   renderSpineItem(currentIdx - 1).then(updateProgress);
+    });
+
+    $('local-epub').addEventListener('change', function(e) {
+        var file = e.target.files && e.target.files[0];
+        if (!file) return;
+        setTitle(file.name.replace(/\.epub$/i, ''));
+        loadEpub(URL.createObjectURL(file));
+    });
+
+    /* ── Init ── */
+    if (epubUrl) {
+        setTitle(bookName);
+        loadEpub(epubUrl);
+    } else {
+        setTitle('Visualizador EPUB');
+        showState('empty');
+    }
+
+})();
+</script>
+</body>
+</html>
