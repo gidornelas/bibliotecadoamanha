@@ -480,14 +480,14 @@
         return [
             'html,body{',
             'height:100% !important;',
-            'overflow-y:hidden !important;',
-            'overflow-x:auto !important;',
+            'overflow-y:auto !important;',
+            'overflow-x:hidden !important;',
             'scroll-behavior:auto !important;',
             'font-size:' + fontSize + '% !important;',
             'font-family:' + fontFamily + ' !important;',
             'line-height:' + lineSpacing + ' !important;',
             '}',
-            'body{padding:24px 32px 28px !important;max-width:none !important;column-width:calc(100vw - 64px) !important;column-gap:40px !important;column-fill:auto !important;min-height:100% !important;box-sizing:border-box !important;}',
+            'body{padding:24px 32px 28px !important;max-width:680px !important;margin:0 auto !important;min-height:100% !important;box-sizing:border-box !important;}',
             '::-webkit-scrollbar{display:none !important;}',
             'p, li, blockquote{margin-bottom:' + paragraphSpacing + 'em !important;line-height:' + lineSpacing + ' !important;}',
             '*{font-family:' + fontFamily + ' !important;}'
@@ -519,14 +519,14 @@
         }
 
         var doc = $iframe.contentDocument;
-        var viewportWidth = $iframe.clientWidth || doc.documentElement.clientWidth || 1;
-        var scrollWidth = Math.max(
-            host.scrollWidth || 0,
-            doc.documentElement ? doc.documentElement.scrollWidth : 0,
-            doc.body ? doc.body.scrollWidth : 0
+        var viewportHeight = $iframe.clientHeight || doc.documentElement.clientHeight || 1;
+        var scrollHeight = Math.max(
+            host.scrollHeight || 0,
+            doc.documentElement ? doc.documentElement.scrollHeight : 0,
+            doc.body ? doc.body.scrollHeight : 0
         );
 
-        chapterPageTotal = Math.max(1, Math.ceil(scrollWidth / viewportWidth));
+        chapterPageTotal = Math.max(1, Math.ceil(scrollHeight / viewportHeight));
         currentPageInChapter = Math.max(0, Math.min(chapterPageTotal - 1, currentPageInChapter));
     }
 
@@ -538,8 +538,10 @@
         currentPageInChapter = Math.max(0, Math.min(chapterPageTotal - 1, Number(pageIndex) || 0));
 
         var doc = $iframe.contentDocument;
-        var viewportWidth = $iframe.clientWidth || doc.documentElement.clientWidth || 1;
-        host.scrollLeft = currentPageInChapter * viewportWidth;
+        var viewportHeight = $iframe.clientHeight || doc.documentElement.clientHeight || 1;
+        host.scrollTop = currentPageInChapter * viewportHeight;
+        if (doc.body) doc.body.scrollTop = currentPageInChapter * viewportHeight;
+        if (doc.documentElement) doc.documentElement.scrollTop = currentPageInChapter * viewportHeight;
         updateProgress();
     }
 
@@ -552,9 +554,9 @@
         var el = doc.getElementById(fragmentId);
         if (!el) return;
 
-        var viewportWidth = $iframe.clientWidth || doc.documentElement.clientWidth || 1;
-        var absoluteLeft = el.getBoundingClientRect().left + host.scrollLeft;
-        var targetPage = Math.floor(absoluteLeft / viewportWidth);
+        var viewportHeight = $iframe.clientHeight || doc.documentElement.clientHeight || 1;
+        var absoluteTop = el.getBoundingClientRect().top + host.scrollTop;
+        var targetPage = Math.floor(absoluteTop / viewportHeight);
         goToPage(targetPage);
     }
 
