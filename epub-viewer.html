@@ -94,7 +94,7 @@
             100% { opacity: 0.5; }
         }
 
-        #topbar, #main, #nav-bar, #font-popup {
+        #topbar, #main, #font-popup {
             position: relative;
             z-index: 2;
         }
@@ -121,6 +121,21 @@
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         #topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .progress-pill {
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 12px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.92);
+            border: 1px solid #E2E8F0;
+            color: #1E3A5F;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .01em;
+            min-width: 88px;
+        }
         .top-btn {
             height: 32px; padding: 0 14px; border-radius: 8px;
             border: 1px solid #E2E8F0; background: #fff;
@@ -163,6 +178,7 @@
         #reader-wrap {
             flex: 1; display: flex; flex-direction: column; align-items: center;
             padding: 24px 16px 88px; overflow-y: auto; min-width: 0;
+            position: relative;
         }
 
         /* States */
@@ -195,34 +211,34 @@
         .upload-label:hover { background: #14B8A6; }
 
         /* Epub container */
+        #epub-stage {
+            width: min(100%, 980px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            position: relative;
+        }
         #epub-container {
             width: min(100%, 760px);
-            height: min(78vh, 820px);
+            height: min(86vh, 940px);
             background: #fff; border-radius: 16px;
             box-shadow: 0 4px 32px rgba(30,58,95,.08); overflow: hidden;
         }
         #epub-iframe { width: 100%; height: 100%; border: none; display: block; }
 
-        /* ── Nav bar ── */
-        #nav-bar {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100;
-            display: flex; align-items: center; gap: 12px;
-            background: rgba(30,58,95,.92); backdrop-filter: blur(12px);
-            padding: 10px 20px; border-radius: 99px;
-            box-shadow: 0 4px 24px rgba(0,0,0,.18);
-        }
-        .nav-btn {
-            width: 36px; height: 36px; border-radius: 50%;
-            border: none; background: rgba(255,255,255,.12); color: #fff;
+        .side-nav-btn {
+            width: 44px; height: 44px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,.42);
+            background: rgba(15,34,64,.78);
+            color: #fff;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: background .15s;
+            transition: transform .15s, background .15s, opacity .15s;
+            box-shadow: 0 6px 18px rgba(0,0,0,.2);
         }
-        .nav-btn:hover { background: rgba(255,255,255,.22); }
-        .nav-btn:disabled { opacity: .35; cursor: default; }
-        #progress-text {
-            font-size: 11px; font-weight: 700; color: rgba(255,255,255,.75);
-            min-width: 70px; text-align: center;
-        }
+        .side-nav-btn:hover { background: rgba(20,184,166,.88); transform: scale(1.05); }
+        .side-nav-btn:disabled { opacity: .28; cursor: default; transform: none; }
 
         /* ── Font popup ── */
         #font-popup {
@@ -281,7 +297,9 @@
         }
 
         @media (max-width: 640px) {
-            #epub-container { height: min(74vh, 640px); }
+            #epub-stage { width: 100%; gap: 8px; }
+            #epub-container { height: min(84vh, 760px); }
+            .side-nav-btn { width: 38px; height: 38px; }
             #toc-sidebar { width: 220px; }
         }
     </style>
@@ -304,6 +322,7 @@
         <span id="book-title">Carregando…</span>
     </div>
     <div id="topbar-right">
+        <span id="progress-text" class="progress-pill">—</span>
         <button class="top-btn" id="btn-toc">Índice</button>
         <button class="top-btn" id="btn-font">Aa</button>
     </div>
@@ -397,22 +416,19 @@
         </div>
 
         <!-- Epub iframe -->
-        <div id="epub-container" style="display:none">
-            <iframe id="epub-iframe" title="Conteúdo do livro"></iframe>
+        <div id="epub-stage">
+            <button class="side-nav-btn" id="btn-prev" aria-label="Página anterior">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div id="epub-container">
+                <iframe id="epub-iframe" title="Conteúdo do livro"></iframe>
+            </div>
+            <button class="side-nav-btn" id="btn-next" aria-label="Próxima página">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
         </div>
 
     </div>
-</div>
-
-<!-- Nav bar -->
-<div id="nav-bar" style="display:none">
-    <button class="nav-btn" id="btn-prev">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </button>
-    <span id="progress-text">—</span>
-    <button class="nav-btn" id="btn-next">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
 </div>
 
 <script>
@@ -442,8 +458,8 @@
     function $(id) { return document.getElementById(id); }
     var $title    = $('book-title');
     var $iframe   = $('epub-iframe');
+    var $epubStage = $('epub-stage');
     var $epubCont = $('epub-container');
-    var $navBar   = $('nav-bar');
     var $progress = $('progress-text');
     var $tocSide  = $('toc-sidebar');
     var $tocList  = $('toc-list');
@@ -463,8 +479,7 @@
             $(id).style.display = (id === 's-' + which) ? '' : 'none';
         });
         var isReader = which === 'reader';
-        $epubCont.style.display = isReader ? '' : 'none';
-        $navBar.style.display   = isReader ? '' : 'none';
+        $epubStage.style.display = isReader ? 'flex' : 'none';
     }
 
     function setTitle(t) {
