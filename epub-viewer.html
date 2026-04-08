@@ -491,16 +491,23 @@
 
     function buildReaderOverrideCss() {
         return [
-            'html,body{',
+            'html{',
             'height:100% !important;',
             'overflow-y:auto !important;',
             'overflow-x:hidden !important;',
             'scroll-behavior:auto !important;',
+            '}',
+            'body{',
+            'height:auto !important;',
+            'overflow:visible !important;',
             'font-size:' + fontSize + '% !important;',
             'font-family:' + fontFamily + ' !important;',
             'line-height:' + lineSpacing + ' !important;',
+            'padding:24px 22px 28px !important;',
+            'max-width:680px !important;',
+            'margin:0 auto !important;',
+            'box-sizing:border-box !important;',
             '}',
-            'body{padding:24px 32px 28px !important;max-width:680px !important;margin:0 auto !important;min-height:100% !important;box-sizing:border-box !important;}',
             'p, li, blockquote{margin-bottom:' + paragraphSpacing + 'em !important;line-height:' + lineSpacing + ' !important;}',
             '*{font-family:' + fontFamily + ' !important;}'
         ].join('');
