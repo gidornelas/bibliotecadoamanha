@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visualizador EPUB | Biblioteca do Amanhã</title>
     <link rel="icon" type="image/png" href="https://i.imgur.com/FfKzzxi.png">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Merriweather:wght@300;400;700&family=Lora:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -147,7 +147,7 @@
         #font-popup {
             position: fixed; top: 56px; right: 16px;
             background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 14px; z-index: 200; min-width: 160px;
+            box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 14px; z-index: 200; min-width: 240px;
         }
         #font-popup.hidden { display: none; }
         .fp-label { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .2em; color: #94A3B8; display: block; margin-bottom: 8px; }
@@ -159,6 +159,45 @@
         }
         .fp-btn:hover { background: #E2E8F0; }
         #font-size-val { flex: 1; text-align: center; font-size: 12px; font-weight: 700; color: #1E3A5F; }
+        .fp-group { margin-top: 10px; }
+        .fp-group:first-of-type { margin-top: 0; }
+        .fp-caption {
+            display: block;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .12em;
+            color: #64748B;
+            margin-bottom: 6px;
+        }
+        .fp-select {
+            width: 100%;
+            height: 34px;
+            border-radius: 8px;
+            border: 1px solid #E2E8F0;
+            background: #F8FAFC;
+            color: #1E3A5F;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 0 10px;
+            outline: none;
+        }
+        .fp-range-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .fp-range {
+            flex: 1;
+            accent-color: #14B8A6;
+        }
+        .fp-range-val {
+            width: 46px;
+            text-align: right;
+            font-size: 11px;
+            font-weight: 700;
+            color: #1E3A5F;
+        }
 
         @media (max-width: 640px) {
             #epub-iframe { min-height: 480px; }
@@ -189,6 +228,37 @@
         <button class="fp-btn" id="font-dec">−</button>
         <span id="font-size-val">100%</span>
         <button class="fp-btn" id="font-inc">+</button>
+    </div>
+    <div class="fp-group">
+        <span class="fp-caption">Tipografia</span>
+        <select id="font-family-select" class="fp-select">
+            <option value="Roboto, sans-serif">Roboto</option>
+            <option value="Source Sans 3, sans-serif">Source Sans 3</option>
+            <option value="Lora, serif">Lora</option>
+            <option value="Merriweather, serif">Merriweather</option>
+            <option value="Georgia, serif">Georgia</option>
+        </select>
+    </div>
+    <div class="fp-group">
+        <span class="fp-caption">Brilho</span>
+        <div class="fp-range-row">
+            <input id="brightness-range" class="fp-range" type="range" min="70" max="120" step="5" value="100">
+            <span id="brightness-val" class="fp-range-val">100%</span>
+        </div>
+    </div>
+    <div class="fp-group">
+        <span class="fp-caption">Espaçamento de linha</span>
+        <div class="fp-range-row">
+            <input id="line-spacing-range" class="fp-range" type="range" min="120" max="230" step="5" value="165">
+            <span id="line-spacing-val" class="fp-range-val">1.65</span>
+        </div>
+    </div>
+    <div class="fp-group">
+        <span class="fp-caption">Espaçamento de parágrafo</span>
+        <div class="fp-range-row">
+            <input id="paragraph-spacing-range" class="fp-range" type="range" min="60" max="220" step="5" value="110">
+            <span id="paragraph-spacing-val" class="fp-range-val">1.1x</span>
+        </div>
     </div>
 </div>
 
@@ -267,6 +337,10 @@
     var fileBlobUrls = {};
     var currentIdx   = 0;
     var fontSize     = 100;
+    var fontFamily   = 'Roboto, sans-serif';
+    var brightness   = 100;
+    var lineSpacing  = 1.65;
+    var paragraphSpacing = 1.1;
     var tocOpen      = false;
 
     /* ── URL params ── */
@@ -285,6 +359,13 @@
     var $tocList  = $('toc-list');
     var $fontPop  = $('font-popup');
     var $fontVal  = $('font-size-val');
+    var $fontFamilySelect = $('font-family-select');
+    var $brightnessRange = $('brightness-range');
+    var $brightnessVal = $('brightness-val');
+    var $lineSpacingRange = $('line-spacing-range');
+    var $lineSpacingVal = $('line-spacing-val');
+    var $paragraphSpacingRange = $('paragraph-spacing-range');
+    var $paragraphSpacingVal = $('paragraph-spacing-val');
 
     /* ── Helpers ── */
     function showState(which) {
@@ -299,6 +380,31 @@
     function setTitle(t) {
         $title.textContent = t;
         document.title = t + ' | Biblioteca do Amanhã';
+    }
+
+    function applyContainerBrightness() {
+        $epubCont.style.filter = 'brightness(' + (brightness / 100) + ')';
+    }
+
+    function buildReaderOverrideCss() {
+        return [
+            'html,body{',
+            'font-size:' + fontSize + '% !important;',
+            'font-family:' + fontFamily + ' !important;',
+            'line-height:' + lineSpacing + ' !important;',
+            '}',
+            'body{padding:20px 32px 40px !important;max-width:100% !important;}',
+            'p, li, blockquote{margin-bottom:' + paragraphSpacing + 'em !important;line-height:' + lineSpacing + ' !important;}',
+            '*{font-family:' + fontFamily + ' !important;}'
+        ].join('');
+    }
+
+    function applyReaderPreferencesToCurrentFrame() {
+        if (!$iframe || !$iframe.contentDocument) return;
+        var doc = $iframe.contentDocument;
+        var styleEl = doc.getElementById('reader-preferences-override');
+        if (!styleEl) return;
+        styleEl.textContent = buildReaderOverrideCss();
     }
 
     function dirOf(path) {
@@ -592,9 +698,8 @@
 
                 /* Font size override */
                 var styleEl = doc.createElement('style');
-                styleEl.textContent =
-                    'html,body{font-size:' + fontSize + '% !important;}' +
-                    'body{padding:20px 32px 40px !important;max-width:100% !important;}';
+                styleEl.id = 'reader-preferences-override';
+                styleEl.textContent = buildReaderOverrideCss();
                 var head = doc.head || doc.documentElement;
                 head.appendChild(styleEl);
 
@@ -690,11 +795,52 @@
     function setFontSize(pct) {
         fontSize = Math.max(70, Math.min(200, pct));
         $fontVal.textContent = fontSize + '%';
-        if (spine.length) renderSpineItem(currentIdx).then(updateProgress);
+        applyReaderPreferencesToCurrentFrame();
+    }
+
+    function setFontFamily(family) {
+        fontFamily = family || 'Roboto, sans-serif';
+        applyReaderPreferencesToCurrentFrame();
+    }
+
+    function setBrightness(value) {
+        brightness = Math.max(70, Math.min(120, Number(value) || 100));
+        $brightnessVal.textContent = brightness + '%';
+        applyContainerBrightness();
+    }
+
+    function setLineSpacing(percentValue) {
+        lineSpacing = Math.max(1.2, Math.min(2.3, (Number(percentValue) || 165) / 100));
+        $lineSpacingVal.textContent = lineSpacing.toFixed(2);
+        applyReaderPreferencesToCurrentFrame();
+    }
+
+    function setParagraphSpacing(percentValue) {
+        paragraphSpacing = Math.max(0.6, Math.min(2.2, (Number(percentValue) || 110) / 100));
+        $paragraphSpacingVal.textContent = paragraphSpacing.toFixed(1) + 'x';
+        applyReaderPreferencesToCurrentFrame();
+    }
+
+    function handleBackNavigation() {
+        var hasHistory = window.history.length > 1;
+        if (hasHistory) {
+            window.history.back();
+            return;
+        }
+
+        // Se foi aberto por window.open, normalmente é permitido fechar.
+        if (window.opener && !window.opener.closed) {
+            try {
+                window.close();
+            } catch (e) {}
+        }
+
+        // Fallback final: volta para a página principal da aplicação.
+        window.location.href = 'index.html';
     }
 
     /* ── Events ── */
-    $('btn-back').addEventListener('click', function() { window.history.back(); });
+    $('btn-back').addEventListener('click', handleBackNavigation);
     $('btn-prev').addEventListener('click', function() { renderSpineItem(currentIdx - 1).then(updateProgress); });
     $('btn-next').addEventListener('click', function() { renderSpineItem(currentIdx + 1).then(updateProgress); });
     $('btn-toc').addEventListener('click', function() { toggleToc(); });
@@ -705,6 +851,10 @@
     });
     $('font-dec').addEventListener('click', function() { setFontSize(fontSize - 10); });
     $('font-inc').addEventListener('click', function() { setFontSize(fontSize + 10); });
+    $fontFamilySelect.addEventListener('change', function(e) { setFontFamily(e.target.value); });
+    $brightnessRange.addEventListener('input', function(e) { setBrightness(e.target.value); });
+    $lineSpacingRange.addEventListener('input', function(e) { setLineSpacing(e.target.value); });
+    $paragraphSpacingRange.addEventListener('input', function(e) { setParagraphSpacing(e.target.value); });
 
     document.addEventListener('click', function(e) {
         if (!$fontPop.contains(e.target) && e.target !== $('btn-font')) {
@@ -727,9 +877,17 @@
 
     /* ── Init ── */
     if (epubUrl) {
+        setBrightness(brightness);
+        setLineSpacing(Number($lineSpacingRange.value));
+        setParagraphSpacing(Number($paragraphSpacingRange.value));
+        $fontFamilySelect.value = fontFamily;
         setTitle(bookName);
         loadEpub(epubUrl);
     } else {
+        setBrightness(brightness);
+        setLineSpacing(Number($lineSpacingRange.value));
+        setParagraphSpacing(Number($paragraphSpacingRange.value));
+        $fontFamilySelect.value = fontFamily;
         setTitle('Visualizador EPUB');
         showState('empty');
     }
