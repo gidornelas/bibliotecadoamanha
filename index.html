@@ -4616,6 +4616,9 @@
                             source: 'telegram',
                         }]);
                     }
+                    setSelectedBook(prev => (
+                        prev && prev.id === existingBookId ? { ...prev, ...telegramEpubFields } : prev
+                    ));
                     setDownloadStatus(prev => ({ ...prev, [existingBookId]: true }));
                 } else {
                     // Livro novo: cria entrada básica imediatamente
@@ -4632,6 +4635,9 @@
                         source   : 'telegram',
                     };
                     setCustomBooks(prev => [baseBook, ...prev]);
+                    setSelectedBook(prev => (
+                        prev && prev.id === newId ? { ...prev, ...baseBook } : prev
+                    ));
                     setDownloadStatus(prev => ({ ...prev, [newId]: true }));
 
                     // Enriquecimento automático com Claude em background
