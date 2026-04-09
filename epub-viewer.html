@@ -958,21 +958,7 @@
     }
 
     function handleBackNavigation() {
-        var hasHistory = window.history.length > 1;
-        if (hasHistory) {
-            window.history.back();
-            return;
-        }
-
-        // Se foi aberto por window.open, normalmente é permitido fechar.
-        if (window.opener && !window.opener.closed) {
-            try {
-                window.close();
-            } catch (e) {}
-        }
-
-        // Fallback final: volta para a página principal da aplicação.
-        window.location.href = 'index.html';
+        window.location.href = '/';
     }
 
     /* ── Events ── */
