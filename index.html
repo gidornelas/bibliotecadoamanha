@@ -511,6 +511,21 @@
             }
         };
 
+        const getStoragePathFromPublicUrl = (epubUrl) => {
+            if (!epubUrl || typeof epubUrl !== 'string') return null;
+            try {
+                const parsed = new URL(epubUrl);
+                const marker = `/storage/v1/object/public/${window.supabaseBucket}/`;
+                const idx = parsed.pathname.indexOf(marker);
+                if (idx === -1) return null;
+                const encodedPath = parsed.pathname.slice(idx + marker.length);
+                if (!encodedPath) return null;
+                return decodeURIComponent(encodedPath);
+            } catch {
+                return null;
+            }
+        };
+
         const deleteEpubFromCloud = async (epubPath) => {
             if (!epubPath) return;
             const isReady = await ensureSupabaseReady();
@@ -540,9 +555,9 @@
             if (!isEpub) {
                 throw new Error('Arquivo inválido. Envie apenas arquivos .epub');
             }
-            const maxSizeBytes = 5 * 1024 * 1024; // 5MB limite
+            const maxSizeBytes = 10 * 1024 * 1024; // 10MB limite
             if (file.size > maxSizeBytes) {
-                throw new Error('Arquivo muito grande. Limite de 5MB para EPUBs.');
+                throw new Error('Arquivo muito grande. Limite de 10MB para EPUBs.');
             }
 
             try {
@@ -1829,7 +1844,14 @@
                         const normBook = normalize(b.title);
                         return normBook === normFile || normFile.includes(normBook) || normBook.includes(normFile);
                     });
-                    onImportBook({ title: guessTitle, epubUrl: data.url, fileName: data.fileName, existingBookId: match?.id });
+                    onImportBook({
+                        title: guessTitle,
+                        epubUrl: data.url,
+                        fileName: data.fileName,
+                        epubPath: data.path || null,
+                        epubKey: data.path || null,
+                        existingBookId: match?.id
+                    });
                     setImported(p => ({ ...p, [file.messageId]: true }));
                     const msg = match
                         ? `EPUB vinculado a "${match.title}" no catálogo!`
@@ -2455,6 +2477,7 @@
             const styles = getGenreStyles(book.genre);
             const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
             const [isConfirmingDeleteEpub, setIsConfirmingDeleteEpub] = useState(false);
+            const ownEpubPath = book.epubPath || book.epubKey || getStoragePathFromPublicUrl(book.epubUrl);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
@@ -2469,7 +2492,7 @@
 
             const handleDeleteEpub = async () => {
                 try {
-                    await deleteEpubFromCloud(book.epubPath || book.epubKey);
+                    await deleteEpubFromCloud(ownEpubPath);
                     setUploadMessage("✅ EPUB removido com sucesso");
                     registerTimeout(() => {
                         if (!isMountedRef.current) return;
@@ -2519,7 +2542,7 @@
                                                     <Icon name="download" className="w-3.5 h-3.5" />
                                                     Baixar EPUB {(effectiveEpub?.epubFileName || book.epubFileName) ? `(${effectiveEpub?.epubFileName || book.epubFileName})` : ''}
                                                 </button>
-                                                {!!book.epubPath && isViewingOwnProfile && (
+                                                {!!ownEpubPath && isViewingOwnProfile && (
                                                     <button
                                                         onClick={() => setIsConfirmingDeleteEpub(prev => !prev)}
                                                         aria-label={isConfirmingDeleteEpub ? 'Cancelar exclusão do EPUB' : 'Excluir EPUB'}
@@ -2546,7 +2569,7 @@
                                         {!!effectiveEpub?.epubUrl && (
                                             <SendToKindleButton epubUrl={effectiveEpub.epubUrl} fileName={effectiveEpub.epubFileName || book.title + '.epub'} profileId={currentProfileId} />
                                         )}
-                                        {!!book.epubPath && !!effectiveEpub?.epubUrl && isViewingOwnProfile && isConfirmingDeleteEpub && (
+                                        {!!ownEpubPath && !!effectiveEpub?.epubUrl && isViewingOwnProfile && isConfirmingDeleteEpub && (
                                             <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 animate-fade-in">
                                                 <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2 text-center">Confirmar exclusão do EPUB?</p>
                                                 <div className="flex gap-2">
@@ -4427,20 +4450,27 @@
                 setUserRatings(prev => ({ ...prev, [bookId]: rating }));
             }, []);
 
-            const handleImportFromTelegram = useCallback(({ title, epubUrl, fileName, existingBookId }) => {
+            const handleImportFromTelegram = useCallback(({ title, epubUrl, fileName, epubPath, epubKey, existingBookId }) => {
+                const telegramEpubFields = {
+                    epubUrl,
+                    epubFileName: fileName || null,
+                    epubPath: epubPath || epubKey || null,
+                    epubKey: epubKey || epubPath || null,
+                    epubOrigin: 'supabase',
+                };
                 if (existingBookId) {
                     // Tenta atualizar o livro existente em customBooks
                     const isInCustom = customBooks.some(b => b.id === existingBookId);
                     if (isInCustom) {
                         setCustomBooks(prev => prev.map(b =>
-                            b.id === existingBookId ? { ...b, epubUrl } : b
+                            b.id === existingBookId ? { ...b, ...telegramEpubFields } : b
                         ));
                     } else {
                         // Livro base — cria entrada em customBooks com o epub vinculado
                         setCustomBooks(prev => [...prev, {
                             id: existingBookId,
                             title,
-                            epubUrl,
+                            ...telegramEpubFields,
                             addedAt: Date.now(),
                             source: 'telegram',
                         }]);
@@ -4456,7 +4486,7 @@
                         genre    : '',
                         coverUrl : '',
                         synopsis : '',
-                        epubUrl,
+                        ...telegramEpubFields,
                         addedAt  : Date.now(),
                         source   : 'telegram',
                     };

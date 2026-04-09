@@ -63,6 +63,11 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Download retornou vazio.' });
     }
 
+    const maxSizeBytes = 10 * 1024 * 1024;
+    if (buffer.length > maxSizeBytes) {
+      return res.status(413).json({ error: 'Arquivo muito grande. Limite de 10MB para EPUBs.' });
+    }
+
     // Sanitiza nome para path no Supabase
     const safeName = fileName
       .replace(/[^a-zA-Z0-9._\-À-ú ]/g, '')
