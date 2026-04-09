@@ -2473,7 +2473,7 @@
             );
         }
 
-        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick, hasRemoteEpub, isViewingOwnProfile, effectiveEpub, bookComments = [], onAddComment, onDeleteComment, currentProfileLabel, currentProfileId, userRating = 0, onRate }) {
+        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onImportFromTelegramForBook, onGenreClick, hasRemoteEpub, isViewingOwnProfile, effectiveEpub, bookComments = [], onAddComment, onDeleteComment, currentProfileLabel, currentProfileId, userRating = 0, onRate }) {
             const styles = getGenreStyles(book.genre);
             const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
             const [isConfirmingDeleteEpub, setIsConfirmingDeleteEpub] = useState(false);
@@ -2482,6 +2482,13 @@
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
             const [uploadMessage, setUploadMessage] = useState("");
+            const [showTelegramSearch, setShowTelegramSearch] = useState(false);
+            const [telegramQuery, setTelegramQuery] = useState(book.title || "");
+            const [telegramResults, setTelegramResults] = useState([]);
+            const [telegramError, setTelegramError] = useState("");
+            const [telegramLoading, setTelegramLoading] = useState(false);
+            const [telegramSearched, setTelegramSearched] = useState(false);
+            const [telegramImportingId, setTelegramImportingId] = useState(null);
             const [commentDraft, setCommentDraft] = useState("");
             const { registerTimeout } = useTimeoutRegistry();
             const isMountedRef = useRef(true);
@@ -2502,6 +2509,81 @@
                 } catch (err) {
                     console.error('Erro ao deletar EPUB:', err);
                     setUploadMessage("❌ Erro ao deletar EPUB");
+                }
+            };
+
+            const handleTelegramSearchFromModal = async (event) => {
+                event?.preventDefault();
+                const q = telegramQuery.trim();
+                if (q.length < 2) {
+                    setTelegramError('Digite pelo menos 2 caracteres para buscar.');
+                    setTelegramResults([]);
+                    setTelegramSearched(true);
+                    return;
+                }
+
+                setTelegramLoading(true);
+                setTelegramError('');
+                setTelegramResults([]);
+                setTelegramSearched(false);
+
+                try {
+                    const response = await fetch(`/api/telegram-search?query=${encodeURIComponent(q)}`, {
+                        headers: await window.getAuthHeaders?.() ?? {},
+                    });
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.error || 'Erro na busca do Telegram.');
+                    if (!isMountedRef.current) return;
+                    setTelegramResults(data.files || []);
+                    setTelegramSearched(true);
+                } catch (error) {
+                    if (!isMountedRef.current) return;
+                    setTelegramError(error.message || 'Falha ao buscar no Telegram.');
+                    setTelegramSearched(true);
+                } finally {
+                    if (isMountedRef.current) {
+                        setTelegramLoading(false);
+                    }
+                }
+            };
+
+            const handleImportTelegramFromModal = async (file) => {
+                if (!file?.messageId || !file?.fileName) return;
+                setTelegramImportingId(file.messageId);
+
+                try {
+                    const response = await fetch('/api/telegram-download', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...(await window.getAuthHeaders?.() ?? {}) },
+                        body: JSON.stringify({ messageId: file.messageId, fileName: file.fileName, chatId: file.chatId }),
+                    });
+
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.error || 'Falha ao importar EPUB do Telegram.');
+
+                    const guessTitle = file.fileName.replace(/\.epub$/i, '').replace(/[_-]+/g, ' ').trim();
+                    onImportFromTelegramForBook({
+                        title: guessTitle,
+                        epubUrl: data.url,
+                        fileName: data.fileName,
+                        epubPath: data.path || null,
+                        epubKey: data.path || null,
+                        existingBookId: book.id,
+                    });
+
+                    if (!isMountedRef.current) return;
+                    setUploadMessage(`✅ EPUB importado do Telegram: ${data.fileName || file.fileName}`);
+                    setShowTelegramSearch(false);
+                    setTelegramSearched(false);
+                    setTelegramResults([]);
+                    setTelegramError('');
+                } catch (error) {
+                    if (!isMountedRef.current) return;
+                    setTelegramError(error.message || 'Falha ao importar EPUB do Telegram.');
+                } finally {
+                    if (isMountedRef.current) {
+                        setTelegramImportingId(null);
+                    }
                 }
             };
 
@@ -2633,6 +2715,65 @@
                                                         }
                                                     }}
                                                 />
+                                            </>
+                                        )}
+                                        {isViewingOwnProfile && !effectiveEpub?.epubUrl && (
+                                            <>
+                                                <button
+                                                    onClick={() => setShowTelegramSearch(prev => !prev)}
+                                                    className={`w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border ${showTelegramSearch ? 'bg-[#2AABEE] text-white border-[#2AABEE]' : 'bg-[#2AABEE]/10 text-[#2AABEE] border-[#2AABEE]/25 hover:bg-[#2AABEE]/15'}`}
+                                                >
+                                                    <Icon name="download" className="w-3.5 h-3.5" />
+                                                    {showTelegramSearch ? 'Fechar busca Telegram' : 'Buscar EPUB no Telegram'}
+                                                </button>
+
+                                                {showTelegramSearch && (
+                                                    <div className="rounded-xl border border-[#2AABEE]/25 bg-[#2AABEE]/5 p-3 animate-fade-in space-y-3">
+                                                        <form onSubmit={handleTelegramSearchFromModal} className="flex gap-2">
+                                                            <input
+                                                                value={telegramQuery}
+                                                                onChange={(e) => setTelegramQuery(e.target.value)}
+                                                                placeholder="Buscar por título no Telegram"
+                                                                className="flex-1 px-3 py-2 rounded-xl border border-[#2AABEE]/25 bg-white text-[11px] text-gray-900 outline-none focus:ring-2 focus:ring-[#2AABEE]/20"
+                                                            />
+                                                            <button
+                                                                type="submit"
+                                                                disabled={telegramLoading}
+                                                                className="px-3 py-2 rounded-xl bg-[#2AABEE] text-white text-[10px] font-black uppercase tracking-wider disabled:opacity-60"
+                                                            >
+                                                                {telegramLoading ? 'Buscando...' : 'Buscar'}
+                                                            </button>
+                                                        </form>
+
+                                                        {telegramError && (
+                                                            <p className="text-[10px] font-semibold text-red-500">{telegramError}</p>
+                                                        )}
+
+                                                        {telegramSearched && !telegramLoading && telegramResults.length === 0 && !telegramError && (
+                                                            <p className="text-[10px] font-semibold text-gray-500">Nenhum EPUB encontrado para esta busca.</p>
+                                                        )}
+
+                                                        {telegramResults.length > 0 && (
+                                                            <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
+                                                                {telegramResults.slice(0, 8).map((file) => (
+                                                                    <div key={file.messageId} className="rounded-xl border border-[#2AABEE]/20 bg-white px-2.5 py-2 flex items-center justify-between gap-2">
+                                                                        <div className="min-w-0">
+                                                                            <p className="text-[10px] font-bold text-[#1E3A5F] truncate">{file.fileName}</p>
+                                                                            <p className="text-[10px] text-gray-400">{file.sizeLabel || 'EPUB'}</p>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => handleImportTelegramFromModal(file)}
+                                                                            disabled={telegramImportingId === file.messageId}
+                                                                            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#2AABEE] text-white text-[9px] font-black uppercase tracking-wider disabled:opacity-60"
+                                                                        >
+                                                                            {telegramImportingId === file.messageId ? 'Importando...' : 'Usar'}
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </>
                                         )}
                                         {uploadMessage && <p className="text-[10px] text-gray-500">{uploadMessage}</p>}
@@ -5157,6 +5298,7 @@
                             onUploadEpub={(file) => {
                                 return handleUploadEpubForBook(selectedBook.id, file);
                             }}
+                            onImportFromTelegramForBook={handleImportFromTelegram}
                             onDeleteEpub={(bookId) => {
                                 const deletedBook = customBooks.find(b => b.id === bookId);
                                 const clearEpub = { epubKey: null, epubPath: null, epubFileName: null, epubUrl: null, epubOrigin: null };
