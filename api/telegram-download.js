@@ -68,11 +68,24 @@ export default async function handler(req, res) {
       return res.status(413).json({ error: 'Arquivo muito grande. Limite de 10MB para EPUBs.' });
     }
 
-    // Sanitiza nome para path no Supabase
-    const safeName = fileName
-      .replace(/[^a-zA-Z0-9._\-À-ú ]/g, '')
+    // Sanitiza para uma key ASCII válida no Supabase Storage
+    const normalizedName = String(fileName || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    let safeName = normalizedName
+      .replace(/[^a-zA-Z0-9._\- ]/g, '')
       .replace(/\s+/g, '_')
-      .trim();
+      .replace(/_+/g, '_')
+      .replace(/^[_\-.]+|[_\-.]+$/g, '');
+
+    if (!safeName) {
+      safeName = `telegram_${messageId}.epub`;
+    }
+
+    if (!/\.epub$/i.test(safeName)) {
+      safeName = `${safeName}.epub`;
+    }
 
     const storagePath = `epubs/${Date.now()}_${safeName}`;
 
