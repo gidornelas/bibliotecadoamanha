@@ -19,7 +19,10 @@ import nodemailer from 'nodemailer';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 
-const KINDLE_EMAIL = 'giannydornelas_6k8aBz@kindle.com';
+const KINDLE_EMAILS = {
+  'gianny': 'giannydornelas_6k8aBz@kindle.com',
+  'laisa':  'laisamgb_lssotg@kindle.com',
+};
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -57,7 +60,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { epubUrl, messageId, chatId, fileName } = req.body;
+  const { epubUrl, messageId, chatId, fileName, profileId } = req.body;
 
   if (!fileName) return res.status(400).json({ error: 'fileName é obrigatório.' });
   if (!epubUrl && !messageId) return res.status(400).json({ error: 'Forneça epubUrl ou messageId.' });
@@ -68,6 +71,8 @@ export default async function handler(req, res) {
   if (!gmailUser || !gmailPass) {
     return res.status(500).json({ error: 'GMAIL_USER ou GMAIL_APP_PASSWORD não configurados.' });
   }
+
+  const kindleEmail = KINDLE_EMAILS[profileId] || KINDLE_EMAILS['gianny'];
 
   try {
     const buffer   = epubUrl
@@ -83,7 +88,7 @@ export default async function handler(req, res) {
 
     await transporter.sendMail({
       from        : `"Biblioteca do Amanhã" <${gmailUser}>`,
-      to          : KINDLE_EMAIL,
+      to          : kindleEmail,
       subject     : safeName.replace('.epub', ''),
       text        : `Livro enviado pela Biblioteca do Amanhã: ${safeName}`,
       attachments : [{ filename: safeName, content: buffer }],

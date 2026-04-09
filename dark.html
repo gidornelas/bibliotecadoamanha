@@ -1770,7 +1770,7 @@
         }
 
         // ─── Telegram View ────────────────────────────────────────────────────────
-        function TelegramView({ onImportBook, notifyUser, catalogBooks = [] }) {
+        function TelegramView({ onImportBook, notifyUser, catalogBooks = [], profileId }) {
             const WORKER_URL = ''; // usa /api/telegram-download (Vercel)
 
             const [query, setQuery]         = React.useState('');
@@ -1849,7 +1849,7 @@
                         const r = await fetch('/api/send-to-kindle', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messageId: file.messageId, chatId: file.chatId, fileName: file.fileName }),
+                            body: JSON.stringify({ messageId: file.messageId, chatId: file.chatId, fileName: file.fileName, profileId }),
                         });
                         const data = await r.json();
                         if (!data.success) throw new Error(data.error || 'Falha no envio');
@@ -2216,7 +2216,7 @@
 
 
         // ─── Send to Kindle Button ────────────────────────────────────────────────
-        function SendToKindleButton({ epubUrl, fileName, messageId, chatId }) {
+        function SendToKindleButton({ epubUrl, fileName, messageId, chatId, profileId }) {
             const [sending, setSending] = React.useState(false);
             const [sent, setSent]       = React.useState(false);
 
@@ -2224,8 +2224,8 @@
                 setSending(true);
                 try {
                     const body = epubUrl
-                        ? { epubUrl, fileName }
-                        : { messageId, chatId, fileName };
+                        ? { epubUrl, fileName, profileId }
+                        : { messageId, chatId, fileName, profileId };
                     const r = await fetch('/api/send-to-kindle', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2526,7 +2526,7 @@
                                             </button>
                                         )}
                                         {!!effectiveEpub?.epubUrl && (
-                                            <SendToKindleButton epubUrl={effectiveEpub.epubUrl} fileName={effectiveEpub.epubFileName || book.title + '.epub'} />
+                                            <SendToKindleButton epubUrl={effectiveEpub.epubUrl} fileName={effectiveEpub.epubFileName || book.title + '.epub'} profileId={currentProfileId} />
                                         )}
                                         {book.epubKey && !book.epubUrl && (
                                             <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-semibold text-amber-700 leading-relaxed">
@@ -4845,6 +4845,7 @@
                                 onImportBook={handleImportFromTelegram}
                                 notifyUser={notifyUser}
                                 catalogBooks={allBooksCombined}
+                                profileId={activeProfile}
                             />
                         ) : viewMode === 'amazon' ? (
                             <div className="max-w-6xl mx-auto">
