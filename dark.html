@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-pt" class="dark">
+<html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +7,9 @@
     <link rel="icon" type="image/png" href="https://i.imgur.com/FfKzzxi.png">
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,700&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script>tailwind.config = { darkMode: 'class' }</script>
+    <!-- Tailwind CSS v4 -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>document.documentElement.classList.remove('dark');</script>
     <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -141,7 +141,7 @@
             gap: 0.75rem;
             padding: 0.75rem 1.5rem;
             -webkit-overflow-scrolling: touch;
-            background: rgba(255, 255, 255, 0.95);
+            background: #ffffff;
             border-bottom: 1px solid #f1f5f9;
         }
         html.dark .genre-nav-row {
@@ -233,6 +233,38 @@
         .profile-switch-spin { animation: profile-switch-spin 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .profile-ring-pulse  { animation: profile-ring-pulse 0.6s ease-out both; }
 
+        /* ── Drag & Drop ── */
+        @keyframes dnd-ghost-pulse {
+            0%, 100% { opacity: 1; border-color: #14B8A6; }
+            50%       { opacity: 0.6; border-color: #5EEAD4; }
+        }
+        .dnd-ghost-placeholder {
+            border: 2px dashed #14B8A6;
+            border-radius: 28px;
+            height: 88px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #14B8A6;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            background: #F0FDFA;
+            animation: dnd-ghost-pulse 1.4s ease-in-out infinite;
+        }
+        html.dark .dnd-ghost-placeholder {
+            background: rgba(20,184,166,0.08);
+            border-color: #14B8A6;
+            color: #5EEAD4;
+        }
+        .dnd-dragging {
+            opacity: 0.35 !important;
+            transform: scale(0.98);
+            box-shadow: 0 24px 48px rgba(20,184,166,0.15) !important;
+        }
+
         /* ── Logout feedback ── */
         @keyframes logout-shake {
             0%   { transform: translateX(0) scale(1); opacity: 1; }
@@ -250,6 +282,11 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+        // Suprime console.log em produção; mantém console.error e console.warn
+        if (typeof location !== 'undefined' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+            console.log = () => {};
+        }
 
         // --- 0. CONFIGURAÇÃO DO BANCO DE DADOS NA NUVEM ---
 
@@ -621,12 +658,11 @@
             });
         };
 
-        const notifyUser = (message, tone = 'info') => {
+        const notifyUser = (message, tone = 'info', sub = '') => {
             if (!message) return;
-            console.log('[Toast] Notificação:', message, tone);
             if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
                 try {
-                    window.dispatchEvent(new CustomEvent(APP_TOAST_EVENT, { detail: { message, tone } }));
+                    window.dispatchEvent(new CustomEvent(APP_TOAST_EVENT, { detail: { message, tone, sub } }));
                     console.log('[Toast] Event despachado com sucesso');
                 } catch (err) {
                     console.error('[Toast] Erro ao despachar evento:', err);
@@ -692,7 +728,8 @@
                     const nextToast = {
                         id: toastId,
                         tone: detail.tone || 'info',
-                        message
+                        message,
+                        sub: String(detail.sub || '').trim()
                     };
 
                     console.log('[Toast] Adicionando toast ao estado:', nextToast);
@@ -716,39 +753,45 @@
         }
 
         function ToastViewport({ toasts, onDismiss }) {
-            console.log('[Toast] ToastViewport renderizando com', toasts.length, 'toasts:', toasts);
-            if (!toasts.length) {
-                console.log('[Toast] Sem toasts para exibir');
-                return null;
-            }
+            if (!toasts.length) return null;
 
-            const toneClassMap = {
-                info: 'border-slate-200 bg-white text-slate-700',
-                success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-                warning: 'border-amber-200 bg-amber-50 text-amber-800',
-                error: 'border-red-200 bg-red-50 text-red-700'
+            // Matches design system: left 4px border + tinted bg + emoji icon
+            const toneConfig = {
+                success: { emoji: '✅', bg: 'rgba(236,253,245,.97)', borderColor: '#10B981', msgColor: '#065F46', subColor: '#059669' },
+                info:    { emoji: '📖', bg: 'rgba(255,255,255,.97)', borderColor: '#14B8A6', msgColor: '#1E3A5F', subColor: '#6B7280' },
+                warning: { emoji: '⚠️', bg: 'rgba(255,251,235,.97)', borderColor: '#F59E0B', msgColor: '#92400E', subColor: '#B45309' },
+                error:   { emoji: '❌', bg: 'rgba(254,242,242,.97)', borderColor: '#EF4444', msgColor: '#991B1B', subColor: '#B91C1C' },
             };
 
             return (
-                <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,360px)] flex-col gap-2">
-                    {toasts.map((toast) => (
-                        <div
-                            key={toast.id}
-                            className={`rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm animate-fade-in ${toneClassMap[toast.tone] || toneClassMap.info}`}
-                        >
-                            <div className="flex items-start gap-3">
-                                <p className="flex-1 text-sm leading-relaxed">{toast.message}</p>
+                <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2.5">
+                    {toasts.map((toast) => {
+                        const cfg = toneConfig[toast.tone] || toneConfig.info;
+                        return (
+                            <div
+                                key={toast.id}
+                                className="flex items-start gap-3 px-4 py-3.5 rounded-2xl animate-fade-in"
+                                style={{
+                                    background: cfg.bg,
+                                    borderLeft: `4px solid ${cfg.borderColor}`,
+                                    boxShadow: '0 8px 24px rgba(0,0,0,.10)',
+                                }}
+                            >
+                                <span className="flex-shrink-0 text-lg leading-none mt-0.5">{cfg.emoji}</span>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[13px] font-semibold leading-snug" style={{ color: cfg.msgColor }}>{toast.message}</p>
+                                    {toast.sub && <p className="text-[11px] mt-0.5" style={{ color: cfg.subColor }}>{toast.sub}</p>}
+                                </div>
                                 <button
                                     type="button"
                                     onClick={() => onDismiss(toast.id)}
-                                    className="shrink-0 rounded-md p-1 text-current/60 hover:bg-black/5 hover:text-current"
-                                    aria-label="Fechar aviso"
-                                >
-                                    <Icon name="x" className="w-4 h-4" />
-                                </button>
+                                    className="flex-shrink-0 text-[14px] opacity-40 hover:opacity-100 transition-opacity leading-none mt-0.5"
+                                    style={{ color: cfg.msgColor }}
+                                    aria-label="Fechar"
+                                >✕</button>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             );
         }
@@ -905,29 +948,31 @@
                 isDistopia: false
             });
             const [customGenre, setCustomGenre] = useState("");
-            const [amazonQuery, setAmazonQuery] = useState("");
-            const [amazonRef, setAmazonRef] = useState("");
-            const [isLoadingAmazon, setIsLoadingAmazon] = useState(false);
-            const [amazonMessage, setAmazonMessage] = useState("");
-            const [searchResults, setSearchResults] = useState([]);
-            const [selectedResultId, setSelectedResultId] = useState(null);
+            const [bookSearchQuery, setBookSearchQuery] = useState("");
+            const [bookSearchResults, setBookSearchResults] = useState([]);
+            const [isSearching, setIsSearching] = useState(false);
+            const [isEnriching, setIsEnriching] = useState(false);
+            const [searchError, setSearchError] = useState("");
+            const [claudeError, setClaudeError] = useState("");
+            const [localApiKey, setLocalApiKey] = useState(() => localStorage.getItem('anthropic_api_key') || '');
+            const [keyInput, setKeyInput] = useState('');
+            const [showKeyInput, setShowKeyInput] = useState(false);
             const [epubFile, setEpubFile] = useState(null);
             const [isUploadingEpub, setIsUploadingEpub] = useState(false);
             const [epubMessage, setEpubMessage] = useState("");
 
-            const buildVolumeFromOpenLibraryDoc = useCallback((doc) => {
-                if (!doc) return null;
-                const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
-                return {
-                    title: doc.title,
-                    authors: doc.author_name || [],
-                    publisher: doc.publisher?.[0] || '',
-                    pageCount: doc.number_of_pages_median || '',
-                    description: '',
-                    categories: doc.subject?.slice(0, 4) || [],
-                    imageLinks: { thumbnail: cover, smallThumbnail: cover }
-                };
-            }, []);
+            const saveLocalKey = () => {
+                const k = keyInput.trim();
+                if (!k) return;
+                localStorage.setItem('anthropic_api_key', k);
+                setLocalApiKey(k);
+                setKeyInput('');
+                setShowKeyInput(false);
+            };
+            const removeLocalKey = () => {
+                localStorage.removeItem('anthropic_api_key');
+                setLocalApiKey('');
+            };
 
             useEffect(() => {
                 if (!initialBook) return;
@@ -1063,14 +1108,6 @@
                 return uniqueTags(out).slice(0, 10);
             };
 
-            const extractWebEvidenceTags = (webEvidence = null) => {
-                if (!webEvidence || typeof webEvidence !== 'object') return [];
-                return uniqueTags([
-                    ...(Array.isArray(webEvidence.subjects) ? webEvidence.subjects : []),
-                    ...(Array.isArray(webEvidence.googleBooks?.categories) ? webEvidence.googleBooks.categories : []),
-                    ...(Array.isArray(webEvidence.openLibrary?.subjects) ? webEvidence.openLibrary.subjects.slice(0, 8) : [])
-                ]).slice(0, 12);
-            };
 
             const inferGenreFromSignals = (categories = [], synopsis = '') => {
                 const pool = `${(categories || []).join(' ')} ${synopsis || ''}`.toLowerCase();
@@ -1093,432 +1130,273 @@
                 return 'Literatura Geral';
             };
 
-            const buildFallbackProfile = (volume, fallbackQuery = '', webEvidence = null) => {
-                const cleanSynopsis = makeLeanSynopsis(volume?.description || '');
-                const evidenceTags = extractWebEvidenceTags(webEvidence);
-                const categories = uniqueTags([...(Array.isArray(volume?.categories) ? volume.categories : []), ...evidenceTags]);
-                const inferredGenre = inferGenreFromSignals(categories, cleanSynopsis);
-                const genre = inferredGenre || form.genre || 'Fantasia';
-                const allTropeTags = inferTropeTags(categories, cleanSynopsis, genre);
-                const olSubjects = Array.isArray(webEvidence?.openLibrary?.subjects)
-                    ? webEvidence.openLibrary.subjects.slice(0, 6) : [];
-                const tags = sanitizeStoryTags([
-                    ...allTropeTags,
-                    ...olSubjects
-                ], volume?.title || '', (volume?.authors || []).join(', '));
-
-                // Use the best synopsis available from web evidence
-                const wikiSynopsis = webEvidence?.wikipedia?.extract || '';
-                const gbSynopsis = webEvidence?.googleBooks?.description || '';
-                const bestSynopsis = cleanSynopsis || makeLeanSynopsis(gbSynopsis) || makeLeanSynopsis(wikiSynopsis);
-
-                // Use publisher from web evidence if missing from volume
-                const publisher = volume?.publisher
-                    || webEvidence?.googleBooks?.publisher
-                    || (webEvidence?.openLibrary?.publishers || [])[0]
-                    || '';
-                const pages = Number(volume?.pageCount)
-                    || Number(webEvidence?.googleBooks?.pageCount)
-                    || 0;
-
+            // ── Open Library ─────────────────────────────────────────
+            const olNormalize = (doc) => {
+                const isbns = doc.isbn || [];
+                const isbn13 = isbns.find(i => i.length === 13);
+                const isbn10 = isbns.find(i => i.length === 10);
+                const coverId = doc.cover_i;
+                const coverUrl = coverId
+                    ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
+                    : (isbn13 ? `https://covers.openlibrary.org/b/isbn/${isbn13}-L.jpg`
+                        : (isbn10 ? `https://covers.openlibrary.org/b/isbn/${isbn10}-L.jpg` : null));
                 return {
-                    title: volume?.title || '',
-                    author: (volume?.authors || []).join(', '),
-                    publisher,
-                    pages,
-                    synopsis: bestSynopsis,
-                    genre,
-                    sectionLabel: sectionLabelFromGenre(genre),
-                    tags
+                    title: doc.title || '',
+                    author: (doc.author_name || [])[0] || '',
+                    allAuthors: doc.author_name || [],
+                    publisher: (doc.publisher || [])[0] || '',
+                    publishYear: doc.first_publish_year || null,
+                    pages: doc.number_of_pages_median || null,
+                    synopsis: null,
+                    coverUrl: coverUrl || null,
+                    rawCategories: (doc.subject || []).slice(0, 8),
+                    isbn13: isbn13 || null,
+                    isbn10: isbn10 || null,
                 };
             };
 
-            const fetchAiBookProfile = async (volume, fallbackQuery = '') => {
-                const payload = {
-                    title: volume?.title || '',
-                    author: (volume?.authors || []).join(', '),
-                    synopsis: stripHtml(volume?.description || ''),
-                    categories: Array.isArray(volume?.categories) ? volume.categories : [],
-                    publisher: volume?.publisher || '',
-                    pages: Number(volume?.pageCount) || 0,
-                    query: fallbackQuery || ''
-                };
-
+            const searchOpenLibrary = async (query) => {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 8000);
                 try {
-                    const response = await withUiTimeout(
-                        fetch('/api/book-profile', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        }),
-                        12000,
-                        'Serviço de IA sem resposta.'
-                    );
-
-                    if (!response.ok) return null;
-                    const data = await response.json();
-                    const profile = data?.profile;
-                    const webEvidence = data?.webEvidence || null;
-                    if (!profile || typeof profile !== 'object') return webEvidence ? { webEvidenceOnly: true, webEvidence } : null;
-
-                    const genre = GENRES.includes(profile.genre) ? profile.genre : '';
-                    const evidenceTags = extractWebEvidenceTags(webEvidence);
-                    const allCategorySignals = uniqueTags([...(payload.categories || []), ...evidenceTags]);
-                    return {
-                        title: profile.title || payload.title,
-                        author: profile.author || payload.author,
-                        publisher: profile.publisher || payload.publisher,
-                        pages: Number(profile.pages) || payload.pages,
-                        synopsis: profile.synopsis || makeLeanSynopsis(payload.synopsis),
-                        genre: genre || inferGenreFromSignals(allCategorySignals, profile.synopsis || payload.synopsis),
-                        sectionLabel: String(profile.sectionLabel || '').trim(),
-                        tags: sanitizeStoryTags([
-                            ...(Array.isArray(profile.tags) ? profile.tags : []),
-                            ...inferTropeTags(allCategorySignals, profile.synopsis || payload.synopsis, genre)
-                        ], profile.title || payload.title, profile.author || payload.author),
-                        isSeries: !!profile.isSeries,
-                        series: profile.series || '',
-                        volume: Number(profile.volume) || 0,
-                        totalVolumes: Number(profile.totalVolumes) || 0,
-                        webEvidence
-                    };
-                } catch {
-                    return null;
-                }
+                    const params = new URLSearchParams({ title: query, limit: '5' });
+                    const res = await fetch(`https://openlibrary.org/search.json?${params}`, { signal: controller.signal });
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    return (data.docs || []).slice(0, 5).map(olNormalize);
+                } catch { return []; }
+                finally { clearTimeout(timeout); }
             };
 
-            const getVolumeScore = (v, query) => {
-                const q = (query || '').toLowerCase();
-                const title = (v?.title || '').toLowerCase();
+            // ── Google Books ──────────────────────────────────────────
+            const gbNormalize = (vol) => {
+                const info = vol.volumeInfo || {};
+                const ids = info.industryIdentifiers || [];
+                const isbn13 = (ids.find(i => i.type === 'ISBN_13') || {}).identifier || null;
+                const isbn10 = (ids.find(i => i.type === 'ISBN_10') || {}).identifier || null;
+                const thumb = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || '';
+                const coverUrl = thumb
+                    ? thumb.replace('http://', 'https://').replace(/zoom=\d+/, 'zoom=3')
+                    : null;
+                return {
+                    title: info.title || '',
+                    author: (info.authors || [])[0] || '',
+                    allAuthors: info.authors || [],
+                    publisher: info.publisher || '',
+                    publishYear: info.publishedDate ? parseInt(info.publishedDate.slice(0, 4)) : null,
+                    pages: info.pageCount || null,
+                    synopsis: (info.description || '').replace(/<[^>]+>/g, '').trim() || null,
+                    coverUrl,
+                    rawCategories: info.categories || [],
+                    isbn13,
+                    isbn10,
+                };
+            };
+
+            const searchGoogleBooks = async (query) => {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 8000);
+                try {
+                    const q = `intitle:${encodeURIComponent(query)}`;
+                    const res = await fetch(
+                        `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&orderBy=relevance`,
+                        { signal: controller.signal }
+                    );
+                    if (!res.ok) return [];
+                    const data = await res.json();
+                    return (data.items || []).slice(0, 5).map(gbNormalize);
+                } catch { return []; }
+                finally { clearTimeout(timeout); }
+            };
+
+            // ── Deduplicate + score ───────────────────────────────────
+            const scoreBook = (r) => {
                 let s = 0;
-                if (title && q && (title.includes(q) || q.includes(title))) s += 4;
-                if ((v?.language || '').toLowerCase().startsWith('pt')) s += 4;
-                if (v?.description) s += 3;
-                if (v?.pageCount) s += 2;
-                if (v?.publisher) s += 2;
-                if (v?.imageLinks?.thumbnail || v?.imageLinks?.smallThumbnail) s += 2;
-                if (Array.isArray(v?.categories) && v.categories.length) s += 1;
+                if (r.isbn13 || r.isbn10) s++;
+                if (r.synopsis && r.synopsis.length > 50) s++;
+                if (r.coverUrl) s++;
+                if (r.pages) s++;
+                if (r.publisher) s++;
                 return s;
             };
 
-            const pickTopVolumes = (items, query, limit = 5) => {
-                if (!Array.isArray(items) || !items.length) return [];
-                return items
-                    .map(item => item?.volumeInfo)
-                    .filter(Boolean)
-                    .sort((a, b) => getVolumeScore(b, query) - getVolumeScore(a, query))
-                    .slice(0, limit);
-            };
-
-            const pickBestVolume = (items, query) => {
-                const top = pickTopVolumes(items, query, 1);
-                return top[0] || null;
-            };
-
-            const mergeUniqueVolumes = (volumes) => {
-                const map = new Map();
-                for (const v of volumes) {
-                    const key = `${(v?.title || '').toLowerCase()}|${(v?.authors?.[0] || '').toLowerCase()}`;
-                    if (!key || key === "|") continue;
-                    if (!map.has(key)) map.set(key, v);
+            const deduplicateBooks = (list) => {
+                const seen = new Map();
+                for (const r of list) {
+                    const key = r.isbn13 || r.isbn10 || `${r.title.toLowerCase()}|${(r.author || '').toLowerCase()}`;
+                    if (!seen.has(key)) {
+                        seen.set(key, r);
+                    } else {
+                        const ex = seen.get(key);
+                        seen.set(key, {
+                            ...ex,
+                            synopsis:      ex.synopsis      || r.synopsis,
+                            publisher:     ex.publisher     || r.publisher,
+                            pages:         ex.pages         || r.pages,
+                            coverUrl:      ex.coverUrl      || r.coverUrl,
+                            rawCategories: uniqueTags([...ex.rawCategories, ...r.rawCategories]),
+                            isbn13:        ex.isbn13        || r.isbn13,
+                            isbn10:        ex.isbn10        || r.isbn10,
+                        });
+                    }
                 }
-                return Array.from(map.values());
+                return [...seen.values()];
             };
 
-            const applyVolumeToForm = (volume, profile = null) => {
-                if (!volume) return;
-                const categories = volume.categories || [];
-                const matchedGenre = GENRES.find(g => g !== "Todos" && categories.some(c => c.toLowerCase().includes(g.toLowerCase())));
-                const resolvedGenre = profile?.genre || matchedGenre || form.genre || 'Fantasia';
-                const resolvedSynopsis = profile?.synopsis || makeLeanSynopsis(volume.description || '') || form.synopsis;
-                const resolvedTags = sanitizeStoryTags([
-                    ...((profile?.tags || []).length ? profile.tags : []),
-                    ...inferTropeTags(categories, resolvedSynopsis, resolvedGenre)
-                ], profile?.title || volume?.title || '', profile?.author || volume?.authors?.join(', ') || '');
+            // ── Search handler ────────────────────────────────────────
+            const handleBookSearch = async () => {
+                const q = bookSearchQuery.trim();
+                if (!q) return;
+                setIsSearching(true);
+                setSearchError('');
+                setBookSearchResults([]);
+                setClaudeError('');
+                try {
+                    const [ol, gb] = await Promise.all([
+                        searchOpenLibrary(q),
+                        searchGoogleBooks(q),
+                    ]);
+                    const merged = deduplicateBooks([...gb, ...ol])
+                        .sort((a, b) => scoreBook(b) - scoreBook(a))
+                        .slice(0, 5);
+                    if (!merged.length) setSearchError(`Nenhum resultado para "${q}".`);
+                    else setBookSearchResults(merged);
+                } catch {
+                    setSearchError('Erro ao buscar. Verifique sua conexão.');
+                } finally {
+                    setIsSearching(false);
+                }
+            };
 
+            // ── Helpers para enriquecimento ───────────────────────────
+            const applyProfileToForm = (p, result) => {
+                const resolvedGenre = GENRES.includes(p.genre) ? p.genre
+                    : inferGenreFromSignals(result.rawCategories, p.synopsis || result.synopsis || '')
+                    || form.genre || 'Fantasia';
+                const resolvedTags = sanitizeStoryTags([
+                    ...(Array.isArray(p.tags) ? p.tags : []),
+                    ...inferTropeTags(result.rawCategories, p.synopsis || '', resolvedGenre),
+                ], p.title || result.title, p.author || result.author);
                 setForm(prev => ({
                     ...prev,
-                    title: profile?.title || volume.title || prev.title,
-                    author: profile?.author || volume.authors?.join(', ') || prev.author,
-                    publisher: profile?.publisher || volume.publisher || prev.publisher,
-                    pages: profile?.pages || volume.pageCount || prev.pages,
-                    synopsis: resolvedSynopsis,
-                    coverUrl: toHttps(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) || prev.coverUrl,
-                    genre: resolvedGenre,
-                    tags: resolvedTags.length ? resolvedTags.join(', ') : prev.tags,
-                    isSeries: profile?.isSeries || prev.isSeries,
-                    series: profile?.series || prev.series,
-                    volume: profile?.volume || prev.volume,
-                    totalVolumes: profile?.totalVolumes || prev.totalVolumes
+                    title:     p.title     || result.title    || prev.title,
+                    author:    p.author    || result.author   || prev.author,
+                    publisher: p.publisher || result.publisher || prev.publisher,
+                    pages:     p.pages     || result.pages    || prev.pages,
+                    synopsis:  p.synopsis  || makeLeanSynopsis(result.synopsis || '') || prev.synopsis,
+                    coverUrl:  toHttps(result.coverUrl || '') || prev.coverUrl,
+                    genre:     resolvedGenre,
+                    tags:      resolvedTags.join(', '),
+                    isSeries:  !!p.isSeries,
+                    series:    p.series || prev.series,
+                    volume:    p.volume || prev.volume,
                 }));
             };
 
-            const fetchGoogleVolumePtBr = async (query, authorHint = "") => {
-                const queries = [query, `intitle:${query}`];
-                if (authorHint) queries.unshift(`intitle:${query} inauthor:${authorHint}`);
-
-                for (const q of queries) {
-                    const endpointPt = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&langRestrict=pt&country=BR&printType=books&maxResults=10&orderBy=relevance`;
-                    const endpointAny = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&printType=books&maxResults=10&orderBy=relevance`;
-
-                    const resPt = await fetch(endpointPt);
-                    const dataPt = await resPt.json();
-                    const bestPt = pickBestVolume(dataPt?.items, query);
-                    if (bestPt) return bestPt;
-
-                    const resAny = await fetch(endpointAny);
-                    const dataAny = await resAny.json();
-                    const bestAny = pickBestVolume(dataAny?.items, query);
-                    if (bestAny) return bestAny;
-                }
-
-                return null;
-            };
-
-            const fetchGoogleCandidatesPtBr = async (query, authorHint = "") => {
-                const queries = [query, `intitle:${query}`];
-                if (authorHint) queries.unshift(`intitle:${query} inauthor:${authorHint}`);
-
-                const all = [];
-                for (const q of queries) {
-                    const endpointPt = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&langRestrict=pt&country=BR&printType=books&maxResults=10&orderBy=relevance`;
-                    const endpointAny = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&printType=books&maxResults=10&orderBy=relevance`;
-
-                    const resPt = await fetch(endpointPt);
-                    const dataPt = await resPt.json();
-                    all.push(...pickTopVolumes(dataPt?.items, query, 5));
-
-                    const resAny = await fetch(endpointAny);
-                    const dataAny = await resAny.json();
-                    all.push(...pickTopVolumes(dataAny?.items, query, 5));
-                }
-
-                return mergeUniqueVolumes(all)
-                    .sort((a, b) => getVolumeScore(b, query) - getVolumeScore(a, query))
-                    .slice(0, 5);
-            };
-
-            const enrichVolumeData = async (volume, fallbackQuery) => {
-                if (!volume || !fallbackQuery) return volume;
-
-                const needExtra = !volume.description || !volume.pageCount || !volume.publisher || !(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail);
-                if (!needExtra) return volume;
-
-                const googleExtra = await fetchGoogleVolumePtBr(volume.title || fallbackQuery, (volume.authors || [])[0] || form.author || "");
-                if (googleExtra) {
-                    if (!volume.publisher && googleExtra.publisher) volume.publisher = googleExtra.publisher;
-                    if (!volume.pageCount && googleExtra.pageCount) volume.pageCount = googleExtra.pageCount;
-                    if (!volume.description && googleExtra.description) volume.description = googleExtra.description;
-                    if (!(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) && (googleExtra.imageLinks?.thumbnail || googleExtra.imageLinks?.smallThumbnail)) {
-                        volume.imageLinks = googleExtra.imageLinks;
+            // Chama Anthropic diretamente do browser (fallback para GitHub Pages)
+            const enrichBrowser = async (result, apiKey) => {
+                const prompt = `Você é um especialista em literatura. Analise os dados brutos e retorne JSON enriquecido.\nResponda APENAS JSON válido, sem markdown.\n"synopsis": PT-BR, 3-5 frases sem spoilers.\n"genre": exatamente um de: Fantasia|Romantasy|Ficção Científica|Thriller|Romance Contemporâneo|Ficção Literária|Distopia\n"tags": array 4-8 strings (tropos e atmosfera)\n"publisher": editora brasileira se possível\n"isSeries": boolean, "series": string, "volume": number`;
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 20000);
+                try {
+                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': apiKey,
+                            'anthropic-version': '2023-06-01',
+                            'anthropic-dangerous-direct-browser-access': 'true',
+                        },
+                        body: JSON.stringify({
+                            model: 'claude-haiku-4-5-20251001',
+                            max_tokens: 1024,
+                            messages: [{ role: 'user', content: JSON.stringify({
+                                title: result.title, author: result.author,
+                                publisher: result.publisher, pages: result.pages,
+                                synopsis: result.synopsis, rawCategories: result.rawCategories,
+                            }) }],
+                        }),
+                    });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err?.error?.message || `HTTP ${res.status}`);
                     }
-                    if ((!volume.categories || !volume.categories.length) && Array.isArray(googleExtra.categories) && googleExtra.categories.length) {
-                        volume.categories = googleExtra.categories;
-                    }
+                    const data = await res.json();
+                    const text = data?.content?.[0]?.text || '';
+                    const match = text.match(/\{[\s\S]*\}/);
+                    if (!match) throw new Error('Resposta inválida');
+                    return JSON.parse(match[0]);
+                } finally {
+                    clearTimeout(timeout);
                 }
-
-                const olResExtra = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(volume.title || fallbackQuery)}&author=${encodeURIComponent((volume.authors || [])[0] || '')}&limit=1`);
-                const olDataExtra = await olResExtra.json();
-                const extra = olDataExtra?.docs?.[0];
-
-                if (extra) {
-                    const extraCover = extra.cover_i ? `https://covers.openlibrary.org/b/id/${extra.cover_i}-L.jpg` : '';
-                    if (!volume.publisher && extra.publisher?.[0]) volume.publisher = extra.publisher[0];
-                    if (!volume.pageCount && extra.number_of_pages_median) volume.pageCount = extra.number_of_pages_median;
-                    if (!(volume.imageLinks?.thumbnail || volume.imageLinks?.smallThumbnail) && extraCover) {
-                        volume.imageLinks = { thumbnail: extraCover, smallThumbnail: extraCover };
-                    }
-                    if ((!volume.categories || !volume.categories.length) && extra.subject?.length) {
-                        volume.categories = extra.subject.slice(0, 5);
-                    }
-                }
-
-                return volume;
             };
 
-            const openAmazonSearch = () => {
-                const query = (amazonQuery || form.title || form.author).trim();
-                if (!query) return;
-                window.open(`https://www.amazon.com.br/s?k=${encodeURIComponent(query)}&i=stripbooks`, '_blank');
-            };
-
-            const normalizeBookCode = (value) => {
-                const code = (value || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
-                if (!code) return null;
-                if (code.length === 13 && (code.startsWith('978') || code.startsWith('979'))) return code;
-                if (code.length === 10) return code;
-                return null;
-            };
-
-            const extractBookReference = (value) => {
-                const clean = (value || '').trim();
-                if (!clean) return { code: null, queryText: '' };
-
-                const normalizeHumanQuery = (text) =>
-                    (text || '')
-                        .replace(/[-_]+/g, ' ')
-                        .replace(/\s+/g, ' ')
-                        .replace(/\b(dp|product|gp|books|asin)\b/gi, ' ')
-                        .trim();
-
-                const isbn13 = clean.match(/(?:ISBN(?:-13)?:?\s*)?(97[89][\d\s-]{10,16})/i);
-                if (isbn13) {
-                    const code = normalizeBookCode(isbn13[1]);
-                    if (code) return { code, queryText: '' };
-                }
-
-                const isbn10 = clean.match(/(?:ISBN(?:-10)?:?\s*)?([\dXx][\d\s-]{8,15})/i);
-                if (isbn10) {
-                    const code = normalizeBookCode(isbn10[1]);
-                    if (code) return { code, queryText: '' };
-                }
-
-                const directCode = normalizeBookCode(clean);
-                if (directCode) return { code: directCode, queryText: '' };
-
-                const amazonLooseMatch = clean.match(/amazon\.[^/]+\/([^?]+)/i);
-                if (amazonLooseMatch?.[1]) {
-                    const rawPath = amazonLooseMatch[1];
-                    const safeDecoded = (() => {
-                        try { return decodeURIComponent(rawPath); } catch { return rawPath; }
-                    })();
-                    const looseQuery = normalizeHumanQuery(safeDecoded);
-                    if (looseQuery) return { code: null, queryText: looseQuery };
-                }
+            // ── Apply result (tenta servidor → fallback browser) ──────
+            const applyBookResult = async (result) => {
+                setBookSearchResults([]);
+                setSearchError('');
+                setClaudeError('');
+                setIsEnriching(true);
 
                 try {
-                    const asUrl = clean.startsWith('http') ? clean : `https://${clean}`;
-                    const url = new URL(asUrl);
-                    const path = decodeURIComponent(url.pathname || '');
-
-                    const pathPatterns = [
-                        /\/(?:dp|gp\/product|product|exec\/obidos\/ASIN|asin)\/([A-Z0-9]{10,13})/i,
-                        /\/([A-Z0-9]{10,13})(?:[/?]|$)/i
-                    ];
-
-                    for (const pattern of pathPatterns) {
-                        const match = path.match(pattern);
-                        if (match) {
-                            const code = normalizeBookCode(match[1]);
-                            if (code) {
-                                const slugPart = path.split('/dp/')[0].split('/').pop() || '';
-                                const queryText = slugPart.replace(/-/g, ' ').trim();
-                                return { code, queryText };
+                    // 1) Tenta endpoint serverless (funciona no Vercel)
+                    let serverOk = false;
+                    try {
+                        const res = await fetch('/api/claude-enrich', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                title: result.title, author: result.author,
+                                publisher: result.publisher, publishYear: result.publishYear,
+                                pages: result.pages, synopsis: result.synopsis,
+                                rawCategories: result.rawCategories,
+                            }),
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.ok && data.profile) {
+                                applyProfileToForm(data.profile, result);
+                                serverOk = true;
+                                return;
                             }
                         }
-                    }
+                    } catch (_) { /* servidor indisponível — tenta browser */ }
 
-                    const paramCode = normalizeBookCode(url.searchParams.get('asin') || url.searchParams.get('isbn') || '');
-                    if (paramCode) return { code: paramCode, queryText: '' };
-
-                    const paramQuery = (url.searchParams.get('k') || '').trim();
-                    if (paramQuery) return { code: null, queryText: paramQuery };
-
-                    const pathText = normalizeHumanQuery(
-                        path
-                            .split('/')
-                            .filter(Boolean)
-                            .filter(part => !/^(dp|gp|product|exec|obidos|asin)$/i.test(part))
-                            .join(' ')
-                    );
-                    if (pathText) return { code: null, queryText: pathText };
-                } catch {
-                    // Não é URL
-                }
-
-                return { code: null, queryText: clean };
-            };
-
-            const fillFromAmazonReference = async () => {
-                setAmazonMessage("");
-                setSearchResults([]);
-                setSelectedResultId(null);
-                const { code, queryText } = extractBookReference(amazonRef);
-                const sanitizedQueryFromLink = /^https?:\/\//i.test(queryText) ? '' : queryText;
-                const fallbackQuery = (amazonQuery || form.title || form.author || sanitizedQueryFromLink || '').trim();
-
-                if (!code && !fallbackQuery) {
-                    setAmazonMessage("Cole URL/ISBN da Amazon ou digite título + autor.");
-                    return;
-                }
-
-                try {
-                    setIsLoadingAmazon(true);
-                    const lookups = [];
-                    if (code) {
-                        lookups.push(`isbn:${code}`);
-                        lookups.push(code);
-                    }
-                    if (fallbackQuery) {
-                        lookups.push(`intitle:${fallbackQuery}`);
-                        lookups.push(fallbackQuery);
-                    }
-
-                    let volume = null;
-                    let candidatePool = [];
-                    for (const q of lookups) {
-                        const candidates = await fetchGoogleCandidatesPtBr(q, (form.author || '').trim());
-                        candidatePool = [...candidatePool, ...candidates];
-                        volume = await fetchGoogleVolumePtBr(q, (form.author || '').trim());
-                        if (volume) break;
-                    }
-
-                    const uniqueCandidates = mergeUniqueVolumes(candidatePool)
-                        .sort((a, b) => getVolumeScore(b, fallbackQuery) - getVolumeScore(a, fallbackQuery))
-                        .slice(0, 5);
-                    if (uniqueCandidates.length) setSearchResults(uniqueCandidates);
-
-                    if (!volume && fallbackQuery) {
-                        const olRes = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(fallbackQuery)}&limit=1`);
-                        const olData = await olRes.json();
-                        const doc = olData?.docs?.[0];
-                        if (doc) {
-                            const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
-                            volume = buildVolumeFromOpenLibraryDoc(doc);
-                        }
-                    }
-
-                    if (!volume && fallbackQuery) {
-                        const olResByQ = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(fallbackQuery)}&limit=1`);
-                        const olDataByQ = await olResByQ.json();
-                        const doc = olDataByQ?.docs?.[0];
-                        if (doc) {
-                            volume = buildVolumeFromOpenLibraryDoc(doc);
-                        }
-                    }
-
-                    if (volume && fallbackQuery) volume = await enrichVolumeData(volume, fallbackQuery);
-
-                    if (!volume) {
-                        setAmazonMessage("Não encontrei dados automáticos para este link. Preencha manualmente ou tente título + autor.");
+                    // 2) Fallback: chama Anthropic direto do browser (GitHub Pages)
+                    if (!serverOk && localApiKey) {
+                        const profile = await enrichBrowser(result, localApiKey);
+                        applyProfileToForm(profile, result);
                         return;
                     }
 
-                    const aiProfile = await fetchAiBookProfile(volume, fallbackQuery);
-                    const finalProfile = aiProfile?.webEvidenceOnly
-                        ? buildFallbackProfile(volume, fallbackQuery, aiProfile.webEvidence)
-                        : (aiProfile || buildFallbackProfile(volume, fallbackQuery));
-                    applyVolumeToForm(volume, finalProfile);
-
-                    if (aiProfile && !aiProfile.webEvidenceOnly) {
-                        setAmazonMessage(uniqueCandidates.length > 1
-                            ? `Ficha organizada no formato do catálogo (${finalProfile.sectionLabel || 'Literatura Geral'}). Se quiser, escolha outro resultado abaixo.`
-                            : `Ficha organizada no formato do catálogo (${finalProfile.sectionLabel || 'Literatura Geral'}). Revise e salve no banco.`);
-                    } else if (aiProfile?.webEvidenceOnly) {
-                        setAmazonMessage(uniqueCandidates.length > 1
-                            ? `Ficha organizada com pesquisa web (${finalProfile.sectionLabel || 'Literatura Geral'}). Se quiser, escolha outro resultado abaixo.`
-                            : `Ficha organizada com pesquisa web (${finalProfile.sectionLabel || 'Literatura Geral'}). Revise e salve no banco.`);
-                    } else {
-                        setAmazonMessage(uniqueCandidates.length > 1
-                            ? `Ficha preenchida e organizada com fallback local (${finalProfile.sectionLabel || 'Literatura Geral'}). Se quiser, escolha outro resultado abaixo.`
-                            : `Ficha preenchida e organizada com fallback local (${finalProfile.sectionLabel || 'Literatura Geral'}). Revise e salve no banco.`);
+                    if (!serverOk && !localApiKey) {
+                        setClaudeError('Configure uma chave Anthropic abaixo para enriquecer os dados.');
                     }
-                } catch (error) {
-                    console.error(error);
-                    setAmazonMessage("Não foi possível completar automaticamente agora.");
+                } catch (err) {
+                    setClaudeError(err.message || 'Erro ao enriquecer com IA.');
                 } finally {
-                    setIsLoadingAmazon(false);
+                    setIsEnriching(false);
                 }
+
+                // Fallback: apply raw data without AI enrichment
+                const resolvedGenre = inferGenreFromSignals(result.rawCategories, result.synopsis || '') || form.genre || 'Fantasia';
+                const resolvedSynopsis = makeLeanSynopsis(result.synopsis || '');
+                const resolvedTags = sanitizeStoryTags(
+                    inferTropeTags(result.rawCategories, resolvedSynopsis, resolvedGenre),
+                    result.title, result.author
+                );
+                setForm(prev => ({
+                    ...prev,
+                    title:     result.title     || prev.title,
+                    author:    result.author    || prev.author,
+                    publisher: result.publisher || prev.publisher,
+                    pages:     result.pages     || prev.pages,
+                    synopsis:  resolvedSynopsis || prev.synopsis,
+                    coverUrl:  toHttps(result.coverUrl || '') || prev.coverUrl,
+                    genre:     resolvedGenre,
+                    tags:      resolvedTags.join(', '),
+                }));
             };
 
             const submit = async (e) => {
@@ -1602,60 +1480,98 @@
                         <h3 className="text-2xl font-serif font-bold text-[#1E3A5F] dark:text-teal-300 mb-6">{initialBook ? 'Editar Livro' : 'Adicionar Livro'}</h3>
 
                         <div className="mb-5 p-4 rounded-2xl border border-[#1E3A5F]/10 bg-[#1E3A5F]/[0.03]">
-                            <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black mb-3">Assistente Amazon</p>
-                            <div className="relative mb-3">
-                                <input className="w-full pl-4 pr-12 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl dark:placeholder-gray-500" placeholder="Pesquisar livro na Amazon" value={amazonQuery} onChange={(e) => setAmazonQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && openAmazonSearch()} />
-                                <button type="button" onClick={openAmazonSearch} title="Abrir Amazon" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-[#1E3A5F] text-white hover:bg-[#162d4a] transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                                    </svg>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-[11px] uppercase tracking-widest text-[#1E3A5F] font-black">Buscar Livro</p>
+                                <div className="flex flex-col items-end gap-1">
+                                    {localApiKey ? (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-[#14B8A6]/10 text-[#14B8A6] border border-[#14B8A6]/20 rounded-full px-2 py-0.5 font-bold flex items-center gap-1"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg> Claude ativo</span>
+                                            <button type="button" onClick={removeLocalKey} className="text-[10px] text-red-400 hover:text-red-600">remover</button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-end gap-1">
+                                            <button type="button" onClick={() => setShowKeyInput(v => !v)} className="text-[10px] text-[#14B8A6] hover:underline">
+                                                {showKeyInput ? (<span className="flex items-center gap-1"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg> cancelar</span>) : (<span className="flex items-center gap-1"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg> chave Anthropic</span>)}
+                                            </button>
+                                            {showKeyInput && (
+                                                <div className="flex gap-1">
+                                                    <input
+                                                        type="password"
+                                                        placeholder="sk-ant-..."
+                                                        value={keyInput}
+                                                        onChange={e => setKeyInput(e.target.value)}
+                                                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), saveLocalKey())}
+                                                        className="text-xs px-2 py-1 border border-gray-200 rounded-lg w-40 outline-none focus:ring-1 focus:ring-[#14B8A6]/40"
+                                                    />
+                                                    <button type="button" onClick={saveLocalKey} className="text-xs px-2 py-1 bg-[#14B8A6] text-white rounded-lg font-bold">Salvar</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <input
+                                    className="flex-1 pl-4 pr-4 py-2.5 border border-gray-200 bg-white text-gray-900 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14B8A6]/30 focus:border-[#14B8A6] transition-all"
+                                    placeholder="Digite o título do livro..."
+                                    value={bookSearchQuery}
+                                    onChange={(e) => setBookSearchQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleBookSearch())}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleBookSearch}
+                                    disabled={isSearching || !bookSearchQuery.trim()}
+                                    className="px-4 py-2.5 rounded-xl bg-[#1E3A5F] text-white text-sm font-semibold disabled:opacity-50 hover:bg-[#162d4a] transition-colors flex items-center justify-center"
+                                >
+                                    {isSearching ? (
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                                        </svg>
+                                    )}
                                 </button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
-                                <input className="px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl dark:placeholder-gray-500" placeholder="Cole URL da Amazon ou ISBN" value={amazonRef} onChange={(e) => setAmazonRef(e.target.value)} />
-                                <button type="button" onClick={fillFromAmazonReference} disabled={isLoadingAmazon} className="px-4 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold text-sm disabled:opacity-60">
-                                    {isLoadingAmazon ? 'Importando...' : 'Completar Ficha'}
-                                </button>
-                            </div>
-                            {searchResults.length > 0 && (
+                            {isEnriching && (
+                                <div className="mt-3 flex items-center gap-2 text-xs text-[#14B8A6]">
+                                    <div className="w-3.5 h-3.5 border-2 border-[#14B8A6]/30 border-t-[#14B8A6] rounded-full animate-spin" />
+                                    Organizando ficha com IA...
+                                </div>
+                            )}
+                            {searchError && <p className="mt-2 text-xs text-red-500">{searchError}</p>}
+                            {claudeError && <p className="mt-2 text-xs text-amber-600">IA indisponível ({claudeError}) — dados brutos aplicados.</p>}
+                            {bookSearchResults.length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                    <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black">Resultados (pt-BR)</p>
-                                    {searchResults.map((result, idx) => (
+                                    <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black">Selecione o resultado</p>
+                                    {bookSearchResults.map((result, idx) => (
                                         <button
-                                            key={`${result.title}-${(result.authors || [])[0] || idx}`}
+                                            key={`${result.title}-${result.author || idx}`}
                                             type="button"
-                                            onClick={async () => {
-                                                const resultId = `${result.title}-${(result.authors || [])[0] || idx}`;
-                                                setSelectedResultId(resultId);
-                                                setIsLoadingAmazon(true);
-                                                try {
-                                                    const fallbackQuery = `${result.title || ''} ${(result.authors || [])[0] || ''}`.trim();
-                                                    const enriched = await enrichVolumeData({ ...result }, fallbackQuery);
-                                                    const aiProfile = await fetchAiBookProfile(enriched, fallbackQuery);
-                                                    const finalProfile = aiProfile?.webEvidenceOnly
-                                                        ? buildFallbackProfile(enriched, fallbackQuery, aiProfile.webEvidence)
-                                                        : (aiProfile || buildFallbackProfile(enriched, fallbackQuery));
-                                                    applyVolumeToForm(enriched, finalProfile);
-                                                    setAmazonMessage(`Resultado aplicado e organizado (${finalProfile.sectionLabel || 'Literatura Geral'}).`);
-                                                } finally {
-                                                    setIsLoadingAmazon(false);
-                                                }
-                                            }}
-                                            className={`w-full text-left px-3 py-2 rounded-xl border transition ${selectedResultId === `${result.title}-${(result.authors || [])[0] || idx}` ? 'border-[#14B8A6] bg-teal-50' : 'border-gray-200 bg-white hover:border-[#1E3A5F]/30'}`}
+                                            onClick={() => applyBookResult(result)}
+                                            className="w-full text-left px-3 py-2.5 rounded-xl border border-gray-200 bg-white hover:border-[#14B8A6]/50 hover:bg-teal-50/50 transition-colors flex gap-3"
                                         >
-                                            <p className="text-sm font-semibold text-[#1E3A5F]">{result.title || 'Sem título'}</p>
-                                            <p className="text-xs text-gray-500">{(result.authors || []).join(', ') || 'Autor não informado'}</p>
-                                            <p className="text-[11px] text-gray-400 mt-1">{result.publisher || 'Editora não informada'} {result.pageCount ? `• ${result.pageCount} págs` : ''}</p>
+                                            {result.coverUrl ? (
+                                                <img src={result.coverUrl} alt="" className="w-9 h-12 object-cover rounded shrink-0" onError={(e) => e.target.style.display='none'} />
+                                            ) : (
+                                                <div className="w-9 h-12 rounded bg-gradient-to-br from-[#1E3A5F] to-[#14B8A6] shrink-0 flex items-center justify-center text-white text-[10px] font-bold">
+                                                    {(result.title || '?').slice(0, 2).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-[#1E3A5F] leading-tight truncate">{result.title || 'Sem título'}</p>
+                                                <p className="text-xs text-gray-500 truncate">{result.author || 'Autor não informado'}</p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">{result.publisher || ''}{result.publisher && result.pages ? ' · ' : ''}{result.pages ? `${result.pages} págs` : ''}</p>
+                                            </div>
                                         </button>
                                     ))}
                                 </div>
                             )}
-                            {amazonMessage && <p className="mt-2 text-xs text-gray-500">{amazonMessage}</p>}
                         </div>
 
                         <div className="mb-5">
                             <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-gray-400 border-t border-gray-100 pt-3 mb-2">Prévia do Catálogo</p>
-                            <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl p-4">
+                            <div className="bg-white  border border-gray-100  rounded-2xl p-4">
                                 <div className="flex items-start justify-between gap-3 mb-2">
                                     <div>
                                         <p className="text-[15px] font-medium text-[#111827] leading-tight">{form.title || 'Título da Obra'}</p>
@@ -1665,7 +1581,7 @@
                                         <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-[#FAEEDA] text-[#633806] whitespace-nowrap">vol. {form.volume || '?'} — {form.series}</span>
                                     )}
                                 </div>
-                                <p className="text-[13px] text-gray-600 dark:text-gray-300 leading-relaxed mb-3">{form.synopsis || 'A sinopse aparecerá aqui quando o assistente preencher a ficha.'}</p>
+                                <p className="text-[13px] text-gray-600  leading-relaxed mb-3">{form.synopsis || 'A sinopse aparecerá aqui quando o assistente preencher a ficha.'}</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {previewTags.length > 0 ? previewTags.map((tag) => (
                                         <span key={tag} className="text-[11px] font-medium px-2 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-600">{tag}</span>
@@ -1680,7 +1596,7 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl dark:placeholder-gray-500" placeholder="Título *" value={form.title} onChange={(e) => setField('title', e.target.value)} required />
                             <input className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl dark:placeholder-gray-500" placeholder="Autor *" value={form.author} onChange={(e) => setField('author', e.target.value)} required />
-                            <select className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl" value={form.genre} onChange={(e) => setField('genre', e.target.value)}>
+                            <select className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl" value={form.genre} onChange={(e) => setField('genre', e.target.value)}>
                                 {selectableGenres.map(g => <option key={g} value={g}>{g}</option>)}
                             </select>
                             <input className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl dark:placeholder-gray-500" placeholder="Nova categoria (opcional)" value={customGenre} onChange={(e) => setCustomGenre(e.target.value)} />
@@ -1730,7 +1646,7 @@
                         </div>
                         <div className="mt-6 flex gap-3 justify-end">
                             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-semibold">Cancelar</button>
-                            <button type="submit" disabled={isUploadingEpub} className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold disabled:opacity-60">{isUploadingEpub ? 'Enviando EPUB...' : (initialBook ? 'Salvar Alterações' : 'Salvar no Banco')}</button>
+                            <button type="submit" disabled={isUploadingEpub} className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold disabled:opacity-60">{isUploadingEpub ? 'Enviando EPUB...' : (initialBook ? 'Salvar Alterações' : '+ Adicionar livro ao catálogo')}</button>
                         </div>
                     </form>
                 </div>
@@ -1851,7 +1767,270 @@
             );
         }
 
-        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, effectiveEpub, showImportButton, onImportToMine, isRead, isDownloaded, isInQueue, canQuickEdit, onQuickToggleRead, onQuickToggleDownload, onQuickToggleQueue, isHighlighted, commentsCount = 0, onDragReorder, isDragging, onDragOver, onDragLeave }) {
+        // ─── Dashboard View ───────────────────────────────────────────────────────
+        function DashboardView({ books, readStatus, downloadStatus, readingOrder, userRatings, readTimestamps, readingGoal, setReadingGoal, showGoalInput, setShowGoalInput, goalInputVal, setGoalInputVal, getCoverUrl }) {
+            const totalBooks = books.length;
+            const readBooks = books.filter(b => readStatus[b.id] === 'read');
+            const readCount = readBooks.length;
+            const queueCount = readingOrder.length;
+            const downloadCount = Object.values(downloadStatus).filter(v => v === 'downloaded').length;
+
+            // Genre breakdown
+            const genreCounts = {};
+            books.forEach(b => {
+                const g = b.genre || 'Sem género';
+                genreCounts[g] = (genreCounts[g] || 0) + 1;
+            });
+            const genreEntries = Object.entries(genreCounts).sort((a,b) => b[1]-a[1]).slice(0,6);
+            const GENRE_BAR_COLORS = {
+                'Fantasia':              '#10B981', // emerald-500
+                'Romantasy':             '#06B6D4', // cyan-500
+                'Ficção Científica':     '#3B82F6', // blue-500
+                'Thriller':              '#14B8A6', // teal-500
+                'Ficção Literária':      '#22C55E', // green-500
+                'Distopia':              '#8B5CF6', // violet-500
+                'Romance Contemporâneo': '#F59E0B', // amber-500
+            };
+            const getGenreBarColor = (genre) => GENRE_BAR_COLORS[genre] || '#94A3B8';
+
+            // Recently read (last 8)
+            const recentlyRead = readBooks
+                .filter(b => readTimestamps[b.id])
+                .sort((a,b) => (readTimestamps[b.id]||0) - (readTimestamps[a.id]||0))
+                .slice(0,8);
+
+            // Reading history timeline
+            const historyEntries = Object.entries(readTimestamps)
+                .sort((a,b) => b[1]-a[1])
+                .slice(0,8)
+                .map(([id, ts]) => ({ book: books.find(b => b.id === id), ts }))
+                .filter(e => e.book);
+
+            // Goal
+            const goalPct = readingGoal > 0 ? Math.min(100, Math.round((readCount / readingGoal) * 100)) : 0;
+            const goalDone = readingGoal > 0 && readCount >= readingGoal;
+
+            function StarMini({ rating }) {
+                return React.createElement('span', { className: 'flex gap-0.5' },
+                    [1,2,3,4,5].map(n =>
+                        React.createElement('svg', { key: n, width: 10, height: 10, viewBox: '0 0 24 24', fill: n <= rating ? '#F59E0B' : 'none', stroke: '#F59E0B', strokeWidth: 1.5 },
+                            React.createElement('polygon', { points: '12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26' })
+                        )
+                    )
+                );
+            }
+
+            return (
+                <div className="p-6 max-w-5xl mx-auto space-y-6">
+                    {/* Stats row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            { label: 'Total', value: totalBooks, color: '#3B82F6', icon: (
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                            )},
+                            { label: 'Lidos', value: readCount, color: '#14B8A6', icon: (
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            )},
+                            { label: 'Na fila', value: queueCount, color: '#8B5CF6', icon: (
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                            )},
+                            { label: 'Baixados', value: downloadCount, color: '#F59E0B', icon: (
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            )},
+                        ].map(({ label, value, color, icon }) => (
+                            <div key={label} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 flex items-center gap-3 shadow-sm">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: color + '18', color }}>
+                                    {icon}
+                                </div>
+                                <div>
+                                    <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">{value}</div>
+                                    <div className="text-xs text-gray-400 dark:text-gray-500 font-medium">{label}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Middle row: Genre + Goal */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Genre breakdown — horizontal layout per design system */}
+                        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-bold text-[#1E3A5F] dark:text-teal-300">Géneros favoritos</h3>
+                                <span className="text-[11px] font-semibold text-[#14B8A6] cursor-pointer">Ver tudo</span>
+                            </div>
+                            {genreEntries.length === 0 ? (
+                                <p className="text-xs text-gray-400 dark:text-gray-500">Nenhum género registado.</p>
+                            ) : (
+                                <div className="flex flex-col gap-[11px]">
+                                    {genreEntries.map(([genre, count]) => (
+                                        <div key={genre} className="flex items-center gap-2.5">
+                                            <span className="text-[12px] text-gray-500 font-medium flex-shrink-0" style={{ width: 130 }}>{genre}</span>
+                                            <div className="flex-1 h-[7px] bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                <div className="h-full rounded-full transition-all duration-500" style={{ width: totalBooks > 0 ? (count/totalBooks*100)+'%' : '0%', backgroundColor: getGenreBarColor(genre) }} />
+                                            </div>
+                                            <span className="text-[11px] font-bold text-gray-400 w-5 text-right flex-shrink-0">{count}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Reading goal */}
+                        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm flex flex-col">
+                            <h3 className="text-sm font-semibold text-gray-700 mb-1">Meta de leitura</h3>
+                            {readingGoal === 0 ? (
+                                <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                                    {showGoalInput ? (
+                                        <div className="flex gap-2 w-full">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={goalInputVal}
+                                                onChange={e => setGoalInputVal(e.target.value)}
+                                                placeholder="Quantos livros?"
+                                                className="flex-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#14B8A6] dark:placeholder-gray-500"
+                                            />
+                                            <button
+                                                onClick={() => { const v = parseInt(goalInputVal); if(v>0){ setReadingGoal(v); setShowGoalInput(false); setGoalInputVal(''); }}}
+                                                className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-semibold rounded-xl hover:bg-[#0D9488] transition-colors"
+                                            >Definir</button>
+                                            <button onClick={() => setShowGoalInput(false)} className="px-3 py-2 text-gray-400 hover:text-gray-600 text-sm rounded-xl border border-gray-200 dark:border-gray-600 dark:text-gray-500">✕</button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500 text-center">Ainda não definiste uma meta anual.</p>
+                                            <button onClick={() => setShowGoalInput(true)} className="px-4 py-2 bg-[#14B8A6] text-white text-xs font-semibold rounded-xl hover:bg-[#0D9488] transition-colors">Definir meta</button>
+                                        </>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="flex-1 flex flex-col">
+                                    {goalDone && (
+                                        <div className="inline-flex items-center gap-1.5 bg-[#10B981] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-4 self-start">
+                                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                            Meta concluída!
+                                        </div>
+                                    )}
+                                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4">{new Date().getFullYear()}</p>
+                                    <div className="flex items-baseline gap-1.5 mb-3">
+                                        <span className="text-5xl font-black text-[#1E3A5F] dark:text-gray-100 leading-none">{readCount}</span>
+                                        <span className="text-2xl text-gray-300 dark:text-gray-600 font-light">/</span>
+                                        <span className="text-2xl font-bold text-gray-400 dark:text-gray-500">{readingGoal}</span>
+                                        <span className="text-sm font-semibold text-gray-400 dark:text-gray-500 self-end mb-1">livros</span>
+                                    </div>
+                                    <div className="h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-2.5">
+                                        <div className="h-full rounded-full transition-all duration-700" style={{ width: goalPct+'%', background: goalDone ? 'linear-gradient(90deg,#14B8A6,#34D399)' : 'linear-gradient(90deg,#14B8A6,#34D399)' }} />
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[12px] font-bold text-[#14B8A6]">{goalPct}%</span>
+                                        <button onClick={() => { setReadingGoal(0); setShowGoalInput(false); }} className="text-[12px] text-gray-400 hover:text-red-400 transition-colors">Redefinir</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Recently read — list format per design system */}
+                    {recentlyRead.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-bold text-[#1E3A5F]">Lidos recentemente</h3>
+                                <span className="text-[11px] font-semibold text-[#14B8A6] cursor-pointer">Ver histórico</span>
+                            </div>
+                            <div className="flex flex-col gap-3.5">
+                                {recentlyRead.map(b => {
+                                    const ts = readTimestamps[b.id];
+                                    const dateStr = ts ? new Date(ts).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' }) : '';
+                                    const rating = userRatings[b.id] || 0;
+                                    const coverSrc = getCoverUrl(b);
+                                    return (
+                                        <div key={b.id} className="flex items-center gap-3">
+                                            <div className="w-9 h-[52px] rounded-md overflow-hidden flex-shrink-0 shadow-sm bg-gradient-to-br from-[#1E3A5F] to-[#14B8A6] dark:from-gray-700 dark:to-gray-600">
+                                                {coverSrc && <img src={coverSrc} alt={b.title} className="w-full h-full object-cover" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[13px] font-bold text-[#1E3A5F] truncate">{b.title}</p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5 truncate">{b.author}</p>
+                                                {rating > 0 && (
+                                                    <div className="flex gap-px mt-1">
+                                                        {[1,2,3,4,5].map(n => (
+                                                            <svg key={n} width="10" height="10" viewBox="0 0 24 24" fill={n<=rating?'#F59E0B':'#E5E7EB'} stroke={n<=rating?'#F59E0B':'#E5E7EB'} strokeWidth="1">
+                                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+                                                            </svg>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 flex-shrink-0">{dateStr}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Reading history timeline — card style per design system */}
+                    {historyEntries.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                            <h3 className="text-sm font-bold text-[#1E3A5F] mb-4">Histórico de leituras</h3>
+                            <div className="flex flex-col">
+                                {historyEntries.map(({ book: b, ts }, i) => {
+                                    const d = new Date(ts);
+                                    const monthLabel = d.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+                                    const dateStr = d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
+                                    const rating = userRatings[b.id] || 0;
+                                    const styles = getGenreStyles(b.genre);
+                                    return (
+                                        <div key={b.id} className="flex gap-3.5 items-start py-2.5 relative">
+                                            {/* Timeline line */}
+                                            <div className="absolute left-[8px] top-0 bottom-0 w-0.5 bg-gray-100" style={{ display: i < historyEntries.length - 1 ? 'block' : 'none' }} />
+                                            {/* Dot */}
+                                            <div className="w-[18px] h-[18px] rounded-full bg-white border-2 border-[#14B8A6] flex-shrink-0 z-10 mt-0.5 flex items-center justify-center">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-[#14B8A6]" />
+                                            </div>
+                                            {/* Card */}
+                                            <div className="flex-1 border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl px-4 py-3">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[13px] font-bold text-[#1E3A5F] dark:text-teal-300 leading-tight">{b.title}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[11px] text-gray-400">{b.author}</span>
+                                                            {b.genre && <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${styles.bg} ${styles.text}`}>{b.genre}</span>}
+                                                        </div>
+                                                        {rating > 0 && (
+                                                            <div className="flex gap-px mt-1.5">
+                                                                {[1,2,3,4,5].map(n => (
+                                                                    <svg key={n} width="10" height="10" viewBox="0 0 24 24" fill={n<=rating?'#F59E0B':'#E5E7EB'} stroke={n<=rating?'#F59E0B':'#E5E7EB'} strokeWidth="1">
+                                                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+                                                                    </svg>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[10px] font-semibold text-gray-400 flex-shrink-0 whitespace-nowrap">{dateStr}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Empty state for history */}
+                    {historyEntries.length === 0 && recentlyRead.length === 0 && (
+                        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-8 shadow-sm flex flex-col items-center gap-3">
+                            <svg className="w-12 h-12 text-gray-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                            <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">Ainda não leste nenhum livro.</p>
+                            <p className="text-xs text-gray-300 dark:text-gray-600">Marca livros como lidos para veres o teu histórico aqui.</p>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+
+        function BookCard({ book, coverUrl, onClick, isQueueMode, queueIndex, totalInQueue, onMove, onRemoveFromQueue, onGenreClick, hasRemoteEpub, effectiveEpub, showImportButton, onImportToMine, isRead, isDownloaded, isInQueue, canQuickEdit, onQuickToggleRead, onQuickToggleDownload, onQuickToggleQueue, isHighlighted, commentsCount = 0, onDragReorder, isDragging, onDragOver, onDragLeave, userRating = 0, onRate }) {
             const styles = getGenreStyles(book.genre);
             const isMultiVolumeSeries = !!book.isSeries && Number(book.totalVolumes) > 1;
             const seriesLabel = isMultiVolumeSeries ? getSeriesLabel(Number(book.totalVolumes)) : "";
@@ -1864,7 +2043,7 @@
                         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { onDragLeave && onDragLeave(); } }}
                         onDrop={(e) => { e.preventDefault(); onDragReorder && onDragReorder('drop'); }}
                         onDragEnd={() => onDragReorder && onDragReorder('end')}
-                        className={`bg-white dark:bg-gray-800 p-4 rounded-[28px] border border-gray-100 dark:border-gray-700 flex items-center gap-3 md:gap-5 shadow-sm transition-all group animate-fade-in select-none hover:shadow-md${isDragging ? ' opacity-40' : ''}`}
+                        className={`bg-white dark:bg-gray-800 p-4 rounded-[28px] border border-gray-100 dark:border-gray-700 flex items-center gap-3 md:gap-5 shadow-sm transition-all group animate-fade-in select-none hover:shadow-md${isDragging ? ' dnd-dragging' : ''}`}
                     >
                         {/* Drag handle */}
                         <div
@@ -1919,7 +2098,7 @@
                             {book.isDistopia && <span className="bg-violet-600 text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider w-fit">DISTOPIA</span>}
                             {book.isBrazilianAuthor && (
                                 <span className="bg-[#14B8A6] text-white text-[9px] font-black px-2.5 py-1 rounded shadow-lg uppercase tracking-wider w-fit flex items-center gap-1.5 shadow-md">
-                                    <span className="text-[11px]">🇧🇷</span> NACIONAL
+                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg> NACIONAL
                                 </span>
                             )}
                             {isMultiVolumeSeries && (
@@ -1956,6 +2135,17 @@
                         <div className="mb-3">
                             <h3 className="font-bold text-[13px] md:text-sm leading-[1.4] line-clamp-2 text-gray-900 dark:text-gray-100 group-hover:text-[#14B8A6] transition-colors">{book.title}</h3>
                             <p className="text-gray-400 text-[10px] md:text-[11px] font-medium truncate mt-0.5">{book.author}</p>
+                            {onRate && (
+                                <div className="flex gap-0.5 mt-2" onClick={e => e.stopPropagation()}>
+                                    {[1,2,3,4,5].map(n => (
+                                        <button key={n} type="button" onClick={(e) => { e.stopPropagation(); onRate(n === userRating ? 0 : n); }} className="transition-transform hover:scale-125 active:scale-95 p-0.5">
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill={n <= userRating ? '#F59E0B' : 'none'} stroke={n <= userRating ? '#F59E0B' : '#D1D5DB'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                            </svg>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-auto">
                             <span 
@@ -1992,7 +2182,7 @@
                                     }}
                                     title={isRead ? 'Desmarcar como lido' : 'Marcar como lido'}
                                     aria-label={isRead ? 'Desmarcar como lido' : 'Marcar como lido'}
-                                    className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isRead ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-emerald-200 hover:text-emerald-700'}`}
+                                    className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isRead ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]' : 'bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-emerald-200 hover:text-emerald-600'}`}
                                 >
                                     <Icon name="check" className="w-3 h-3" />
                                 </button>
@@ -2004,7 +2194,7 @@
                                     }}
                                     title={isDownloaded ? 'Desmarcar como baixado' : 'Marcar como baixado'}
                                     aria-label={isDownloaded ? 'Desmarcar como baixado' : 'Marcar como baixado'}
-                                    className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isDownloaded ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-cyan-200 hover:text-cyan-700'}`}
+                                    className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isDownloaded ? 'bg-cyan-50 text-cyan-700 border-cyan-200 shadow-[0_0_0_3px_rgba(6,182,212,0.18)]' : 'bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-cyan-200 hover:text-cyan-600'}`}
                                 >
                                     <Icon name="download" className="w-3 h-3" />
                                 </button>
@@ -2016,7 +2206,7 @@
                                     }}
                                     title={isInQueue ? 'Remover da fila' : 'Adicionar na fila'}
                                     aria-label={isInQueue ? 'Remover da fila' : 'Adicionar na fila'}
-                                    className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isInQueue ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-amber-200 hover:text-amber-700'}`}
+                                    className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all active:scale-95 ${isInQueue ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-[0_0_0_3px_rgba(245,158,11,0.18)]' : 'bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-400 border-gray-200 dark:border-gray-600 hover:border-amber-200 hover:text-amber-600'}`}
                                 >
                                     <Icon name="list" className="w-3 h-3" />
                                 </button>
@@ -2027,7 +2217,7 @@
             );
         }
 
-        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick, hasRemoteEpub, isViewingOwnProfile, effectiveEpub, bookComments = [], onAddComment, onDeleteComment, currentProfileLabel, currentProfileId }) {
+        function DetailModal({ book, onClose, isRead, isDownloaded, isInQueue, coverUrl, onToggleRead, onToggleDownload, onToggleQueue, onDelete, onEdit, onUploadEpub, onDeleteEpub, onGenreClick, hasRemoteEpub, isViewingOwnProfile, effectiveEpub, bookComments = [], onAddComment, onDeleteComment, currentProfileLabel, currentProfileId, userRating = 0, onRate }) {
             const styles = getGenreStyles(book.genre);
             const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
             const [isConfirmingDeleteEpub, setIsConfirmingDeleteEpub] = useState(false);
@@ -2093,6 +2283,18 @@
                                             >
                                                 <Icon name="download" className="w-3.5 h-3.5" />
                                                 Baixar EPUB {(effectiveEpub?.epubFileName || book.epubFileName) ? `(${effectiveEpub?.epubFileName || book.epubFileName})` : ''}
+                                            </button>
+                                        )}
+                                        {!!effectiveEpub?.epubUrl && (
+                                            <button
+                                                onClick={() => {
+                                                    const viewerUrl = `epub-viewer.html?url=${encodeURIComponent(effectiveEpub?.epubUrl || book.epubUrl)}&title=${encodeURIComponent(book.title || 'Livro')}`;
+                                                    window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+                                                }}
+                                                className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100"
+                                            >
+                                                <Icon name="bookOpen" className="w-3.5 h-3.5" />
+                                                Visualizar EPUB
                                             </button>
                                         )}
                                         {book.epubKey && !book.epubUrl && (
@@ -2219,7 +2421,7 @@
                                                     onChange={(e) => setCommentDraft(e.target.value)}
                                                     maxLength={220}
                                                     placeholder={`Comentar como ${currentProfileLabel.toLowerCase()}...`}
-                                                    className="flex-1 px-2.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[11px] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#14B8A6]/25 dark:placeholder-gray-500"
+                                                    className="flex-1 px-2.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[11px] text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-[#14B8A6]/25 dark:placeholder-gray-500 "
                                                 />
                                                 <button type="submit" className="px-3 py-2 rounded-xl bg-[#14B8A6] text-white text-[10px] font-black uppercase tracking-wide hover:bg-[#0fae9d] transition-colors">Enviar</button>
                                             </form>
@@ -2232,7 +2434,7 @@
                                             <span onClick={() => { onGenreClick(book.genre); onClose(); }} className={`text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-full border cursor-pointer hover:shadow-sm transition-all ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre}</span>
                                             {book.isBrazilianAuthor && (
                                                 <span className="bg-teal-50 text-[#14B8A6] border border-[#14B8A6]/20 text-[10px] uppercase font-black tracking-widest px-4 py-1.5 rounded-full shadow-sm flex items-center gap-1.5">
-                                                    <span>🇧🇷</span> Nacional
+                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg> Nacional
                                                 </span>
                                             )}
                                             {isMultiVolumeSeries && (
@@ -2243,6 +2445,17 @@
                                         </div>
                                         <h3 className="text-3xl md:text-5xl font-serif font-bold text-[#1E3A5F] mb-4 leading-tight">{book.title}</h3>
                                         <p className="text-xl text-gray-400 italic font-serif">por {book.author}</p>
+                                        {onRate && (
+                                            <div className="flex items-center gap-1 mt-3">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300 mr-1">Avaliação</span>
+                                                {[1,2,3,4,5].map(n => (
+                                                    <button key={n} type="button" onClick={() => onRate(n === userRating ? 0 : n)} className="transition-transform hover:scale-125 active:scale-95 p-0.5">
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill={n <= userRating ? '#F59E0B' : 'none'} stroke={n <= userRating ? '#F59E0B' : '#D1D5DB'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                                    </button>
+                                                ))}
+                                                {userRating > 0 && <span className="text-sm font-bold text-amber-500 ml-1">{userRating}/5</span>}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mb-12 text-sm">
                                         <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Editora</span><span className="font-bold text-[#1E3A5F]">{book.publisher || "Independente"}</span></div>
@@ -2291,7 +2504,8 @@
             { value: 'added-desc', label: 'Mais recentes' },
             { value: 'alpha-asc', label: 'A-Z' },
             { value: 'genre-asc', label: 'Gênero' },
-            { value: 'pages-desc', label: 'Mais páginas' }
+            { value: 'pages-desc', label: 'Mais páginas' },
+            { value: 'rating-desc', label: 'Melhor avaliados' }
         ];
 
         const getBookKey = (book) => {
@@ -2367,16 +2581,18 @@
             const [bellRing, setBellRing] = useState(false);
             const [profileSwitchAnim, setProfileSwitchAnim] = useState(false);
             const [logoutFlash, setLogoutFlash] = useState(false);
-            const [darkMode] = React.useState(true);
-            React.useEffect(() => {
-                document.documentElement.classList.add('dark');
-            }, []);
+            const [darkMode] = React.useState(() => localStorage.getItem('darkMode') === 'true');
             const [amazonHighlights, setAmazonHighlights] = useState([]);
             const [isLoadingAmazonHighlights, setIsLoadingAmazonHighlights] = useState(false);
             const [amazonHighlightsError, setAmazonHighlightsError] = useState('');
             const [highlightedBookId, setHighlightedBookId] = useState(null);
             const [dragSrcIndex, setDragSrcIndex] = useState(null);
             const [dragInsertIndex, setDragInsertIndex] = useState(null);
+            const [userRatings, setUserRatings] = useState({});
+            const [readTimestamps, setReadTimestamps] = useState({});
+            const [readingGoal, setReadingGoal] = useState(0);
+            const [showGoalInput, setShowGoalInput] = useState(false);
+            const [goalInputVal, setGoalInputVal] = useState('');
             const previousChatUnreadRef = useRef(null);
             const chatMessagesContainerRef = useRef(null);
             const chatFromCloudRef = useRef(false);
@@ -2409,7 +2625,10 @@
                     covers: `libdb-covers-${version}-${profileId}`,
                     custom: `libdb-custom-${version}-${profileId}`,
                     removed: `libdb-removed-${version}-${profileId}`,
-                    queue: `libdb-queue-${version}-${profileId}`
+                    queue: `libdb-queue-${version}-${profileId}`,
+                    ratings: `libdb-ratings-v1-${profileId}`,
+                    timestamps: `libdb-timestamps-v1-${profileId}`,
+                    goal: `libdb-goal-v1-${profileId}`
                 };
             }, []);
 
@@ -2422,6 +2641,12 @@
             const viewerProfileId = myProfileId || activeProfile;
             const chatCurrentProfile = PROFILE_OPTIONS.find(profile => profile.id === viewerProfileId) || currentProfile;
             const chatOtherProfile = PROFILE_OPTIONS.find(profile => profile.id !== viewerProfileId) || otherProfile;
+
+            // Atualiza o título do browser com o perfil ativo
+            useEffect(() => {
+                document.title = `Biblioteca | ${currentProfile.label}`;
+            }, [currentProfile.label]);
+
             const profilePreferencesKey = useMemo(
                 () => `libdb-preferences-${PROFILE_PREFERENCES_VERSION}-${activeProfile}`,
                 [activeProfile]
@@ -2987,6 +3212,21 @@
                 if (notificationsFromCloudRef.current) { notificationsFromCloudRef.current = false; return; }
                 saveToCloud(NOTIFICATIONS_STORAGE_KEY, notifications);
             }, [notifications, user, notificationsInitialized]);
+
+            useEffect(() => {
+                if (!isInitialized) return;
+                localStorage.setItem(profileKeys.ratings, JSON.stringify(userRatings));
+            }, [userRatings, profileKeys, isInitialized]);
+
+            useEffect(() => {
+                if (!isInitialized) return;
+                localStorage.setItem(profileKeys.timestamps, JSON.stringify(readTimestamps));
+            }, [readTimestamps, profileKeys, isInitialized]);
+
+            useEffect(() => {
+                if (!isInitialized) return;
+                localStorage.setItem(profileKeys.goal, String(readingGoal));
+            }, [readingGoal, profileKeys, isInitialized]);
 
             useEffect(() => {
                 const raw = localStorage.getItem(profilePreferencesKey);
@@ -3670,8 +3910,12 @@
 
                     if (cancelled) return;
 
+                    const ratings = JSON.parse(localStorage.getItem(profileKeys.ratings) || '{}');
+                    const timestamps = JSON.parse(localStorage.getItem(profileKeys.timestamps) || '{}');
+                    const goal = Number(localStorage.getItem(profileKeys.goal) || '0');
                     setReadStatus(r); setDownloadStatus(d); setCustomCovers(c);
                     setCustomBooks(cb); setRemovedInitialIds(rem); setReadingOrder(q);
+                    setUserRatings(ratings); setReadTimestamps(timestamps); setReadingGoal(goal);
                     setIsInitialized(true);
                     isProfileSwitchingRef.current = false;
                 };
@@ -3901,7 +4145,13 @@
                 if (!ensureOwnProfileWrite()) return;
                 const isNextRead = !readStatus[book.id];
                 setReadStatus(prev => ({ ...prev, [book.id]: isNextRead }));
-                notifyUser(isNextRead ? `${book.title} marcado como lido.` : `${book.title} desmarcado de lido.`, 'info');
+                if (isNextRead) {
+                    setReadTimestamps(prev => ({ ...prev, [book.id]: new Date().toISOString() }));
+                } else {
+                    setReadTimestamps(prev => { const n = {...prev}; delete n[book.id]; return n; });
+                    setUserRatings(prev => { const n = {...prev}; delete n[book.id]; return n; });
+                }
+                notifyUser(isNextRead ? `${book.title} marcado como lido` : `${book.title} desmarcado`, isNextRead ? 'success' : 'info', isNextRead ? 'Avalie o livro com as estrelas' : '');
                 logActivity(`${isNextRead ? 'Marcou' : 'Desmarcou'} ${book.title} como lido.`, 'status');
             }, [ensureOwnProfileWrite, readStatus, logActivity]);
 
@@ -3909,7 +4159,7 @@
                 if (!ensureOwnProfileWrite()) return;
                 const isNextDownloaded = !downloadStatus[book.id];
                 setDownloadStatus(prev => ({ ...prev, [book.id]: isNextDownloaded }));
-                notifyUser(isNextDownloaded ? `${book.title} marcado como baixado.` : `${book.title} desmarcado de baixado.`, 'info');
+                notifyUser(isNextDownloaded ? `${book.title} baixado` : `${book.title} removido dos baixados`, isNextDownloaded ? 'success' : 'info', isNextDownloaded ? 'Disponível no EPUB Viewer' : '');
                 logActivity(`${isNextDownloaded ? 'Marcou' : 'Desmarcou'} ${book.title} como baixado.`, 'status');
             }, [ensureOwnProfileWrite, downloadStatus, logActivity]);
 
@@ -3917,9 +4167,13 @@
                 if (!ensureOwnProfileWrite()) return;
                 const inQueue = readingOrder.includes(book.id);
                 setReadingOrder(prev => inQueue ? prev.filter(x => x !== book.id) : [...prev, book.id]);
-                notifyUser(inQueue ? `${book.title} removido da fila.` : `${book.title} adicionado à fila.`, 'info');
+                notifyUser(inQueue ? `${book.title} removido da lista` : `${book.title} adicionado à lista de leitura`, inQueue ? 'info' : 'success', !inQueue ? `Posição #${readingOrder.length + 1} na fila` : '');
                 logActivity(`${inQueue ? 'Removeu' : 'Adicionou'} ${book.title} ${inQueue ? 'da' : 'na'} fila.`, 'queue');
             }, [ensureOwnProfileWrite, readingOrder, logActivity]);
+
+            const handleRateBook = useCallback((bookId, rating) => {
+                setUserRatings(prev => ({ ...prev, [bookId]: rating }));
+            }, []);
 
             const deleteBookFromCatalog = (id) => {
                 const isCustom = customBooks.some(b => b.id === id);
@@ -4002,11 +4256,13 @@
                         });
                     case 'pages-desc':
                         return list.sort((a, b) => (Number(b?.pages) || 0) - (Number(a?.pages) || 0));
+                    case 'rating-desc':
+                        return list.sort((a, b) => (userRatings[b.id] || 0) - (userRatings[a.id] || 0));
                     case 'added-desc':
                     default:
                         return list.sort((a, b) => getBookAddedTimestamp(b) - getBookAddedTimestamp(a));
                 }
-            }, [filteredBooks, viewMode, bookSortMode, getBookAddedTimestamp]);
+            }, [filteredBooks, viewMode, bookSortMode, getBookAddedTimestamp, userRatings]);
 
             const stats = {
                 total: allBooksCombined.length,
@@ -4077,18 +4333,18 @@
             return (
                 <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
                     <a
-                        href="index.html"
-                        title="Modo claro"
-                        style={{position:'fixed',top:'8px',right:'16px',zIndex:9999,width:'32px',height:'32px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(17,24,39,0.85)',backdropFilter:'blur(6px)',border:'1px solid #14B8A6',boxShadow:'0 2px 8px rgba(20,184,166,0.25)',textDecoration:'none',transition:'transform 0.15s'}}
+                        href="dark.html"
+                        title="Modo escuro"
+                        style={{position:'fixed',top:'8px',right:'16px',zIndex:9999,width:'32px',height:'32px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,0.85)',backdropFilter:'blur(6px)',border:'1px solid #14B8A6',boxShadow:'0 2px 8px rgba(20,184,166,0.18)',textDecoration:'none',transition:'transform 0.15s'}}
                         onMouseEnter={e => e.currentTarget.style.transform='scale(1.1)'}
                         onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
-                    ><svg viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></a>
+                    ><svg viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></a>
                     <ToastViewport toasts={toasts} onDismiss={removeToast} />
                     {authLoading ? (
                         <div className="flex items-center justify-center min-h-screen">
                             <div className="text-center">
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#14B8A6] mx-auto mb-4"></div>
-                                <p className="text-gray-600 dark:text-gray-300">Carregando...</p>
+                                <p className="text-gray-600 ">Carregando...</p>
                             </div>
                         </div>
                     ) : !user ? (
@@ -4188,23 +4444,26 @@
                         </div>
                     </header>
 
-                    <nav className="sticky top-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800 shadow-sm transition-all duration-300">
+                    <nav className="sticky top-0 z-40 bg-white backdrop-blur-xl border-b border-gray-100 shadow-sm transition-all duration-300">
                         <div className="max-w-7xl mx-auto flex flex-col">
                             <div className="px-6 py-4 flex flex-col xl:flex-row gap-4 items-center justify-between">
                                 <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl shrink-0 w-full xl:w-auto">
+                                    <button onClick={() => setViewMode('dashboard')} className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'dashboard' ? 'bg-[#1E3A5F] text-white shadow-sm' : 'text-gray-400 dark:text-gray-500'}`}>
+                                        <Icon name="layers" className="w-3.5 h-3.5" /> Dashboard
+                                    </button>
                                     <button onClick={() => setViewMode('grid')} className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 text-[#1E3A5F] dark:text-teal-300 shadow-sm' : 'text-gray-400 dark:text-gray-500'}`}>
                                         <Icon name="grid" className="w-3.5 h-3.5" /> Catálogo
                                     </button>
                                     <button onClick={() => setViewMode('queue')} className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'queue' ? 'bg-[#14B8A6] text-white shadow-sm' : 'text-gray-400 dark:text-gray-500'}`}>
                                         <Icon name="list" className="w-3.5 h-3.5" /> Minha Fila
                                     </button>
-                                    <button onClick={() => setViewMode('amazon')} className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'amazon' ? 'bg-[#1E3A5F] text-white shadow-sm' : 'text-gray-400 dark:text-gray-500'}`}>
+                                    <button onClick={() => setViewMode('amazon')} className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'amazon' ? 'bg-[#14B8A6] text-white shadow-sm' : 'text-gray-400 dark:text-gray-500'}`}>
                                         <Icon name="bookOpen" className="w-3.5 h-3.5" /> Em Alta
                                     </button>
                                 </div>
                                 <div className="relative w-full xl:max-w-md">
                                     <Icon name="search" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <input type="text" placeholder="Pesquisar..." className="w-full pl-11 pr-4 py-2.5 bg-[#F8F9FB] dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm dark:text-gray-100 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#14B8A6]/20 outline-none" value={searchQuery} disabled={viewMode === 'queue' || viewMode === 'amazon'} onChange={(e) => setSearchQuery(e.target.value)} />
+                                    <input type="text" placeholder="Pesquisar..." className="w-full pl-11 pr-4 py-2.5 bg-[#F8F9FB] dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm dark:text-gray-100 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#14B8A6]/20 outline-none" value={searchQuery} disabled={viewMode === 'queue' || viewMode === 'amazon' || viewMode === 'dashboard'} onChange={(e) => setSearchQuery(e.target.value)} />
                                 </div>
                                 <div className="flex gap-2 w-full xl:w-auto items-center">
                                     <div className="relative flex-1 xl:flex-none">
@@ -4278,7 +4537,7 @@
                                                                     <div className="flex items-start justify-between gap-2">
                                                                         <div className="min-w-0 flex-1">
                                                                             <p className="text-[10px] text-gray-400 lowercase font-semibold">{notification.fromProfileLabel || 'perfil'}</p>
-                                                                            <p className={`text-[11px] text-[#1E3A5F] dark:text-teal-300 leading-relaxed ${isClickable ? 'underline decoration-dotted underline-offset-2' : ''}`}>{notification.text}</p>
+                                                                            <p className={`text-[11px] text-[#1E3A5F]  leading-relaxed ${isClickable ? 'underline decoration-dotted underline-offset-2' : ''}`}>{notification.text}</p>
                                                                             <p className="mt-1 text-[10px] text-gray-400">{formatChatTime(notification.createdAt)}</p>
                                                                         </div>
                                                                         <button
@@ -4312,7 +4571,23 @@
                     </nav>
 
                     <main key={activeProfile + viewMode} className={`max-w-7xl mx-auto px-6 py-12 ${profileTransitionStage === 'out' ? 'profile-transition-out' : ''} ${profileTransitionStage === 'in' ? 'profile-transition-in' : ''}`} style={{ pointerEvents: profileTransitionStage === 'out' ? 'none' : 'auto' }}>
-                        {viewMode === 'amazon' ? (
+                        {viewMode === 'dashboard' ? (
+                            <DashboardView
+                                books={allBooksCombined}
+                                readStatus={readStatus}
+                                downloadStatus={downloadStatus}
+                                readingOrder={readingOrder}
+                                readTimestamps={readTimestamps}
+                                userRatings={userRatings}
+                                readingGoal={readingGoal}
+                                setReadingGoal={setReadingGoal}
+                                showGoalInput={showGoalInput}
+                                setShowGoalInput={setShowGoalInput}
+                                goalInputVal={goalInputVal}
+                                setGoalInputVal={setGoalInputVal}
+                                getCoverUrl={getCoverUrl}
+                            />
+                        ) : viewMode === 'amazon' ? (
                             <div className="max-w-6xl mx-auto">
                                 <div className="mb-6 rounded-2xl border border-[#1E3A5F]/10 dark:border-[#1E3A5F]/20 bg-[#1E3A5F]/[0.03] dark:bg-[#1E3A5F]/10 p-4 md:p-5">
                                     <h3 className="text-[12px] md:text-sm font-black uppercase tracking-widest text-[#1E3A5F] dark:text-teal-300">Livros Em Alta no Geral</h3>
@@ -4338,10 +4613,14 @@
                                                     <p className="min-h-[1rem] text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1">{item.author}</p>
                                                     <div className="min-h-[1rem] mt-1">
                                                         {item.averageRating > 0 && (
-                                                            <p className="text-[10px] text-amber-500 font-bold">
-                                                                {'★'.repeat(Math.round(item.averageRating)).padEnd(5, '☆')}
-                                                                <span className="text-gray-400 font-semibold ml-1">{item.averageRating.toFixed(1)}{item.ratingsCount ? ` (${item.ratingsCount})` : ''}</span>
-                                                            </p>
+                                                            <div className="flex items-center gap-0.5">
+                                                                {[1,2,3,4,5].map(n => (
+                                                                    <svg key={n} width="10" height="10" viewBox="0 0 24 24" fill={n <= Math.round(item.averageRating) ? '#F59E0B' : 'none'} stroke="#F59E0B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                                                    </svg>
+                                                                ))}
+                                                                <span className="text-[9px] text-gray-400 font-semibold ml-1">{item.averageRating.toFixed(1)}{item.ratingsCount ? ` (${item.ratingsCount})` : ''}</span>
+                                                            </div>
                                                         )}
                                                     </div>
                                                     <div className="mt-auto pt-2.5">
@@ -4404,7 +4683,10 @@
                                 return (
                                     <React.Fragment key={b.id}>
                                         {showInsertBefore && (
-                                            <div className="h-1 rounded-full bg-[#14B8A6] mx-4 shadow-sm shadow-[#14B8A6]/40" />
+                                            <div className="dnd-ghost-placeholder">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+                                                Solte aqui — posição {dragInsertIndex + 1}
+                                            </div>
                                         )}
                                         <BookCard 
                                     key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
@@ -4417,6 +4699,8 @@
                                     onQuickToggleRead={handleQuickToggleRead}
                                     onQuickToggleDownload={handleQuickToggleDownload}
                                     onQuickToggleQueue={handleQuickToggleQueue}
+                                    userRating={userRatings[b.id] || 0}
+                                    onRate={(rating) => handleRateBook(b.id, rating)}
                                     commentsCount={(commentsByBook[getBookKey(b)] || []).length}
                                     isQueueMode={viewMode === 'queue'} queueIndex={idx} totalInQueue={readingOrder.length}
                                     onMove={(idx, dir) => {
@@ -4460,7 +4744,20 @@
                                 );
                             })}
                             {viewMode === 'queue' && dragSrcIndex !== null && dragInsertIndex === sortedFilteredBooks.length && dragSrcIndex !== sortedFilteredBooks.length - 1 && (
-                                <div className="h-1 rounded-full bg-[#14B8A6] mx-4 shadow-sm shadow-[#14B8A6]/40" />
+                                <div className="dnd-ghost-placeholder">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+                                    Solte aqui — última posição
+                                </div>
+                            )}
+                            {viewMode === 'grid' && sortedFilteredBooks.length === 0 && (searchQuery || filterRead || filterDownloaded) && (
+                                <div className="col-span-full flex flex-col items-center justify-center py-24 text-center gap-4">
+                                    <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                                    <div>
+                                        <p className="text-lg font-black text-[#1E3A5F] dark:text-teal-300">Nenhum resultado</p>
+                                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Nenhum livro corresponde aos filtros activos.</p>
+                                    </div>
+                                    <button onClick={() => { setSearchQuery(''); setFilterRead(false); setFilterDownloaded(false); setActiveGenre('Todos'); }} className="px-5 py-2 rounded-xl bg-[#14B8A6] text-white text-xs font-bold hover:bg-[#0d9e8e] transition-colors">Limpar filtros</button>
+                                </div>
                             )}
                         </div>
                         </>
@@ -4488,6 +4785,8 @@
                                 deleteBookComment(getBookKey(book), commentId);
                             }}
                             currentProfileLabel={loggedUserProfile?.label || currentProfile.label}
+                            userRating={userRatings[selectedBook.id] || 0}
+                            onRate={(rating) => handleRateBook(selectedBook.id, rating)}
                             currentProfileId={myProfileId || activeProfile}
                             onEdit={() => { setEditingBook(selectedBook); setShowAddBook(true); }}
                             onUploadEpub={(file) => {
@@ -4608,7 +4907,7 @@
                                         onChange={(e) => setChatInput(e.target.value)}
                                         maxLength={400}
                                         placeholder={`Mensagem de ${chatCurrentProfile.label} para ${chatOtherProfile?.label || 'o outro perfil'}...`}
-                                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 dark:placeholder-gray-500 outline-none focus:ring-2 focus:ring-[#14B8A6]/30"
+                                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200  bg-white  text-sm text-gray-900   outline-none focus:ring-2 focus:ring-[#14B8A6]/30"
                                     />
                                     <button
                                         type="submit"
