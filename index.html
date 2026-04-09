@@ -2534,6 +2534,31 @@
                                         {!!effectiveEpub?.epubUrl && (
                                             <SendToKindleButton epubUrl={effectiveEpub.epubUrl} fileName={effectiveEpub.epubFileName || book.title + '.epub'} profileId={currentProfileId} />
                                         )}
+                                        {!!book.epubPath && !!effectiveEpub?.epubUrl && isViewingOwnProfile && (
+                                            isConfirmingDeleteEpub ? (
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={handleDeleteEpub}
+                                                        className="flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-red-600 text-white border-red-600 hover:bg-red-700"
+                                                    >
+                                                        <Icon name="trash" className="w-3.5 h-3.5" /> Confirmar exclusão
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setIsConfirmingDeleteEpub(false)}
+                                                        className="py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center transition-all border bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setIsConfirmingDeleteEpub(true)}
+                                                    className="w-full py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border bg-red-50 text-red-400 border-red-100 hover:bg-red-100 hover:text-red-600"
+                                                >
+                                                    <Icon name="trash" className="w-3.5 h-3.5" /> Excluir EPUB
+                                                </button>
+                                            )
+                                        )}
                                         {book.epubKey && !book.epubUrl && (
                                             <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-semibold text-amber-700 leading-relaxed">
                                                 Este livro ainda usa o formato antigo de EPUB local. Reenvie o arquivo para migrar ao Supabase Storage.
@@ -4349,6 +4374,7 @@
                         ? { ...book, ...epubFields }
                         : book
                 )));
+                setDownloadStatus(prev => ({ ...prev, [bookId]: true }));
                 setSelectedBook(prev => (
                     prev && prev.id === bookId
                         ? { ...prev, ...epubFields }
@@ -4430,20 +4456,60 @@
                             source: 'telegram',
                         }]);
                     }
+                    setDownloadStatus(prev => ({ ...prev, [existingBookId]: true }));
                 } else {
-                    setCustomBooks(prev => [{
-                        id       : 'tg_' + Date.now(),
+                    // Livro novo: cria entrada básica imediatamente
+                    const newId = 'tg_' + Date.now();
+                    const baseBook = {
+                        id       : newId,
                         title    : title || fileName || 'Sem título',
                         author   : '',
                         genre    : '',
                         coverUrl : '',
                         synopsis : '',
-                        epubUrl  : epubUrl,
+                        epubUrl,
                         addedAt  : Date.now(),
                         source   : 'telegram',
-                    }, ...prev]);
+                    };
+                    setCustomBooks(prev => [baseBook, ...prev]);
+                    setDownloadStatus(prev => ({ ...prev, [newId]: true }));
+
+                    // Enriquecimento automático com Claude em background
+                    (async () => {
+                        try {
+                            const authHeaders = await (window.getAuthHeaders?.() ?? {});
+                            const res = await fetch('/api/claude-enrich', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                                body: JSON.stringify({ title: baseBook.title }),
+                            });
+                            if (!res.ok) return;
+                            const data = await res.json();
+                            if (!data.ok || !data.profile) return;
+                            const p = data.profile;
+                            setCustomBooks(prev => prev.map(b =>
+                                b.id === newId ? {
+                                    ...b,
+                                    title    : p.title     || b.title,
+                                    author   : p.author    || b.author,
+                                    publisher: p.publisher || b.publisher,
+                                    pages    : p.pages     || b.pages,
+                                    synopsis : p.synopsis  || b.synopsis,
+                                    genre    : p.genre     || b.genre,
+                                    tags     : p.tags?.length ? p.tags : b.tags,
+                                    isSeries : p.isSeries  ?? b.isSeries,
+                                    series   : p.series    || b.series,
+                                    volume   : p.volume    || b.volume,
+                                    enrichedByAI: true,
+                                } : b
+                            ));
+                            notifyUser(`Ficha de "${p.title || baseBook.title}" enriquecida com IA`, 'success', 'Sinopse, gênero e tags preenchidos');
+                        } catch {
+                            // Falha silenciosa — dados brutos do arquivo ficam intactos
+                        }
+                    })();
                 }
-            }, [customBooks]);
+            }, [customBooks, notifyUser]);
 
             const deleteBookFromCatalog = (id) => {
                 const isCustom = customBooks.some(b => b.id === id);
