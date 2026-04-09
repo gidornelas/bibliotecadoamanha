@@ -14,6 +14,9 @@
     },
     "api/telegram-download.js": {
       "maxDuration": 30
+    },
+    "api/send-to-kindle.js": {
+      "maxDuration": 30
     }
   }
 }
