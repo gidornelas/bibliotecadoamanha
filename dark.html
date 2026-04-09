@@ -1770,8 +1770,8 @@
         }
 
         // ─── Telegram View ────────────────────────────────────────────────────────
-        function TelegramView({ onImportBook, notifyUser }) {
-            const WORKER_URL = 'https://seu-worker.railway.app'; // ← alterar após deploy Railway
+        function TelegramView({ onImportBook, notifyUser, catalogBooks = [] }) {
+            const WORKER_URL = ''; // usa /api/telegram-download (Vercel)
 
             const [query, setQuery]         = React.useState('');
             const [results, setResults]     = React.useState([]);
@@ -1809,7 +1809,7 @@
             async function handleImport(file) {
                 setImporting(p => ({ ...p, [file.messageId]: true }));
                 try {
-                    const r = await fetch(`${WORKER_URL}/download`, {
+                    const r = await fetch('/api/telegram-download', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ messageId: file.messageId, fileName: file.fileName, chatId: file.chatId }),
@@ -1817,9 +1817,14 @@
                     const data = await r.json();
                     if (!data.success) throw new Error(data.error || 'Falha no download');
                     const guessTitle = file.fileName.replace(/\.epub$/i, '').replace(/[_-]+/g, ' ').trim();
-                    onImportBook({ title: guessTitle, epubUrl: data.url, fileName: data.fileName });
+                    const normalize = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const match = catalogBooks.find(b => normalize(b.title) === normalize(guessTitle));
+                    onImportBook({ title: guessTitle, epubUrl: data.url, fileName: data.fileName, existingBookId: match?.id });
                     setImported(p => ({ ...p, [file.messageId]: true }));
-                    notifyUser(`"${guessTitle}" importada!`, 'success', 'EPUB salvo e adicionado ao catálogo');
+                    const msg = match
+                        ? `EPUB vinculado a "${match.title}" no catálogo!`
+                        : `"${guessTitle}" adicionada ao catálogo!`;
+                    notifyUser(msg, 'success', 'EPUB salvo no Supabase');
                 } catch (err) {
                     notifyUser('Erro ao importar: ' + err.message, 'error');
                 } finally {
@@ -4318,20 +4323,23 @@
                 setUserRatings(prev => ({ ...prev, [bookId]: rating }));
             }, []);
 
-            const handleImportFromTelegram = useCallback(({ title, epubUrl, fileName }) => {
-                const newBook = {
-                    id       : 'tg_' + Date.now(),
-                    title    : title || fileName || 'Sem título',
-                    author   : '',
-                    genre    : '',
-                    coverUrl : '',
-                    synopsis : '',
-                    epubUrl  : epubUrl,
-                    addedAt  : Date.now(),
-                    source   : 'telegram',
-                };
-                setMyBooks(prev => [newBook, ...prev]);
-            }, []);
+            const handleImportFromTelegram = useCallback(({ title, epubUrl, fileName, existingBookId }) => {
+                if (existingBookId) {
+                    setMyBooks(prev => prev.map(b =>
+                        b.id === existingBookId ? { ...b, epubUrl } : b
+                    ));
+                    const isInMine = myBooks.some(b => b.id === existingBookId);
+                    if (!isInMine) {
+                        setMyBooks(prev => [...prev, { id: existingBookId, title, epubUrl, addedAt: Date.now(), source: 'telegram' }]);
+                    }
+                } else {
+                    setMyBooks(prev => [{
+                        id: 'tg_' + Date.now(), title: title || fileName || 'Sem título',
+                        author: '', genre: '', coverUrl: '', synopsis: '',
+                        epubUrl, addedAt: Date.now(), source: 'telegram',
+                    }, ...prev]);
+                }
+            }, [myBooks]);
 
             const deleteBookFromCatalog = (id) => {
                 const isCustom = customBooks.some(b => b.id === id);
@@ -4752,6 +4760,7 @@
                             <TelegramView
                                 onImportBook={handleImportFromTelegram}
                                 notifyUser={notifyUser}
+                                catalogBooks={allBooksCombined}
                             />
                         ) : viewMode === 'amazon' ? (
                             <div className="max-w-6xl mx-auto">

@@ -11,6 +11,9 @@
     },
     "api/telegram-search.js": {
       "maxDuration": 30
+    },
+    "api/telegram-download.js": {
+      "maxDuration": 30
     }
   }
 }
