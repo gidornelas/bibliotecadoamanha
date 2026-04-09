@@ -8,6 +8,9 @@
     },
     "api/cover.js": {
       "maxDuration": 20
+    },
+    "api/telegram-search.js": {
+      "maxDuration": 30
     }
   }
 }

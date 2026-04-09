@@ -1,0 +1,20 @@
+{
+  "name": "telegram-worker",
+  "version": "1.0.0",
+  "description": "Serviço de download de EPUBs via Telegram MTProto para Biblioteca do Amanhã",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "telegram": "^2.26.2",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
