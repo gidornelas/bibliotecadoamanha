@@ -19,7 +19,7 @@ import nodemailer from 'nodemailer';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 
-const KINDLE_EMAIL = 'giannydornelas@kindle.com';
+const KINDLE_EMAIL = 'giannydornelas_6k8aBz@kindle.com';
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
