@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import { resolve } from 'path'
 
 export default defineConfig({
+  optimizeDeps: {
+    exclude: ['telegram', 'input'],
+  },
   build: {
     rollupOptions: {
       input: {
@@ -11,6 +14,7 @@ export default defineConfig({
         dark:       resolve(__dirname, 'dark.html'),
         epubViewer: resolve(__dirname, 'epub-viewer.html'),
       },
+      external: ['telegram', 'input'],
     },
   },
 })

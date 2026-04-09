@@ -15,8 +15,11 @@
   "dependencies": {
     "lucide-react": "^1.7.0",
     "motion": "^12.38.0",
-    "next": "^16.2.2",
-    "telegram": "^2.26.2",
-    "input": "^1.0.1"
+    "next": "^16.2.2"
+  },
+  "devDependencies": {
+    "input": "^1.0.1",
+    "telegram": "^2.26.22",
+    "vite": "^8.0.3"
   }
 }
