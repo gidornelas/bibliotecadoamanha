@@ -1968,15 +1968,15 @@
             });
             const genreEntries = Object.entries(genreCounts).sort((a,b) => b[1]-a[1]).slice(0,6);
             const GENRE_BAR_COLORS = {
-                'Fantasia':              '#10B981', // emerald-500
-                'Romantasy':             '#06B6D4', // cyan-500
-                'Ficção Científica':     '#3B82F6', // blue-500
-                'Thriller':              '#14B8A6', // teal-500
-                'Ficção Literária':      '#22C55E', // green-500
-                'Distopia':              '#8B5CF6', // violet-500
-                'Romance Contemporâneo': '#F59E0B', // amber-500
+                'Fantasia':              '#6EE7B7', // emerald-300
+                'Romantasy':             '#67E8F9', // cyan-300
+                'Ficção Científica':     '#93C5FD', // blue-300
+                'Thriller':             '#5EEAD4', // teal-300
+                'Ficção Literária':      '#86EFAC', // green-300
+                'Distopia':              '#C4B5FD', // violet-300
+                'Romance Contemporâneo': '#FCD34D', // amber-300
             };
-            const getGenreBarColor = (genre) => GENRE_BAR_COLORS[genre] || '#94A3B8';
+            const getGenreBarColor = (genre) => GENRE_BAR_COLORS[genre] || '#CBD5E1';
 
             // Recently read (last 8)
             const recentlyRead = readBooks
