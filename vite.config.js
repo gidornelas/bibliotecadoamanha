@@ -3,7 +3,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ['telegram', 'input'],
+    exclude: ['telegram', 'input', '@supabase/supabase-js'],
   },
   build: {
     rollupOptions: {
@@ -14,7 +14,7 @@ export default defineConfig({
         dark:       resolve(__dirname, 'dark.html'),
         epubViewer: resolve(__dirname, 'epub-viewer.html'),
       },
-      external: ['telegram', 'input'],
+      external: ['telegram', 'input', '@supabase/supabase-js'],
     },
   },
 })
