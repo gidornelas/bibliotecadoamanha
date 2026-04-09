@@ -20,7 +20,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null || userId == 'default-user';
+      // Só o próprio usuário autenticado pode ler/escrever seus dados.
+      // NUNCA use || userId == 'default-user' — isso expõe dados sem autenticação.
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

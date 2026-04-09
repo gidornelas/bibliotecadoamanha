@@ -22,13 +22,19 @@ import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import input from 'input';
 
-// ─── PREENCHA AQUI ───────────────────────────────────────────
-const API_ID   = 0;           // número inteiro de my.telegram.org
-const API_HASH = '';          // string  de my.telegram.org
+// ─── CREDENCIAIS VIA .env ─────────────────────────────────────
+// Crie um arquivo .env na raiz com:
+//   TELEGRAM_API_ID=<número de my.telegram.org>
+//   TELEGRAM_API_HASH=<string de my.telegram.org>
+// Depois rode: node --env-file=.env generate-session.mjs
 // ─────────────────────────────────────────────────────────────
+const API_ID   = parseInt(process.env.TELEGRAM_API_ID, 10);
+const API_HASH = process.env.TELEGRAM_API_HASH;
 
 if (!API_ID || !API_HASH) {
-  console.error('❌  Preencha API_ID e API_HASH no topo do arquivo antes de rodar.');
+  console.error('❌  TELEGRAM_API_ID e TELEGRAM_API_HASH não encontrados.');
+  console.error('    Crie um arquivo .env com essas variáveis e rode:');
+  console.error('    node --env-file=.env generate-session.mjs');
   process.exit(1);
 }
 

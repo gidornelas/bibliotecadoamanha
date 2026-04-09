@@ -104,6 +104,13 @@
             window.browserSessionPersistence = browserSessionPersistence;
             window.signOut = signOut;
             window.onAuthStateChanged = onAuthStateChanged;
+
+            // Helper: retorna headers com token Firebase para chamadas à API
+            window.getAuthHeaders = async function() {
+                const token = await window.auth?.currentUser?.getIdToken?.();
+                return token ? { 'Authorization': `Bearer ${token}` } : {};
+            };
+
             console.log('✅ Firebase conectado com sucesso!');
         } catch (error) {
             console.warn('⚠️ Firebase não configurado. Usando apenas localStorage.', error);
@@ -1343,7 +1350,7 @@
                     try {
                         const res = await fetch('/api/claude-enrich', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...(await window.getAuthHeaders?.() ?? {}) },
                             body: JSON.stringify({
                                 title: result.title, author: result.author,
                                 publisher: result.publisher, publishYear: result.publishYear,
@@ -1789,7 +1796,9 @@
                 setResults([]);
                 setSearched(false);
                 try {
-                    const r = await fetch(`/api/telegram-search?query=${encodeURIComponent(q)}`);
+                    const r = await fetch(`/api/telegram-search?query=${encodeURIComponent(q)}`, {
+                        headers: await window.getAuthHeaders?.() ?? {},
+                    });
                     const data = await r.json();
                     if (!data.success) throw new Error(data.error || 'Erro na busca');
                     setResults(data.files || []);
@@ -1807,7 +1816,7 @@
                 try {
                     const r = await fetch('/api/telegram-download', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...(await window.getAuthHeaders?.() ?? {}) },
                         body: JSON.stringify({ messageId: file.messageId, fileName: file.fileName, chatId: file.chatId }),
                     });
                     const data = await r.json();
@@ -1845,7 +1854,7 @@
                     try {
                         const r = await fetch('/api/send-to-kindle', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...(await window.getAuthHeaders?.() ?? {}) },
                             body: JSON.stringify({ messageId: file.messageId, chatId: file.chatId, fileName: file.fileName, profileId }),
                         });
                         const data = await r.json();
@@ -2225,7 +2234,7 @@
                         : { messageId, chatId, fileName, profileId };
                     const r = await fetch('/api/send-to-kindle', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...(await window.getAuthHeaders?.() ?? {}) },
                         body: JSON.stringify(body),
                     });
                     const data = await r.json();

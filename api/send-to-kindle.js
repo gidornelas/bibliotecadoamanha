@@ -18,17 +18,12 @@
 import nodemailer from 'nodemailer';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
+import { setCors, requireAuth } from './_auth.js';
 
 const KINDLE_EMAILS = {
   'gianny': 'giannydornelas_6k8aBz@kindle.com',
   'laisa':  'laisamgb_lssotg@kindle.com',
 };
-
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
 
 async function downloadFromUrl(url) {
   const r = await fetch(url);
@@ -56,9 +51,12 @@ async function downloadFromTelegram(messageId, chatId) {
 }
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(res, req);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const user = await requireAuth(req, res);
+  if (!user) return;
 
   const { epubUrl, messageId, chatId, fileName, profileId } = req.body;
 
