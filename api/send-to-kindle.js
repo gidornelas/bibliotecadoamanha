@@ -1,23 +1,25 @@
 /**
  * api/send-to-kindle.js — Vercel Serverless Function
- * Envia um EPUB por email para o Kindle via Resend.
+ * Envia um EPUB por email para o Kindle via Gmail SMTP.
  *
  * POST /api/send-to-kindle
  * Body (opção A — livro já importado): { epubUrl, fileName }
  * Body (opção B — direto do Telegram):  { messageId, chatId, fileName }
  *
  * Variáveis de ambiente (Vercel):
- *   RESEND_API_KEY   — obtida em resend.com (gratuito)
- *   KINDLE_EMAIL     — giannydornelas@kindle.com (já definida no código)
- *   TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION (opção B)
+ *   GMAIL_USER         — seu email Gmail (ex: gianny@gmail.com)
+ *   GMAIL_APP_PASSWORD — App Password gerada no Google (não é a senha normal)
+ *   KINDLE_EMAIL       — giannydornelas@kindle.com (já definido no código)
+ *
+ *   Para o Telegram (opção B):
+ *   TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION, TELEGRAM_CHAT_ID
  */
 
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 
 const KINDLE_EMAIL = 'giannydornelas@kindle.com';
-const FROM_EMAIL   = process.env.RESEND_FROM_EMAIL || 'kindle@bibliotecadoamanha.app';
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,25 +30,19 @@ function setCors(res) {
 async function downloadFromUrl(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Falha ao baixar arquivo: ${r.status}`);
-  const arrayBuffer = await r.arrayBuffer();
-  return Buffer.from(arrayBuffer);
+  return Buffer.from(await r.arrayBuffer());
 }
 
 async function downloadFromTelegram(messageId, chatId) {
-  const apiId    = parseInt(process.env.TELEGRAM_API_ID, 10);
-  const apiHash  = process.env.TELEGRAM_API_HASH;
-  const sessionStr = process.env.TELEGRAM_SESSION;
-  const targetChat = chatId || process.env.TELEGRAM_CHAT_ID;
-
   const client = new TelegramClient(
-    new StringSession(sessionStr),
-    apiId, apiHash,
+    new StringSession(process.env.TELEGRAM_SESSION),
+    parseInt(process.env.TELEGRAM_API_ID, 10),
+    process.env.TELEGRAM_API_HASH,
     { connectionRetries: 3, timeout: 20 }
   );
-
   try {
     await client.connect();
-    const [message] = await client.getMessages(targetChat, { ids: [messageId] });
+    const [message] = await client.getMessages(chatId || process.env.TELEGRAM_CHAT_ID, { ids: [messageId] });
     if (!message) throw new Error('Mensagem não encontrada no Telegram.');
     const buffer = await client.downloadMedia(message, { workers: 1 });
     if (!buffer || buffer.length === 0) throw new Error('Download retornou vazio.');
@@ -63,45 +59,37 @@ export default async function handler(req, res) {
 
   const { epubUrl, messageId, chatId, fileName } = req.body;
 
-  if (!fileName) {
-    return res.status(400).json({ error: 'fileName é obrigatório.' });
-  }
-  if (!epubUrl && !messageId) {
-    return res.status(400).json({ error: 'Forneça epubUrl ou messageId.' });
-  }
+  if (!fileName) return res.status(400).json({ error: 'fileName é obrigatório.' });
+  if (!epubUrl && !messageId) return res.status(400).json({ error: 'Forneça epubUrl ou messageId.' });
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'RESEND_API_KEY não configurada.' });
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+
+  if (!gmailUser || !gmailPass) {
+    return res.status(500).json({ error: 'GMAIL_USER ou GMAIL_APP_PASSWORD não configurados.' });
   }
 
   try {
-    // Baixa o arquivo
-    const buffer = epubUrl
+    const buffer   = epubUrl
       ? await downloadFromUrl(epubUrl)
       : await downloadFromTelegram(parseInt(messageId, 10), chatId);
 
     const safeName = fileName.endsWith('.epub') ? fileName : fileName + '.epub';
 
-    // Envia via Resend
-    const resend = new Resend(apiKey);
-    const { data, error } = await resend.emails.send({
-      from    : FROM_EMAIL,
-      to      : KINDLE_EMAIL,
-      subject : safeName.replace('.epub', ''),
-      text    : `Livro enviado pela Biblioteca do Amanhã: ${safeName}`,
-      attachments: [{
-        filename : safeName,
-        content  : buffer.toString('base64'),
-      }],
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: gmailUser, pass: gmailPass },
     });
 
-    if (error) {
-      console.error('[send-to-kindle] Resend error:', error);
-      return res.status(500).json({ success: false, error: error.message });
-    }
+    await transporter.sendMail({
+      from        : `"Biblioteca do Amanhã" <${gmailUser}>`,
+      to          : KINDLE_EMAIL,
+      subject     : safeName.replace('.epub', ''),
+      text        : `Livro enviado pela Biblioteca do Amanhã: ${safeName}`,
+      attachments : [{ filename: safeName, content: buffer }],
+    });
 
-    return res.status(200).json({ success: true, emailId: data?.id });
+    return res.status(200).json({ success: true });
 
   } catch (err) {
     console.error('[send-to-kindle]', err.message);
