@@ -1813,9 +1813,13 @@
                     const data = await r.json();
                     if (!data.success) throw new Error(data.error || 'Falha no download');
                     const guessTitle = file.fileName.replace(/\.epub$/i, '').replace(/[_-]+/g, ' ').trim();
-                    // Tenta associar ao livro existente pelo título (normalizado)
+                    // Associa ao livro existente: igualdade exata ou título do catálogo contido no nome do arquivo
                     const normalize = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    const match = catalogBooks.find(b => normalize(b.title) === normalize(guessTitle));
+                    const normFile = normalize(guessTitle);
+                    const match = catalogBooks.find(b => {
+                        const normBook = normalize(b.title);
+                        return normBook === normFile || normFile.includes(normBook) || normBook.includes(normFile);
+                    });
                     onImportBook({ title: guessTitle, epubUrl: data.url, fileName: data.fileName, existingBookId: match?.id });
                     setImported(p => ({ ...p, [file.messageId]: true }));
                     const msg = match
