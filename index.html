@@ -4322,14 +4322,15 @@
 
             const handleImportFromTelegram = useCallback(({ title, epubUrl, fileName, existingBookId }) => {
                 if (existingBookId) {
-                    // Atualiza livro existente com o epub
-                    setMyBooks(prev => prev.map(b =>
-                        b.id === existingBookId ? { ...b, epubUrl } : b
-                    ));
-                    // Se não estiver em myBooks, pode ser um livro base — adiciona ao customBooks como override
-                    const isInMine = myBooks.some(b => b.id === existingBookId);
-                    if (!isInMine) {
-                        setMyBooks(prev => [...prev, {
+                    // Tenta atualizar o livro existente em customBooks
+                    const isInCustom = customBooks.some(b => b.id === existingBookId);
+                    if (isInCustom) {
+                        setCustomBooks(prev => prev.map(b =>
+                            b.id === existingBookId ? { ...b, epubUrl } : b
+                        ));
+                    } else {
+                        // Livro base — cria entrada em customBooks com o epub vinculado
+                        setCustomBooks(prev => [...prev, {
                             id: existingBookId,
                             title,
                             epubUrl,
@@ -4338,7 +4339,7 @@
                         }]);
                     }
                 } else {
-                    setMyBooks(prev => [{
+                    setCustomBooks(prev => [{
                         id       : 'tg_' + Date.now(),
                         title    : title || fileName || 'Sem título',
                         author   : '',
@@ -4350,7 +4351,7 @@
                         source   : 'telegram',
                     }, ...prev]);
                 }
-            }, [myBooks]);
+            }, [customBooks]);
 
             const deleteBookFromCatalog = (id) => {
                 const isCustom = customBooks.some(b => b.id === id);
