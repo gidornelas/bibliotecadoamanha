@@ -1799,6 +1799,7 @@
             const [importing, setImporting] = React.useState({});
             const [imported, setImported]   = React.useState({});
             const inputRef                  = React.useRef(null);
+            const searchedLabel             = query.trim();
 
             React.useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -1960,7 +1961,9 @@
                     {searched && !error && (
                         <div>
                             <p className="text-xs text-gray-400 font-semibold mb-3 uppercase tracking-widest">
-                                {results.length === 0 ? 'Nenhum arquivo encontrado' : `${results.length} arquivo${results.length !== 1 ? 's' : ''} encontrado${results.length !== 1 ? 's' : ''}`}
+                                {results.length === 0
+                                    ? `Nenhum EPUB encontrado no Telegram para "${searchedLabel}"`
+                                    : `${results.length} arquivo${results.length !== 1 ? 's' : ''} encontrado${results.length !== 1 ? 's' : ''}`}
                             </p>
                             <div className="flex flex-col gap-3">
                                 {results.map(f => <FileCard key={f.messageId} file={f} />)}
