@@ -7,18 +7,34 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "cover-proxy": "node cover-proxy-server.mjs"
+    "cover-proxy": "node cover-proxy-server.mjs",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.1",
     "@supabase/supabase-js": "^2.39.0",
-    "nodemailer": "^6.9.9",
+    "antd": "^6.3.5",
     "lucide-react": "^1.7.0",
     "motion": "^12.38.0",
     "next": "^16.2.2",
+    "nodemailer": "^6.9.9",
+    "prop-types": "^15.8.1",
     "telegram": "^2.26.22"
   },
   "devDependencies": {
+    "@chromatic-com/storybook": "^5.1.1",
+    "@storybook/addon-a11y": "^10.3.5",
+    "@storybook/addon-docs": "^10.3.5",
+    "@storybook/addon-onboarding": "^10.3.5",
+    "@storybook/addon-vitest": "^10.3.5",
+    "@storybook/nextjs-vite": "^10.3.5",
+    "@vitest/browser-playwright": "^4.1.4",
+    "@vitest/coverage-v8": "^4.1.4",
     "input": "^1.0.1",
-    "vite": "^8.0.3"
+    "playwright": "^1.59.1",
+    "storybook": "^10.3.5",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.4"
   }
 }

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orion Neural | IA que acelera decisões</title>
+  <meta name="description" content="Landing page premium para startup de IA com estética ousada e tipografia autoral." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-0: #06070b;
+      --bg-1: #0f1118;
+      --text: #eceef8;
+      --muted: #a9aec5;
+      --line: rgba(255, 255, 255, 0.16);
+      --cyan: #36f0d4;
+      --lime: #d9ff58;
+      --rose: #ff6f91;
+      --shadow: 0 22px 80px rgba(0, 0, 0, 0.45);
+      --radius-xl: 28px;
+      --radius-md: 18px;
+      --max: 1200px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: radial-gradient(1200px 800px at 12% 6%, rgba(54, 240, 212, 0.16), transparent 58%),
+                  radial-gradient(900px 700px at 92% 82%, rgba(255, 111, 145, 0.14), transparent 60%),
+                  linear-gradient(165deg, var(--bg-0), var(--bg-1));
+      color: var(--text);
+      font-family: "Bricolage Grotesque", "Segoe UI", sans-serif;
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
+      -webkit-font-smoothing: antialiased;
+      scroll-behavior: smooth;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.11;
+      background-image: linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: radial-gradient(circle at center, black 50%, transparent 100%);
+    }
+
+    a {
+      color: inherit;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+
+    .wrap {
+      width: min(var(--max), calc(100% - 2.2rem));
+      margin-inline: auto;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(12px);
+      background: rgba(6, 7, 11, 0.64);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.95rem 0;
+      gap: 1rem;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.7rem;
+      text-decoration: none;
+    }
+
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(130deg, var(--cyan), var(--lime));
+      color: #051115;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      letter-spacing: 0.03em;
+    }
+
+    .logo-text {
+      font-size: 0.96rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #d7dcf2;
+    }
+
+    .menu {
+      display: flex;
+      gap: 1.2rem;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .menu a {
+      text-decoration: none;
+      transition: color 180ms ease;
+    }
+
+    .menu a:hover {
+      color: var(--text);
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0.7rem 1.1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 220ms ease, border-color 220ms ease, background 220ms ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .btn-primary {
+      background: linear-gradient(145deg, var(--cyan), #42ffd5 48%, var(--lime));
+      color: #041015;
+      border: 0;
+      box-shadow: 0 14px 45px rgba(54, 240, 212, 0.35);
+    }
+
+    .hero {
+      padding: 4.7rem 0 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 2.2rem;
+      align-items: center;
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      padding: 0.36rem 0.78rem;
+      color: #d0d5ea;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 700;
+      line-height: 1.04;
+      font-size: clamp(2.2rem, 5.6vw, 4.6rem);
+      letter-spacing: -0.015em;
+      max-width: 14ch;
+    }
+
+    .lead {
+      margin: 1.1rem 0 1.8rem;
+      font-size: clamp(1.01rem, 1.5vw, 1.2rem);
+      color: var(--muted);
+      max-width: 58ch;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .social-proof {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+      color: #d6dcf0;
+      font-size: 0.9rem;
+    }
+
+    .social-proof span {
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 999px;
+      padding: 0.35rem 0.72rem;
+    }
+
+    .panel {
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.02));
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: var(--radius-xl);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+      position: relative;
+      isolation: isolate;
+    }
+
+    .panel::after {
+      content: "";
+      position: absolute;
+      inset: auto 14% -26% auto;
+      width: 180px;
+      aspect-ratio: 1;
+      background: radial-gradient(circle, rgba(54, 240, 212, 0.44), transparent 70%);
+      z-index: -1;
+      filter: blur(18px);
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.85rem;
+      margin-top: 0.9rem;
+    }
+
+    .mini {
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: var(--radius-md);
+      padding: 0.85rem 0.9rem;
+      background: rgba(8, 11, 18, 0.42);
+    }
+
+    .mini h3 {
+      margin: 0;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: #bac2e1;
+      font-weight: 600;
+    }
+
+    .mini p {
+      margin: 0.45rem 0 0;
+      font-size: 1.2rem;
+      line-height: 1.2;
+      font-weight: 700;
+      color: #f0f3ff;
+    }
+
+    .section {
+      padding: 2.6rem 0;
+    }
+
+    .section h2 {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(1.7rem, 3.1vw, 2.9rem);
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+      max-width: 16ch;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 52ch;
+      font-size: 1rem;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 0.9rem;
+    }
+
+    .card {
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: var(--radius-md);
+      background: rgba(8, 11, 18, 0.58);
+      padding: 1.05rem;
+      min-height: 160px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 240ms ease, border-color 240ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .card:nth-child(1) { grid-column: span 5; }
+    .card:nth-child(2) { grid-column: span 7; }
+    .card:nth-child(3) { grid-column: span 7; }
+    .card:nth-child(4) { grid-column: span 5; }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      right: -26px;
+      top: -28px;
+      background: radial-gradient(circle, rgba(217, 255, 88, 0.28), transparent 72%);
+      pointer-events: none;
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 1.06rem;
+      line-height: 1.25;
+      letter-spacing: 0.01em;
+    }
+
+    .card p {
+      margin: 0.72rem 0 0;
+      color: var(--muted);
+      max-width: 38ch;
+      font-size: 0.95rem;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.9rem;
+    }
+
+    .metric {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+    }
+
+    .metric strong {
+      display: block;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(1.6rem, 2.5vw, 2.3rem);
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .cta {
+      margin: 1.4rem 0 0.6rem;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(130deg, rgba(54, 240, 212, 0.16), rgba(217, 255, 88, 0.08), rgba(255, 111, 145, 0.12));
+      padding: clamp(1.4rem, 4vw, 2.3rem);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .cta h3 {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(1.5rem, 3vw, 2.45rem);
+      line-height: 1.08;
+      max-width: 22ch;
+    }
+
+    .cta p {
+      margin: 0.6rem 0 0;
+      color: #d5daf1;
+      max-width: 54ch;
+    }
+
+    .footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.13);
+      color: #b2b8cf;
+      padding: 1.3rem 0 1.9rem;
+      font-size: 0.88rem;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      animation: rise 780ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      animation-delay: var(--delay, 0ms);
+    }
+
+    @keyframes rise {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 960px) {
+      .hero-grid,
+      .cta {
+        grid-template-columns: 1fr;
+      }
+
+      .card:nth-child(1),
+      .card:nth-child(2),
+      .card:nth-child(3),
+      .card:nth-child(4) {
+        grid-column: span 12;
+      }
+
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .menu {
+        display: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .hero {
+        padding-top: 3.5rem;
+      }
+
+      .wrap {
+        width: min(var(--max), calc(100% - 1.3rem));
+      }
+
+      .actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .btn {
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+      }
+
+      .reveal {
+        opacity: 1;
+        transform: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="logo" href="#inicio" aria-label="Orion Neural, ir para início">
+        <span class="logo-mark">O</span>
+        <span class="logo-text">Orion Neural</span>
+      </a>
+      <nav class="menu" aria-label="Navegação principal">
+        <a href="#produto">Produto</a>
+        <a href="#arquitetura">Arquitetura</a>
+        <a href="#resultados">Resultados</a>
+        <a href="#contato">Contato</a>
+      </nav>
+      <a class="btn" href="#contato">Entrar na lista</a>
+    </div>
+  </header>
+
+  <main id="inicio">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <span class="kicker reveal" style="--delay: 80ms">Orquestração Cognitiva para Empresas</span>
+          <h1 class="reveal" style="--delay: 170ms">A IA que transforma sinais dispersos em decisões com vantagem competitiva.</h1>
+          <p class="lead reveal" style="--delay: 270ms">A Orion Neural conecta dados de operação, mercado e comportamento em uma malha única de contexto. Em vez de mais dashboards, sua equipe recebe respostas priorizadas para agir na hora certa.</p>
+          <div class="actions reveal" style="--delay: 360ms">
+            <a class="btn btn-primary" href="#contato">Solicitar demo privada</a>
+            <a class="btn" href="#produto">Ver arquitetura de produto</a>
+          </div>
+          <div class="social-proof reveal" style="--delay: 430ms" aria-label="Destaques de prova social">
+            <span>+120 empresas em piloto</span>
+            <span>ROI médio em 67 dias</span>
+            <span>SLA de inferência de 220ms</span>
+          </div>
+        </div>
+
+        <aside class="panel reveal" style="--delay: 230ms" aria-label="Indicadores do painel Orion Neural">
+          <h2 style="margin:0;font-size:1.1rem;letter-spacing:0.01em;">Pulse Board</h2>
+          <p style="margin:0.5rem 0 0;color:var(--muted);font-size:0.92rem;max-width:34ch;">Diagnóstico contínuo da operação com priorização de anomalias por impacto financeiro e risco reputacional.</p>
+          <div class="mini-grid">
+            <article class="mini">
+              <h3>Decisões automatizadas</h3>
+              <p>31.482</p>
+            </article>
+            <article class="mini">
+              <h3>Acurácia preditiva</h3>
+              <p>97,4%</p>
+            </article>
+            <article class="mini">
+              <h3>Tempo de resposta</h3>
+              <p>0,22s</p>
+            </article>
+            <article class="mini">
+              <h3>Eventos mitigados</h3>
+              <p>8.916</p>
+            </article>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" id="produto">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 class="reveal" style="--delay: 90ms">Uma stack de IA desenhada para escala real.</h2>
+          <p class="reveal" style="--delay: 180ms">Criamos uma experiência com linguagem executiva e precisão técnica, para times que precisam agir com confiança em mercados de alta volatilidade.</p>
+        </div>
+
+        <div class="features">
+          <article class="card reveal" style="--delay: 130ms">
+            <h3>Motor de síntese multimodal</h3>
+            <p>Consolida texto, áudio, telemetria e eventos de produto em narrativas acionáveis com explicabilidade nativa.</p>
+          </article>
+          <article class="card reveal" style="--delay: 210ms">
+            <h3>Governança por política dinâmica</h3>
+            <p>Regras de compliance, risco e privacidade versionadas em tempo real, sem bloquear velocidade de experimentação.</p>
+          </article>
+          <article class="card reveal" style="--delay: 290ms" id="arquitetura">
+            <h3>Memória contextual de longo horizonte</h3>
+            <p>O sistema mantém histórico semântico das decisões da sua empresa para sugerir ações mais consistentes ao longo dos ciclos.</p>
+          </article>
+          <article class="card reveal" style="--delay: 360ms">
+            <h3>Copiloto operacional para squads</h3>
+            <p>Recomenda próximos passos por área, já com prioridade de execução, impacto esperado e plano de mitigação de risco.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="resultados">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 class="reveal" style="--delay: 80ms">Resultados que justificam o investimento nos primeiros ciclos.</h2>
+          <p class="reveal" style="--delay: 160ms">Cada métrica abaixo reflete operações com integração completa em no máximo 28 dias e times mistos de produto, dados e estratégia.</p>
+        </div>
+        <div class="metrics">
+          <article class="metric reveal" style="--delay: 140ms">
+            <strong>42%</strong>
+            <span>redução média no tempo de decisão em operações críticas.</span>
+          </article>
+          <article class="metric reveal" style="--delay: 220ms">
+            <strong>3,8x</strong>
+            <span>mais hipóteses testadas por trimestre com o mesmo time.</span>
+          </article>
+          <article class="metric reveal" style="--delay: 300ms">
+            <strong>91%</strong>
+            <span>de retenção de clientes enterprise após 12 meses.</span>
+          </article>
+        </div>
+
+        <div class="cta reveal" style="--delay: 360ms" id="contato">
+          <div>
+            <h3>Entre no programa de design partners da Orion Neural.</h3>
+            <p>Receba acesso antecipado ao roadmap, suporte de implantação e arquitetura dedicada para seu domínio de negócio.</p>
+          </div>
+          <a class="btn btn-primary" href="mailto:hello@orionneural.ai?subject=Solicitar%20demo%20privada">Agendar conversa</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <span>© 2026 Orion Neural. Todos os direitos reservados.</span>
+    <span>Infraestrutura observável. Modelos auditáveis. Decisões com contexto.</span>
+  </footer>
+</body>
+</html>

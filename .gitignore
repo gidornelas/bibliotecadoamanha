@@ -11,3 +11,6 @@ skills-lock.json
 pitch.html
 .env
 .env.*
+
+*storybook.log
+storybook-static
