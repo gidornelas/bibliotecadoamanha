@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biblioteca do AmanhÃ£ | By Meiyka</title>
+    <title>Biblioteca do Amanhã | By Meiyka</title>
     <link rel="icon" type="image/png" href="https://i.imgur.com/FfKzzxi.png">
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,700&display=swap" rel="stylesheet">
@@ -21,25 +21,25 @@
     <!-- Firebase -->
     <script type="module">
         // IMPORTANTE: Configure seu projeto Firebase em firebase-config.js
-        // e substitua as configuraÃ§Ãµes abaixo pelas suas reais
+        // e substitua as configurações abaixo pelas suas reais
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
         import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence, onSnapshot } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
         import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
 
-        // ConfiguraÃ§Ã£o Firebase (SUBSTITUA PELAS SUAS CONFIGURAÃ‡Ã•ES REAIS)
+        // Configuração Firebase (SUBSTITUA PELAS SUAS CONFIGURAÇÕES REAIS)
         const firebaseConfig = {
-            apiKey: "AIzaSyA6cx6vGuJHzohRyr-uda_gI7_MavD_OmU", // â† ALTERE AQUI
-            authDomain: "biblioteca-do-amanha.firebaseapp.com", // â† ALTERE AQUI
-            projectId: "biblioteca-do-amanha", // â† ALTERE AQUI
-            storageBucket: "biblioteca-do-amanha.firebasestorage.app", // â† ALTERE AQUI
-            messagingSenderId: "39485326387", // â† ALTERE AQUI
-            appId: "1:39485326387:web:84c1e13522efa7cbb1cf46" // â† ALTERE AQUI
+            apiKey: "AIzaSyA6cx6vGuJHzohRyr-uda_gI7_MavD_OmU", // ← ALTERE AQUI
+            authDomain: "biblioteca-do-amanha.firebaseapp.com", // ← ALTERE AQUI
+            projectId: "biblioteca-do-amanha", // ← ALTERE AQUI
+            storageBucket: "biblioteca-do-amanha.firebasestorage.app", // ← ALTERE AQUI
+            messagingSenderId: "39485326387", // ← ALTERE AQUI
+            appId: "1:39485326387:web:84c1e13522efa7cbb1cf46" // ← ALTERE AQUI
         };
 
         const supabaseConfig = {
-            url: 'https://sasnmejcbjvoupxqicff.supabase.co', // â† ALTERE AQUI
-            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhc25tZWpjYmp2b3VweHFpY2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDAzMTQsImV4cCI6MjA5MDk3NjMxNH0.GF3AgdBMegRdYKP5bUMO7WwjfEDPbOHMzDHrQHoszts', // â† ALTERE AQUI
-            bucket: 'biblioteca-epubs' // â† CRIE ESTE BUCKET NO SUPABASE
+            url: 'https://sasnmejcbjvoupxqicff.supabase.co', // ← ALTERE AQUI
+            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhc25tZWpjYmp2b3VweHFpY2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDAzMTQsImV4cCI6MjA5MDk3NjMxNH0.GF3AgdBMegRdYKP5bUMO7WwjfEDPbOHMzDHrQHoszts', // ← ALTERE AQUI
+            bucket: 'biblioteca-epubs' // ← CRIE ESTE BUCKET NO SUPABASE
         };
 
         window.supabaseConfig = supabaseConfig;
@@ -90,7 +90,7 @@
             window.FirebaseApp = initializeApp(firebaseConfig);
             window.db = getFirestore(window.FirebaseApp);
             enableIndexedDbPersistence(window.db).catch((error) => {
-                console.warn('PersistÃªncia offline nÃ£o ativada:', error.code);
+                console.warn('Persistência offline não ativada:', error.code);
             });
             window.auth = getAuth(window.FirebaseApp);
             window.doc = doc;
@@ -105,15 +105,15 @@
             window.signOut = signOut;
             window.onAuthStateChanged = onAuthStateChanged;
 
-            // Helper: retorna headers com token Firebase para chamadas Ã  API
+            // Helper: retorna headers com token Firebase para chamadas à API
             window.getAuthHeaders = async function() {
                 const token = await window.auth?.currentUser?.getIdToken?.();
                 return token ? { 'Authorization': `Bearer ${token}` } : {};
             };
 
-            console.log('âœ… Firebase conectado com sucesso!');
+            console.log('✅ Firebase conectado com sucesso!');
         } catch (error) {
-            console.warn('âš ï¸ Firebase nÃ£o configurado. Usando apenas localStorage.', error);
+            console.warn('⚠️ Firebase não configurado. Usando apenas localStorage.', error);
             window.db = null;
         }
 
@@ -121,17 +121,17 @@
             if (window.supabaseConfigReady) {
                 window.ensureSupabaseClient()
                     .then((client) => {
-                        if (client) console.log('âœ… Supabase Storage conectado com sucesso!');
-                        else console.warn('âš ï¸ Supabase nÃ£o carregou no navegador. Verifique a CDN ou extensÃµes que bloqueiam scripts.');
+                        if (client) console.log('✅ Supabase Storage conectado com sucesso!');
+                        else console.warn('⚠️ Supabase não carregou no navegador. Verifique a CDN ou extensões que bloqueiam scripts.');
                     })
                     .catch((error) => {
-                        console.warn('âš ï¸ Falha ao iniciar Supabase Storage.', error);
+                        console.warn('⚠️ Falha ao iniciar Supabase Storage.', error);
                     });
             } else {
-                console.warn('âš ï¸ Supabase nÃ£o configurado. Preencha url e anon key para ativar uploads remotos.');
+                console.warn('⚠️ Supabase não configurado. Preencha url e anon key para ativar uploads remotos.');
             }
         } catch (error) {
-            console.warn('âš ï¸ Falha ao iniciar Supabase Storage.', error);
+            console.warn('⚠️ Falha ao iniciar Supabase Storage.', error);
         }
     </script>
     
@@ -143,7 +143,7 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Menu de GÃ©neros LiterÃ¡rios: Garantia de visibilidade e scroll */
+        /* Menu de Géneros Literários: Garantia de visibilidade e scroll */
         .genre-nav-row {
             width: 100%;
             overflow-x: auto;
@@ -222,7 +222,7 @@
             object-fit: contain;
         }
 
-        /* â”€â”€ Header background glows (login.html style) â”€â”€ */
+        /* ── Header background glows (login.html style) ── */
         @keyframes hdr-pulse-glow {
             0%   { opacity: 0.35; transform: translateX(-50%) scale(0.98); }
             100% { opacity: 0.7;  transform: translateX(-50%) scale(1.04); }
@@ -232,7 +232,7 @@
             100% { opacity: 0.55; }
         }
 
-        /* â”€â”€ Add-book card click pop â”€â”€ */
+        /* ── Add-book card click pop ── */
         @keyframes add-card-pop {
             0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(20,184,166,0.45); }
             30%  { transform: scale(0.96); }
@@ -241,7 +241,7 @@
         }
         .add-card-pop { animation: add-card-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-        /* â”€â”€ Bell ring feedback â”€â”€ */
+        /* ── Bell ring feedback ── */
         @keyframes bell-ring {
             0%   { transform: rotate(0deg); }
             15%  { transform: rotate(18deg); }
@@ -261,7 +261,7 @@
         }
         .notif-btn-pop { animation: notif-btn-pop 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-        /* â”€â”€ Profile switch feedback â”€â”€ */
+        /* ── Profile switch feedback ── */
         @keyframes profile-switch-spin {
             0%   { transform: scale(1) rotate(0deg); }
             25%  { transform: scale(0.82) rotate(90deg); }
@@ -277,7 +277,7 @@
         .profile-switch-spin { animation: profile-switch-spin 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .profile-ring-pulse  { animation: profile-ring-pulse 0.6s ease-out both; }
 
-        /* â”€â”€ Drag & Drop â”€â”€ */
+        /* ── Drag & Drop ── */
         @keyframes dnd-ghost-pulse {
             0%, 100% { opacity: 1; border-color: #14B8A6; }
             50%       { opacity: 0.6; border-color: #5EEAD4; }
@@ -304,7 +304,7 @@
             box-shadow: 0 24px 48px rgba(20,184,166,0.15) !important;
         }
 
-        /* â”€â”€ Logout feedback â”€â”€ */
+        /* ── Logout feedback ── */
         @keyframes logout-shake {
             0%   { transform: translateX(0) scale(1); opacity: 1; }
             20%  { transform: translateX(-3px) scale(0.97); }
@@ -322,12 +322,12 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-        // Suprime console.log em produÃ§Ã£o; mantÃ©m console.error e console.warn
+        // Suprime console.log em produção; mantém console.error e console.warn
         if (typeof location !== 'undefined' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
             console.log = () => {};
         }
 
-        // --- 0. CONFIGURAÃ‡ÃƒO DO BANCO DE DADOS NA NUVEM ---
+        // --- 0. CONFIGURAÇÃO DO BANCO DE DADOS NA NUVEM ---
 
         const LOCAL_META_PREFIX = 'libdb-meta:';
         const LOCAL_PENDING_SYNC_KEY = 'libdb-pending-sync-keys-v1';
@@ -391,7 +391,7 @@
             return Number.isFinite(time) ? time : 0;
         };
 
-        // FunÃ§Ãµes para salvar/carregar dados do Firebase
+        // Funções para salvar/carregar dados do Firebase
         const waitForDb = async () => {
             for (let i = 0; i < 20; i += 1) {
                 if (window.db) return true;
@@ -400,7 +400,7 @@
             return false;
         };
 
-        // Chaves que sÃ£o compartilhadas entre os dois perfis (chat, comentÃ¡rios, notificaÃ§Ãµes)
+        // Chaves que são compartilhadas entre os dois perfis (chat, comentários, notificações)
         const SHARED_KEYS = new Set([
             'libdb-chat-v1-shared',
             'libdb-comments-v1-shared',
@@ -410,10 +410,10 @@
         // Chave compartilhada para mapear perfil -> UID do Firebase
         const PROFILE_UIDS_KEY = 'profile-uids';
 
-        // Retorna a referÃªncia Firestore correta: compartilhada ou pessoal
+        // Retorna a referência Firestore correta: compartilhada ou pessoal
         const getCloudDocRef = (key) => {
             if (SHARED_KEYS.has(key)) {
-                // Path Ãºnico para toda a biblioteca â€” acessÃ­vel pelas duas usuÃ¡rias
+                // Path único para toda a biblioteca — acessível pelas duas usuárias
                 return doc(window.db, 'shared', 'biblioteca-do-amanha', 'data', key);
             }
             const userId = window.auth?.currentUser?.uid || 'default-user';
@@ -440,7 +440,7 @@
             };
         };
 
-        // LÃª dados do Firestore usando o UID de outro usuÃ¡rio (para leitura cross-profile)
+        // Lê dados do Firestore usando o UID de outro usuário (para leitura cross-profile)
         const readCloudSnapshotForUid = async (key, uid, defaultValue = {}) => {
             if (!window.db) {
                 const ready = await waitForDb();
@@ -485,7 +485,7 @@
                 if (!window.db) {
                     const ready = await waitForDb();
                     if (!ready) {
-                        console.warn('[Cloud] Database nÃ£o pronto, marcando para sincronizaÃ§Ã£o posterior');
+                        console.warn('[Cloud] Database não pronto, marcando para sincronização posterior');
                         if (setSyncStatus) setSyncStatus("offline");
                         markPendingSyncKey(key, true);
                         return;
@@ -527,7 +527,7 @@
 
                 const response = await fetch(epubUrl);
                 if (!response.ok) {
-                    throw new Error('NÃ£o foi possÃ­vel descarregar o EPUB do Supabase.');
+                    throw new Error('Não foi possível descarregar o EPUB do Supabase.');
                 }
 
                 const blob = await response.blob();
@@ -564,7 +564,7 @@
             if (!epubPath) return;
             const isReady = await ensureSupabaseReady();
             if (!isReady) {
-                throw new Error('Supabase Storage indisponÃ­vel no navegador. Verifique a CDN, a URL e a anon key.');
+                throw new Error('Supabase Storage indisponível no navegador. Verifique a CDN, a URL e a anon key.');
             }
 
             const { error } = await window.supabaseClient
@@ -579,15 +579,15 @@
 
         const uploadEpubToCloud = async (bookId, file, previousPath = null) => {
             if (!window.auth?.currentUser || !file) {
-                throw new Error('Utilizador nÃ£o autenticado.');
+                throw new Error('Utilizador não autenticado.');
             }
             const isReady = await ensureSupabaseReady();
             if (!isReady) {
-                throw new Error('Supabase Storage indisponÃ­vel no navegador. Verifique a CDN, a URL e a anon key.');
+                throw new Error('Supabase Storage indisponível no navegador. Verifique a CDN, a URL e a anon key.');
             }
             const isEpub = (file.type === 'application/epub+zip') || /\.epub$/i.test(file.name || '');
             if (!isEpub) {
-                throw new Error('Arquivo invÃ¡lido. Envie apenas arquivos .epub');
+                throw new Error('Arquivo inválido. Envie apenas arquivos .epub');
             }
             const maxSizeBytes = 10 * 1024 * 1024; // 10MB limite
             if (file.size > maxSizeBytes) {
@@ -615,7 +615,7 @@
                     try {
                         await deleteEpubFromCloud(previousPath);
                     } catch (cleanupError) {
-                        console.warn('NÃ£o foi possÃ­vel remover o EPUB antigo:', cleanupError);
+                        console.warn('Não foi possível remover o EPUB antigo:', cleanupError);
                     }
                 }
 
@@ -688,7 +688,7 @@
             }
         };
 
-        // --- 1. CONFIGURAÃ‡Ã•ES E HELPERS (DEFINIDOS NO TOPO) ---
+        // --- 1. CONFIGURAÇÕES E HELPERS (DEFINIDOS NO TOPO) ---
 
         const APP_TOAST_EVENT = 'libdb:toast';
 
@@ -723,7 +723,7 @@
                 }
                 return;
             }
-            console.warn('[Toast] Fallback - navegador nÃ£o suporta CustomEvent:', message);
+            console.warn('[Toast] Fallback - navegador não suporta CustomEvent:', message);
         };
 
         const withUiTimeout = (promise, ms, timeoutMessage) => Promise.race([
@@ -811,10 +811,10 @@
 
             // Matches design system: left 4px border + tinted bg + emoji icon
             const toneConfig = {
-                success: { emoji: 'âœ…', bg: 'rgba(236,253,245,.97)', borderColor: '#10B981', msgColor: '#065F46', subColor: '#059669' },
-                info:    { emoji: 'ðŸ“–', bg: 'rgba(255,255,255,.97)', borderColor: '#14B8A6', msgColor: '#1E3A5F', subColor: '#6B7280' },
-                warning: { emoji: 'âš ï¸', bg: 'rgba(255,251,235,.97)', borderColor: '#F59E0B', msgColor: '#92400E', subColor: '#B45309' },
-                error:   { emoji: 'âŒ', bg: 'rgba(254,242,242,.97)', borderColor: '#EF4444', msgColor: '#991B1B', subColor: '#B91C1C' },
+                success: { emoji: '✅', bg: 'rgba(236,253,245,.97)', borderColor: '#10B981', msgColor: '#065F46', subColor: '#059669' },
+                info:    { emoji: '📖', bg: 'rgba(255,255,255,.97)', borderColor: '#14B8A6', msgColor: '#1E3A5F', subColor: '#6B7280' },
+                warning: { emoji: '⚠️', bg: 'rgba(255,251,235,.97)', borderColor: '#F59E0B', msgColor: '#92400E', subColor: '#B45309' },
+                error:   { emoji: '❌', bg: 'rgba(254,242,242,.97)', borderColor: '#EF4444', msgColor: '#991B1B', subColor: '#B91C1C' },
             };
 
             return (
@@ -842,7 +842,7 @@
                                     className="flex-shrink-0 text-[14px] opacity-40 hover:opacity-100 transition-opacity leading-none mt-0.5"
                                     style={{ color: cfg.msgColor }}
                                     aria-label="Fechar"
-                                >âœ•</button>
+                                >✕</button>
                             </div>
                         );
                     })}
@@ -850,9 +850,9 @@
             );
         }
 
-        function useProfilePersistence({ isInitialized, user, isProfileSwitchingRef, profileKeys, payload }) {
+        function useProfilePersistence({ isInitialized, user, isProfileSwitchingRef, profileKeys, payload, isViewingOtherProfile }) {
             useDebouncedEffect(() => {
-                if (!isInitialized || !user || isProfileSwitchingRef.current) return;
+                if (!isInitialized || !user || isProfileSwitchingRef.current || isViewingOtherProfile) return;
 
                 saveToCloud(profileKeys.read, payload.readStatus);
                 saveToCloud(profileKeys.download, payload.downloadStatus);
@@ -870,17 +870,17 @@
             }, [isInitialized, user, isProfileSwitchingRef, profileKeys, payload], 450);
         }
 
-        const GENRES = ["Todos", "Fantasia", "Romantasy", "FicÃ§Ã£o CientÃ­fica", "Thriller", "Romance ContemporÃ¢neo", "FicÃ§Ã£o LiterÃ¡ria", "Distopia"];
+        const GENRES = ["Todos", "Fantasia", "Romantasy", "Ficção Científica", "Thriller", "Romance Contemporâneo", "Ficção Literária", "Distopia"];
         const DEFAULT_GENRES = GENRES.filter(genre => genre !== "Todos");
 
         function getGenreStyles(genre) {
             switch (genre) {
                 case "Fantasia": return { text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", gradient: "from-emerald-100 to-emerald-200" };
                 case "Romantasy": return { text: "text-cyan-700", bg: "bg-cyan-50", border: "border-cyan-200", gradient: "from-cyan-100 to-cyan-200" };
-                case "FicÃ§Ã£o CientÃ­fica": return { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", gradient: "from-blue-100 to-blue-200" };
+                case "Ficção Científica": return { text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", gradient: "from-blue-100 to-blue-200" };
                 case "Thriller": return { text: "text-teal-700", bg: "bg-teal-50", border: "border-teal-200", gradient: "from-teal-100 to-teal-200" };
-                case "Romance ContemporÃ¢neo": return { text: "text-sky-700", bg: "bg-sky-50", border: "border-sky-200", gradient: "from-sky-100 to-sky-200" };
-                case "FicÃ§Ã£o LiterÃ¡ria": return { text: "text-green-700", bg: "bg-green-50", border: "border-green-200", gradient: "from-green-100 to-green-200" };
+                case "Romance Contemporâneo": return { text: "text-sky-700", bg: "bg-sky-50", border: "border-sky-200", gradient: "from-sky-100 to-sky-200" };
+                case "Ficção Literária": return { text: "text-green-700", bg: "bg-green-50", border: "border-green-200", gradient: "from-green-100 to-green-200" };
                 case "Distopia": return { text: "text-violet-700", bg: "bg-violet-50", border: "border-violet-200", gradient: "from-violet-100 to-violet-200" };
                 default: return { text: "text-teal-700", bg: "bg-teal-50", border: "border-teal-200", gradient: "from-teal-100 to-teal-200" };
             }
@@ -890,7 +890,7 @@
             if (total === 2) return "Duologia";
             if (total === 3) return "Trilogia";
             if (total === 4) return "Tetralogia";
-            return `SÃ©rie (${total} vols)`;
+            return `Série (${total} vols)`;
         }
 
         function Icon({ name, className = "w-5 h-5" }) {
@@ -925,45 +925,45 @@
 
         // Livros de seed (carregados uma vez no banco de dados)
         const SEED_BOOKS = [
-            { id: 1, title: "Para nÃ£o acabar tÃ£o cedo", author: "Clarice Freire", publisher: "Record", pages: 216, genre: "FicÃ§Ã£o LiterÃ¡ria", isBrazilianAuthor: true, coverUrl: "https://m.media-amazon.com/images/I/918m27U289L.jpg", synopsis: "Duas irmÃ£s idosas â€” Augusta e Lia â€” acordam com os corpos rejuvenescidos. O narrador da histÃ³ria Ã© o prÃ³prio Tempo, que provocou essa viravolta. Augusta, guardiÃ£ e controladora; Lia, rebelde e sedenta de vida. Um romance sobre envelhecimento, ciclos e o que significa aproveitar o tempo.", tags: ["literatura brasileira", "narrativa experimental", "narrador: o Tempo", "relaÃ§Ãµes entre irmÃ£s", "rejuvenescimento", "romance de estreia"] },
-            { id: 2, title: "Jogando com a Verdade", author: "Dri Satys", publisher: "Independente", pages: 572, genre: "Romance ContemporÃ¢neo", isBrazilianAuthor: true, series: "IrmÃ£os Raffiti", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/71rubAS37ZL._UF1000,1000_QL80_.jpg", synopsis: "Nicole Palazzini vai passar uma temporada com a melhor amiga â€” e descobre que o irmÃ£o dela, Xavier Raffiti, jogador de futebol famoso por quem sempre foi apaixonada, vai dividir o mesmo espaÃ§o. ConvivÃªncia forÃ§ada, sentimentos antigos e muita verdade no jogo entre os dois.", tags: ["romance contemporÃ¢neo", "comÃ©dia romÃ¢ntica", "futebol", "irmÃ£o da melhor amiga", "proximidade forÃ§ada", "dual POV", "autora brasileira"] },
-            { id: 3, title: "Interion: As CrÃ´nicas de JÃºpiter", author: "PatrÃ­cia Criado", publisher: "Independente", pages: 1200, genre: "Fantasia", isBrazilianAuthor: true, series: "As CrÃ´nicas de JÃºpiter", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81c3ciDan+L._UF1000,1000_QL80_.jpg", synopsis: "Em Interion, hÃ¡ mais de 500 anos mulheres com poderes foram escravizadas. Seus descendentes ainda lutam para acabar com essa tirania. Kyller, uma feÃ©rica curandeira, Ã© salva pelo general Zion Voluz e forÃ§ada a se casar com ele para ser aceita. Anos depois, Zion retorna como professor da Academia Militar â€” onde ela Ã© aluna. Romance, fantasia e guerra em uma das maiores obras de alta fantasia nacional.", tags: ["alta fantasia", "feÃ©ricos", "professor e aluna", "guerra", "casamento forÃ§ado", "poderes mÃ¡gicos", "slow burn", "literatura brasileira"] },
-            { id: 4, title: "Flores para Algernon", author: "Daniel Keyes", publisher: "Aleph", pages: 284, genre: "FicÃ§Ã£o CientÃ­fica", coverUrl: "https://m.media-amazon.com/images/I/71VrMtcmE9L.jpg", synopsis: "Charlie Gordon tem 32 anos e QI 68. Uma cirurgia experimental aumenta sua inteligÃªncia alÃ©m dos prÃ³prios mÃ©dicos. Narrado pelos relatÃ³rios de progresso de Charlie, o livro acompanha sua transformaÃ§Ã£o â€” e o que o conhecimento revela sobre as pessoas ao seu redor. 5 milhÃµes de cÃ³pias, adaptaÃ§Ã£o para Oscar.", tags: ["ficÃ§Ã£o cientÃ­fica clÃ¡ssica", "deficiÃªncia intelectual", "inteligÃªncia artificial/cirurgia", "Ã©tica na ciÃªncia", "narrativa em diÃ¡rio", "comovente"] },
-            { id: 5, title: "RecursÃ£o", author: "Blake Crouch", publisher: "IntrÃ­nseca", pages: 330, genre: "FicÃ§Ã£o CientÃ­fica", coverUrl: "https://m.media-amazon.com/images/I/61IcrwpeLUL.jpg", synopsis: "Barry Sutton Ã© policial que investiga a misteriosa SÃ­ndrome da Falsa MemÃ³ria â€” uma doenÃ§a em que as pessoas acordam com memÃ³rias de vidas que nunca viveram. Ao cruzar com uma cientista que trabalha com viagem no tempo via memÃ³ria, as linhas entre passado e realidade comeÃ§am a se apagar de forma irreversÃ­vel.", tags: ["ficÃ§Ã£o cientÃ­fica", "viagem no tempo", "memÃ³ria falsa", "thriller cientÃ­fico", "plot twist"] },
-            { id: 6, title: "A Quinta EstaÃ§Ã£o", author: "N.K. Jemisin", publisher: "Morro Branco", pages: 560, genre: "FicÃ§Ã£o CientÃ­fica", isDistopia: true, series: "A Terra Partida", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81Qnzqi3XlL.jpg", synopsis: "Em um Ãºnico dia catastrÃ³fico: uma mÃ£e descobre que o marido matou o filho e sequestrou a filha; o maior impÃ©rio do mundo colapsa; e uma fenda rasga o coraÃ§Ã£o do Ãºnico continente, expelindo cinzas que podem apagar o sol por sÃ©culos. No mundo da Quietude, os orogenes â€” que controlam a terra â€” sÃ£o os mais temidos. A autora foi a primeira escritora negra a vencer o Hugo, e Ã© a Ãºnica a vencÃª-lo por trÃªs anos consecutivos.", tags: ["distopia", "fantasia/ficÃ§Ã£o cientÃ­fica", "pÃ³s-apocalÃ­ptico", "poderes elementais", "crÃ­tica social", "mÃºltiplos POVs", "narraÃ§Ã£o em 2Âª pessoa"] },
-            { id: 7, title: "FÃºria Vermelha", author: "Pierce Brown", publisher: "Globo Alt", pages: 468, genre: "FicÃ§Ã£o CientÃ­fica", isDistopia: true, series: "Red Rising", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81htNBU7jiL.jpg", synopsis: "Marte colonizado. A sociedade Ã© dividida em castas por cor, e os Vermelhos vivem nos subterrÃ¢neos minerando para o governo. Darrow, um minerador, descobre que o mundo em que vive Ã© uma grande mentira. Com a ajuda de rebeldes, infiltra-se na elite dos Ouros para destruir o sistema de dentro. Comparado a Jogos Vorazes + Game of Thrones.", tags: ["distopia", "ficÃ§Ã£o cientÃ­fica", "Marte colonizado", "castas genÃ©ticas", "infiltraÃ§Ã£o", "vinganÃ§a", "violÃªncia intensa"] },
-            { id: 8, title: "Elite de Prata", author: "Dani Francis", publisher: "Paralela", pages: 464, genre: "FicÃ§Ã£o CientÃ­fica", isDistopia: true, series: "Silver Elite", volume: 1, isSeries: true, totalVolumes: 3, isBrazilianAuthor: true, coverUrl: "https://m.media-amazon.com/images/I/81tycP3bo7L.jpg", synopsis: "No Continente, poderes psÃ­quicos sÃ£o sentenÃ§a de morte. Wren Darlington Ã© uma Modificada (Mod) que vive escondida, ajudando a RebeliÃ£o em segredo. Um erro a coloca nas mÃ£os do exÃ©rcito inimigo, forÃ§ando-a a entrar no programa de treinamento Elite Prata â€” onde seu superior Ã© o irresistÃ­vel e arrogante Cross Redden. Uma oportunidade perfeita para a RebeliÃ£o, se ela sobreviver.", tags: ["distopia", "romance", "poderes psÃ­quicos", "enemies to lovers", "treinamento militar", "identidade oculta", "rebeliÃ£o"] },
-            { id: 9, title: "A Sombra dos Deuses", author: "John Gwynne", publisher: "Trama", pages: 576, genre: "Fantasia", series: "Saga Bloodsworn", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81bqTipxCPL._AC_UF1000,1000_QL80_.jpg", synopsis: "Um sÃ©culo apÃ³s os deuses se exterminarem, seus ossos erguem montanhas e seus descendentes sÃ£o escravizados. TrÃªs destinos se entrelaÃ§am: Orka, a guerreira que queria paz mas foi atacada; Varg, o ex-escravo que busca vinganÃ§a entre mercenÃ¡rios; e Elvar, que persegue a glÃ³ria e descobre seu preÃ§o. Fantasia nÃ³rdica brutal elogiada por Robin Hobb.", tags: ["fantasia Ã©pica", "mitologia nÃ³rdica", "pÃ³s-RagnarÃ¶k", "3 POVs", "guerra e vinganÃ§a", "deuses mortos", "dark fantasy"] },
-            { id: 10, title: "Um Estranho Sonhador", author: "Laini Taylor", publisher: "Universo dos Livros", pages: 480, genre: "Fantasia", series: "Estranha o Sonhador", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81uxiFkiJvL._AC_UF1000,1000_QL80_.jpg", synopsis: "Lazlo Estranho Ã© um bibliotecÃ¡rio Ã³rfÃ£o obcecado pela cidade mÃ­tica de Lamento, que hÃ¡ 200 anos desapareceu do mundo. Quando uma expediÃ§Ã£o parte em busca dela, Lazlo finalmente encontra respostas â€” e uma deusa de pele azul que aparece em seus sonhos. NYT best-seller e finalista do National Book Award.", tags: ["fantasia", "cidade perdida", "sonhos e magia", "deuses", "romance", "escrita lÃ­rica"] },
-            { id: 11, title: "A Rebelde do Deserto", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 312, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/A1e0TuprdCL._UF1000,1000_QL80_.jpg", synopsis: "Amani Al'Hiza Ã© pobre, Ã³rfÃ£, mulher â€” tudo o que o deserto de Miraji condena. Mas ela Ã© uma atiradora infalÃ­vel. Ao fugir de um casamento forÃ§ado com um forasteiro misterioso, Ã© lanÃ§ada numa rebeliÃ£o contra o sultÃ£o, entre djinnis reais, poder e o destino de um povo. Mitologia Ã¡rabe + faroeste em uma das trilogias mais originais do YA.", tags: ["fantasia YA", "mitologia Ã¡rabe", "faroeste", "djinnis", "protagonista feminina", "crÃ­tica social", "trilogia completa"] },
-            { id: 12, title: "A Traidora do Trono", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 384, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 2, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91HhIrpcQuL._AC_UF1000,1000_QL80_.jpg", synopsis: "Amani agora estÃ¡ no coraÃ§Ã£o da rebeliÃ£o contra o sultÃ£o. ContinuaÃ§Ã£o Ã©pica de A Rebelde do Deserto. Entre a lealdade Ã  sua terra e o amor que encontrou nas dunas.", tags: ["fantasia", "rebeliÃ£o", "conflitos polÃ­ticos", "mitologia Ã¡rabe"] },
-            { id: 13, title: "A HeroÃ­na da Alvorada", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 344, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 3, isSeries: true, totalVolumes: 3, coverUrl: "https://images-na.ssl-images-amazon.com/images/I/A13Nj5VetZL._AC_UL900_SR615,900_.jpg", synopsis: "A conclusÃ£o Ã©pica da jornada de Amani Al'Hiza no deserto de Miraji. O destino do deserto e de todos os djinnis estÃ¡ em jogo na batalha final.", tags: ["fantasia", "conclusÃ£o", "Ã©pico", "aÃ§Ã£o e romance"] },
-            { id: 14, title: "Nevernight", author: "Jay Kristoff", publisher: "Plataforma 21", pages: 540, genre: "Fantasia", series: "As CrÃ´nicas da Quasinoite", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://images.tcdn.com.br/img/img_prod/971248/nevernight_a_sombra_do_corvo_nova_edicao_1105_1_8381b37499c94f4a111422d575270974.jpg", synopsis: "Mia Corvere viu a famÃ­lia ser destruÃ­da ainda crianÃ§a. Aos 16, comeÃ§a o treinamento para se tornar uma assassina da Igreja Vermelha â€” Ãºnico caminho para a vinganÃ§a. Em um mundo com trÃªs sÃ³is onde a escuridÃ£o total ocorre apenas a cada dois anos, Mia comanda as sombras. Fantasia adulta sombria com narrador sarcÃ¡stico e notas de rodapÃ© Ãºnicas.", tags: ["fantasia adulta sombria", "escola de assassinos", "vinganÃ§a", "magia das sombras", "polÃ­tica e intrigas", "narrador Ãºnico", "dark fantasy", "spicy"] },
-            { id: 17, title: "A Guerra da Papoula", author: "R.F. Kuang", publisher: "HarperCollins", pages: 528, genre: "Fantasia", series: "A Guerra da Papoula", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/613YunBw8yL._AC_UF1000,1000_QL80_.jpg", synopsis: "Rin Ã© uma Ã³rfÃ£ de pele escura que luta para entrar na mais respeitada academia militar do ImpÃ©rio Nikara. Ao conseguir, descobre poderes xamÃ¢nicos atravÃ©s do uso do Ã³pio. Baseado na histÃ³ria da China do sÃ©culo XX, o livro aborda colonialismo, guerra, atrocidades e a natureza destrutiva do poder. Indicado para maiores de 18 anos.", tags: ["fantasia Ã©pica", "baseado na histÃ³ria da China", "xamanismo e Ã³pio", "academia militar", "guerra", "conteÃºdo pesado", "+18"] },
-            { id: 18, title: "A Cidade de Bronze", author: "S.A. Chakraborty", publisher: "Morro Branco", pages: 608, genre: "Fantasia", series: "Trilogia de Daevabad", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91JQ7RcYcrL._UF1000,1000_QL80_.jpg", synopsis: "Nahri Ã© uma golpista sobrevivendo nas ruas do Cairo do sÃ©culo XVIII. Sem querer, convoca Dara, um poderoso guerreiro djinn, e descobre que estÃ¡ ligada ao mundo mÃ¡gico por seu sangue. Juntos fogem atÃ© Daevabad, a lendÃ¡ria Cidade de Bronze â€” onde tribos djinns travam conflitos centenÃ¡rios. Fantasia inspirada na mitologia islÃ¢mica e persa, com dois POVs e forte crÃ­tica social.", tags: ["fantasia Ã©pica", "mitologia islÃ¢mica/persa", "djinns", "Cairo sÃ©culo XVIII", "intrigas polÃ­ticas", "dual POV", "crÃ­tica social"] },
-            { id: 19, title: "Mistborn: O ImpÃ©rio Final", author: "Brandon Sanderson", publisher: "Trama", pages: 672, genre: "Fantasia", series: "Mistborn", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91U6rc7u0yL._AC_UF1000,1000_QL80_.jpg", synopsis: "Em um mundo de cinzas e nÃ©voa onde o Senhor Supremo governa hÃ¡ mil anos, um grupo de ladrÃµes plota a maior revoluÃ§Ã£o da histÃ³ria. Vin, uma ladra das ruas, descobre poderes raros de alomÃ¢ncia â€” a magia de queimar metais para obter habilidades. Com the lendÃ¡rio Kelsier, ela precisarÃ¡ destruir um sistema que parece eterno. Sistema de magia Ãºnico e mundialmente aclamado.", tags: ["fantasia Ã©pica", "Cosmere", "alomÃ¢ncia â€” sistema de metais", "revoluÃ§Ã£o", "castas oprimidas", "heist mÃ¡gico", "trilogia completa"] },
-            { id: 20, title: "O Caminho dos Reis", author: "Brandon Sanderson", publisher: "Trama", pages: 1056, genre: "Fantasia", series: "Os Relatos da Guerra das Tempestades", volume: 1, isSeries: true, totalVolumes: 10, coverUrl: "https://m.media-amazon.com/images/I/91gtaGEonIL._UF1000,1000_QL80_.jpg", synopsis: "Em Roshar, um mundo devastado por tempestades mÃ¡gicas, mÃºltiplos personagens convergem para um conflito Ã©pico. Kaladin, um escravo que foi soldado; Shallan, uma acadÃªmica com poderes secretos; Dalinar, un general assombrado por visÃµes. A saga mais ambiciosa do Cosmere â€” e um dos livros mais bem avaliados de todos os tempos no Goodreads.", tags: ["fantasia Ã©pica", "Cosmere", "mÃºltiplos POVs", "sistema de magia: Elos de Luz", "guerra e polÃ­tica", "construÃ§Ã£o de mundo excepcional", "calhamaÃ§o +1000p"] },
-            { id: 21, title: "Foundryside", author: "Robert Jackson Bennett", publisher: "Morro Branco", pages: 640, genre: "Fantasia", series: "Os Fundadores", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81KV69mVmQL.jpg", synopsis: "Em Tevanne, a magia Ã© industrializada: inscriÃ§Ãµes em objetos os fazem 'acreditar' in coisas diferentes, alterando a realidade. Sancia Ã© uma ladra com habilidade Ãºnica de ler inscriÃ§Ãµes â€” e acaba roubando um artefato com power imensurÃ¡vel, que pode reescrever a prÃ³pria realidade. Recomendado por Brandon Sanderson. Descrito como 'cyberpunk preso em roupas de fantasia Ã©pica'.", tags: ["fantasia Ã©pica", "magia industrializada", "elementos cyberpunk", "heist", "crÃ­tica ao capitalismo", "protagonista ladra"] },
-            { id: 22, title: "Divinos Rivais", author: "Rebecca Ross", publisher: "Alt", pages: 368, genre: "Romantasy", series: "Letters of Enchantment", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81UkZV9mfEL.jpg", synopsis: "Os deuses voltaram Ã  guerra e o mundo estÃ¡ em conflito. Iris Winnow, 18 anos, Ã© jornalista e escreve cartas para o irmÃ£o desaparecido na frente de batalha â€” que misteriosamente vÃ£o parar nas mÃ£os de Roman Kitt, seu rival no jornal. Uma conexÃ£o anÃ´nima que os une e os leva atÃ© a linha de frente. Enemies to lovers com cartas mÃ¡gicas e vibes steampunk.", tags: ["romantasy", "enemies to lovers", "cartas mÃ¡gicas", "jornalistas rivais", "deuses em guerra", "steampunk"] },
-            { id: 23, title: "Alchemised", author: "SenLinYu", publisher: "Planeta Minotauro", pages: 954, genre: "Romantasy", coverUrl: "https://m.media-amazon.com/images/I/91G2hnAVQgL._AC_UF1000,1000_QL80_.jpg", synopsis: "Helena Marino era uma alquimista promissora atÃ© ver seus aliados serem assassinados e perder seus poderes. Agora Ã© prisioneira de guerra em Paladia, governada por necromantes. Mantida em cativeiro, Ã© ligada a Ferron â€” um homem frio, sem emoÃ§Ã£o e com segredos profundos. Origem fanfic de Harry Potter, 1 milhÃ£o de cÃ³pias em semanas, adaptaÃ§Ã£o cinematogrÃ¡fica pela Legendary Entertainment.", tags: ["romantasy", "dark fantasy", "alquimia e necromÃ¢ncia", "prisioneira de guerra", "slow burn", "memories perdidas", "fenÃ´meno TikTok"] },
-            { id: 24, title: "Nona Casa", author: "Leigh Bardugo", publisher: "Planeta Minotauro", pages: 442, genre: "Romantasy", series: "Trilogia Alex Stern", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/7190YwrFfuS.jpg", synopsis: "Galaxy 'Alex' Stern enxerga fantasmas desde sempre. Ãšnica sobrevivente de um massacre misterioso, recebe uma bolsa integral para Yale com a condiÃ§Ã£o: monitorar as sociedades secretas da universidade, que praticam magia real. Stephen King: 'impossÃ­vel de largar'. Fantasia adulta com mistÃ©rio, magia negra e crÃ­tica ao privilÃ©gio. AdaptaÃ§Ã£o em desenvolvimento pela Amazon Studios.", tags: ["fantasia adulta", "sociedades secretas", "Yale e magia negra", "protagonista vÃª fantasmas", "mistÃ©rio e investigaÃ§Ã£o", "conteÃºdo pesado"] },
-            { id: 25, title: "Quicksilver", author: "Callie Hart", publisher: "Rocco", pages: 560, genre: "Romantasy", series: "Magia e Alquimia", volume: 1, isSeries: true, totalVolumes: 5, coverUrl: "https://m.media-amazon.com/images/I/71PJVodvO-L.jpg", synopsis: "Saeris Fane Ã© uma ladra com o power proibido de manipular metais, sobrevivendo em Zilvaren â€” cidade castigada por dois sÃ³is onde Ã¡gua Ã© mais rara que ouro. Ao reabrir sem querer um portal entre mundos, Ã© transportada para Yvelia, reino gelado dos feÃ©ricos, e ligada ao guerreiro Kingfisher: belo, frio e cheio de segredos. Enemies to lovers com spice e plot twist arrebatador.", tags: ["romantasy", "feÃ©ricos", "alquimia e metais", "portal entre mundos", "enemies to lovers", "spicy", "plot twist"] },
-            { id: 26, title: "O Livro de Azrael", author: "Amber V. Nicole", publisher: "Independente", pages: 640, genre: "Romantasy", series: "Deuses e Monstros", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91hl43KH-QL.jpg", synopsis: "HÃ¡ mil anos, Dianna fez um pacto com um monstro para salvar a irmÃ£. Agora serve a Kaden e Ã© enviada para roubar uma relÃ­quia das mÃ£os do exÃ©rcito de Samkiel â€” o Arauto do Fim, um deus recluso que negou a coroa apÃ³s a Guerra dos Deuses. Dianna e Samkiel sÃ£o forÃ§ados a trabalhar juntos para salvar todos os mundos. Enemies to lovers, slow burn, dark fantasy com duplos POVs.", tags: ["dark romantasy", "deuses e imortais", "enemies to lovers", "slow burn", "dual POV", "pacto com monstro", "heroÃ­na moralmente cinza"] },
-            { id: 27, title: "A Paciente Silenciosa", author: "Alex Michaelides", publisher: "Record", pages: 350, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/91R8S52UP6L._AC_UF1000,1000_QL80_.jpg", synopsis: "Alicia Berenson matou o marido com cinco tiros e nunca mais disse uma palavra. O psicoterapeuta Theo Faber estÃ¡ determinado a fazÃª-la falar â€” mas a verdade que ela esconde pode ser mais perigosa do que ele imagina.", tags: ["thriller psicolÃ³gico", "narrador nÃ£o confiÃ¡vel", "plot twist", "psiquiatria", "crime nÃ£o resolvido", "silÃªncio como arma", "dual POV"] },
-            { id: 28, title: "O Massacre da FamÃ­lia Hope", author: "Riley Sager", publisher: "IntrÃ­nseca", pages: 400, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/81asVXUBKkL._UF1000,1000_QL80_.jpg", synopsis: "Em 1929, toda a famÃ­lia Hope foi assassinada â€” sÃ³ a filha sobreviveu. DÃ©cadas depois, uma cuidadora Ã© designada para a idosa Lenora, que sÃ³ se comunica atravÃ©s de uma mÃ¡quina de escrever. Inspirado no caso real de Lizzie Borden.", tags: ["suspense gÃ³tico", "crime histÃ³rico", "mansÃ£o assombrada", "narrador nÃ£o confiÃ¡vel", "plot twist", "passado e presente", "baseado em fato real"] },
-            { id: 29, title: "Nada Disso Ã© Verdade", author: "Lisa Jewell", publisher: "IntrÃ­nseca", pages: 352, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/81+NaEnPEtL._AC_UF1000,1000_QL80_.jpg", synopsis: "Uma podcaster aceita transformar a vida de uma estranha desconhecida em episÃ³dio. Antes que perceba, a mulher invade sua casa â€” e sua vida. Quando ela desaparece, Alix descobre que se tornou o tema do prÃ³prio podcast.", tags: ["thriller psicolÃ³gico", "true crime", "obsessÃ£o", "podcast", "stalking", "narrador nÃ£o confiÃ¡vel", "famÃ­lia em perigo"] },
-            { id: 30, title: "Pactos Mortais", author: "Steve Cavanagh", publisher: "HarperCollins", pages: 336, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/71F87OecVmL._AC_UF1000,1000_QL80_.jpg", synopsis: "Duas estranhas em Nova York descobrem que tÃªm o mesmo desejo: se vingar dos homens que destruÃ­ram suas famÃ­lias. O pacto? Eu mato o seu, vocÃª mata o meu. O plano perfeito â€” atÃ© que tudo desmorona.", tags: ["vinganÃ§a", "thriller psicolÃ³gico", "mÃºltiplas perspectivas", "plot twist", "crime planejado", "triÃ¢ngulo de segredos"] },
-            { id: 31, title: "Com Amor, MamÃ£e", author: "Iliana Xander", publisher: "Independente", pages: 336, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/71DA+TIIuFL.jpg", synopsis: "ApÃ³s a morte misteriosa da mÃ£e â€” uma escritora famosa de thrillers â€”, Mackenzie comeÃ§a a receber cartas assinadas 'Com amor, mamÃ£e'. O que ela descobre sobre o passado da famÃ­lia Ã© perturbador demais para ser ficÃ§Ã£o.", tags: ["thriller psicolÃ³gico", "segredos de famÃ­lia", "cartas misteriosas", "morte suspeita", "mÃ£e e filha", "investigaÃ§Ã£o", "vinganÃ§a"] },
-            { id: 32, title: "Tudo em FamÃ­lia", author: "John Marrs", publisher: "DarkSide Books", pages: 352, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/81kHv-wBb3L._AC_UF1000,1000_QL80_.jpg", synopsis: "Mia e Finn compram uma casa abandonada para recomeÃ§ar a vida. Durante a reforma, encontram uma frase escrita com letra infantil sob as camadas de papel de parede: 'EU VOU SALVAR ELAS DO SÃ“TÃƒO'. O passado da casa nÃ£o ficarÃ¡ enterrado.", tags: ["thriller domÃ©stico", "horror psicolÃ³gico", "segredos do passado", "casa com histÃ³ria", "mÃºltiplas perspectivas", "passado e presente", "obsessÃ£o familiar"] },
-            { id: 33, title: "Oceano entre NÃ³s", author: "Tahereh Mafi", publisher: "Universo dos Livros", pages: 304, genre: "Romance ContemporÃ¢neo", coverUrl: "https://m.media-amazon.com/images/I/71MYkfZvNPS._UF1000,1000_QL80_.jpg", synopsis: "Shirin Ã© uma garota muÃ§ulmana de 16 anos que carrega o peso do preconceito pÃ³s-11/setembro. Cansada de lutar sozinha, ela constrÃ³i muros â€” atÃ© que Ocean James aparece como a primeira pessoa que realmente quer conhecÃª-la. Baseado na vida da autora.", tags: ["romance YA", "slow burn", "xenofobia", "islamofobia", "11/setembro", "identidade cultural", "amor improvÃ¡vel", "baseado em fato real"] },
-            { id: 34, title: "Uma QuestÃ£o de QuÃ­mica", author: "Bonnie Garmus", publisher: "Arqueiro", pages: 384, genre: "Romance ContemporÃ¢neo", coverUrl: "https://m.media-amazon.com/images/I/71-JwZqx+mL._AC_UF1000,1000_QL80_.jpg", synopsis: "Elizabeth Zott Ã© uma quÃ­mica brilhante nos anos 1960 que enfrenta um scientific world dominado por homens. Por um capricho do destino, ela se torna a maior estrela de um programa de culinÃ¡ria â€” e ensina bem mais do que receitas. Adaptado para sÃ©rie com Brie Larson.", tags: ["ficÃ§Ã£o histÃ³rica", "feminismo", "romance", "anos 1960", "mulher na ciÃªncia", "mÃ£e solo", "humor", "adaptado para sÃ©rie"] },
-            { id: 35, title: "Conversas entre Amigos", author: "Sally Rooney", publisher: "Companhia das Letras", pages: 320, genre: "Romance ContemporÃ¢neo", coverUrl: "https://m.media-amazon.com/images/I/717zKKQ5UkL.jpg", synopsis: "Frances e Bobbi sÃ£o ex-namoradas e melhores amigas. Quando conhecem um casal mais velho â€” a fotÃ³grafa Melissa e o ator Nick â€” as quatro vidas se entrelaÃ§am em relaÃ§Ãµes de poder, desejo e traiÃ§Ã£o. Primeiro romance de Sally Rooney. Adaptado para sÃ©rie BBC.", tags: ["romance literÃ¡rio", "traiÃ§Ã£o", "relaÃ§Ã£o extraconjugal", "relations de poder", "juventude millennial", "bisexualidade", "polÃ­tica e classe", "adaptado para sÃ©rie"] },
-            { id: 36, title: "Terra Partida", author: "Clare Leslie Hall", publisher: "IntrÃ­nseca", pages: 320, genre: "Romance ContemporÃ¢neo", coverUrl: "https://m.media-amazon.com/images/I/9150j9tc+6L._AC_UF1000,1000_QL80_.jpg", synopsis: "Beth vive tranquilamente no interior da Inglaterra â€” atÃ© que o amor da sua juventude volta Ã  cidade com um filho que lembra o dela, que morreu. A atraÃ§Ã£o proibida reaviva segredos que seu casamento dependia de manter enterrados, e as consequÃªncias sÃ£o mortais.", tags: ["triÃ¢ngulo amoroso", "primeiro amor", "luto", "segredos de casamento", "vida no campo", "escolhas impossÃ­veis", "passado que volta"] },
-            { id: 37, title: "Binding 13", author: "Chloe Walsh", publisher: "Bloom Brasil", pages: 704, genre: "Romance ContemporÃ¢neo", series: "Os Garotos de Tommen", volume: 1, isSeries: true, totalVolumes: 4, coverUrl: "https://m.media-amazon.com/images/I/81qgQ2eFh3L._AC_UF1000,1000_QL80_.jpg", synopsis: "Johnny Ã© a estrela do rÃºgbi irlandÃªs com uma lesÃ£o secreta. Shannon Ã© a nova aluna que sÃ³ quer sobreviver ao colÃ©gio. Um encontro improvÃ¡vel os une â€” mas o passado de Shannon Ã© mais pesado do que qualquer campo de jogo. FenÃ´meno no TikTok.", tags: ["slow burn", "garoto popular Ã— garota excluÃ­da", "romance esportivo", "dual POV", "violÃªncia domÃ©stica", "bullying", "trauma", "irlanda", "friends to lovers"] },
-            { id: 38, title: "Despertar da Chama Eterna", author: "Penn Cole", publisher: "Arqueiro", pages: 384, genre: "Fantasia", series: "Chama Eterna", volume: 1, isSeries: true, totalVolumes: 4, coverUrl: "https://m.media-amazon.com/images/I/8160XsjSJoL.jpg", synopsis: "Diem Bellator Ã© curandeira num mundo governado por Descendentes dos deuses. O desaparecimento da mÃ£e a lanÃ§a no world sombrio da realeza, onde o prÃ­ncipe Luther a observa e uma alianÃ§a mortal a recruta para uma guerra civil. Romance lento de Ã³dio ao amor.", tags: ["romantasy", "enemies to lovers", "slow burn", "intrigas polÃ­ticas", "sistema de magia", "realeza", "deuses e mortais", "toque proibido"] },
-            { id: 39, title: "Uma Janela Sombria", author: "Rachel Gillig", publisher: "Alt", pages: 424, genre: "Romantasy", series: "O Rei Pastor", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81UUGTUvPKL.jpg", synopsis: "Elspeth sobreviveu Ã  febre mÃ¡gica com a ajuda de um monstro preso em sua mente â€” o Pesadelo. Para salvar o reino de Blunder, ela e o misterioso sobrinho do rei precisam reunir as doze Cartas da ProvidÃªncia, enquanto o Pesadelo ameaÃ§a devorar sua alma.", tags: ["dark fantasy", "fantasia gÃ³tica", "sistema de magia em cartas", "monstro interno", "enemies to lovers", "slow burn", "duologia", "found family"] },
-            { id: 40, title: "Duas Coroas Retorcidas", author: "Rachel Gillig", publisher: "Alt", pages: 448, genre: "Romantasy", series: "O Rei Pastor", volume: 2, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/91I5pEHHpNL.jpg", synopsis: "O Pesadelo tomou a cabeÃ§a de Elspeth. NÃ£o se sabe mais o que Ã© menina e o que Ã© monstro. Mas sÃ³ ele sabe onde encontrar a Ãºltima Carta da ProvidÃªncia â€” a chave para salvar o reino. A conclusÃ£o Ã©pica da duologia.", tags: ["dark fantasy", "fantasia gÃ³tica", "dual POV", "mÃºltiplos POVs", "conclusÃ£o de duologia", "polÃ­tica fantÃ¡stica", "romance intenso", "redenÃ§Ã£o"] },
-            { id: 41, title: "Magia Oculta (Metal Slinger)", author: "Rachel Schneider", publisher: "Independente", pages: 520, genre: "Fantasia", series: "Fogo e Metal", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81K7kIHIr4L._UF1000,1000_QL80_.jpg", synopsis: "Brynn Ã© uma guarda que vive exilada no mar. Quando parte para o Mercado anual dos inimigos do seu povo, un conflito com o soldado Acker ameaÃ§a um tratado de paz centenÃ¡rio â€” e revela um world de magia que ela nÃ£o sabia que existia. Plot twist final explosivo.", tags: ["romantasy", "enemies to lovers", "slow burn", "fated mates", "proximidade forÃ§ada", "magia oculta", "plot twist explosivo", "duologia"] }
+            { id: 1, title: "Para não acabar tão cedo", author: "Clarice Freire", publisher: "Record", pages: 216, genre: "Ficção Literária", isBrazilianAuthor: true, coverUrl: "https://m.media-amazon.com/images/I/918m27U289L.jpg", synopsis: "Duas irmãs idosas — Augusta e Lia — acordam com os corpos rejuvenescidos. O narrador da história é o próprio Tempo, que provocou essa viravolta. Augusta, guardiã e controladora; Lia, rebelde e sedenta de vida. Um romance sobre envelhecimento, ciclos e o que significa aproveitar o tempo.", tags: ["literatura brasileira", "narrativa experimental", "narrador: o Tempo", "relações entre irmãs", "rejuvenescimento", "romance de estreia"] },
+            { id: 2, title: "Jogando com a Verdade", author: "Dri Satys", publisher: "Independente", pages: 572, genre: "Romance Contemporâneo", isBrazilianAuthor: true, series: "Irmãos Raffiti", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/71rubAS37ZL._UF1000,1000_QL80_.jpg", synopsis: "Nicole Palazzini vai passar uma temporada com a melhor amiga — e descobre que o irmão dela, Xavier Raffiti, jogador de futebol famoso por quem sempre foi apaixonada, vai dividir o mesmo espaço. Convivência forçada, sentimentos antigos e muita verdade no jogo entre os dois.", tags: ["romance contemporâneo", "comédia romântica", "futebol", "irmão da melhor amiga", "proximidade forçada", "dual POV", "autora brasileira"] },
+            { id: 3, title: "Interion: As Crônicas de Júpiter", author: "Patrícia Criado", publisher: "Independente", pages: 1200, genre: "Fantasia", isBrazilianAuthor: true, series: "As Crônicas de Júpiter", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81c3ciDan+L._UF1000,1000_QL80_.jpg", synopsis: "Em Interion, há mais de 500 anos mulheres com poderes foram escravizadas. Seus descendentes ainda lutam para acabar com essa tirania. Kyller, uma feérica curandeira, é salva pelo general Zion Voluz e forçada a se casar com ele para ser aceita. Anos depois, Zion retorna como professor da Academia Militar — onde ela é aluna. Romance, fantasia e guerra em uma das maiores obras de alta fantasia nacional.", tags: ["alta fantasia", "feéricos", "professor e aluna", "guerra", "casamento forçado", "poderes mágicos", "slow burn", "literatura brasileira"] },
+            { id: 4, title: "Flores para Algernon", author: "Daniel Keyes", publisher: "Aleph", pages: 284, genre: "Ficção Científica", coverUrl: "https://m.media-amazon.com/images/I/71VrMtcmE9L.jpg", synopsis: "Charlie Gordon tem 32 anos e QI 68. Uma cirurgia experimental aumenta sua inteligência além dos próprios médicos. Narrado pelos relatórios de progresso de Charlie, o livro acompanha sua transformação — e o que o conhecimento revela sobre as pessoas ao seu redor. 5 milhões de cópias, adaptação para Oscar.", tags: ["ficção científica clássica", "deficiência intelectual", "inteligência artificial/cirurgia", "ética na ciência", "narrativa em diário", "comovente"] },
+            { id: 5, title: "Recursão", author: "Blake Crouch", publisher: "Intrínseca", pages: 330, genre: "Ficção Científica", coverUrl: "https://m.media-amazon.com/images/I/61IcrwpeLUL.jpg", synopsis: "Barry Sutton é policial que investiga a misteriosa Síndrome da Falsa Memória — uma doença em que as pessoas acordam com memórias de vidas que nunca viveram. Ao cruzar com uma cientista que trabalha com viagem no tempo via memória, as linhas entre passado e realidade começam a se apagar de forma irreversível.", tags: ["ficção científica", "viagem no tempo", "memória falsa", "thriller científico", "plot twist"] },
+            { id: 6, title: "A Quinta Estação", author: "N.K. Jemisin", publisher: "Morro Branco", pages: 560, genre: "Ficção Científica", isDistopia: true, series: "A Terra Partida", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81Qnzqi3XlL.jpg", synopsis: "Em um único dia catastrófico: uma mãe descobre que o marido matou o filho e sequestrou a filha; o maior império do mundo colapsa; e uma fenda rasga o coração do único continente, expelindo cinzas que podem apagar o sol por séculos. No mundo da Quietude, os orogenes — que controlam a terra — são os mais temidos. A autora foi a primeira escritora negra a vencer o Hugo, e é a única a vencê-lo por três anos consecutivos.", tags: ["distopia", "fantasia/ficção científica", "pós-apocalíptico", "poderes elementais", "crítica social", "múltiplos POVs", "narração em 2ª pessoa"] },
+            { id: 7, title: "Fúria Vermelha", author: "Pierce Brown", publisher: "Globo Alt", pages: 468, genre: "Ficção Científica", isDistopia: true, series: "Red Rising", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81htNBU7jiL.jpg", synopsis: "Marte colonizado. A sociedade é dividida em castas por cor, e os Vermelhos vivem nos subterrâneos minerando para o governo. Darrow, um minerador, descobre que o mundo em que vive é uma grande mentira. Com a ajuda de rebeldes, infiltra-se na elite dos Ouros para destruir o sistema de dentro. Comparado a Jogos Vorazes + Game of Thrones.", tags: ["distopia", "ficção científica", "Marte colonizado", "castas genéticas", "infiltração", "vingança", "violência intensa"] },
+            { id: 8, title: "Elite de Prata", author: "Dani Francis", publisher: "Paralela", pages: 464, genre: "Ficção Científica", isDistopia: true, series: "Silver Elite", volume: 1, isSeries: true, totalVolumes: 3, isBrazilianAuthor: true, coverUrl: "https://m.media-amazon.com/images/I/81tycP3bo7L.jpg", synopsis: "No Continente, poderes psíquicos são sentença de morte. Wren Darlington é uma Modificada (Mod) que vive escondida, ajudando a Rebelião em segredo. Um erro a coloca nas mãos do exército inimigo, forçando-a a entrar no programa de treinamento Elite Prata — onde seu superior é o irresistível e arrogante Cross Redden. Uma oportunidade perfeita para a Rebelião, se ela sobreviver.", tags: ["distopia", "romance", "poderes psíquicos", "enemies to lovers", "treinamento militar", "identidade oculta", "rebelião"] },
+            { id: 9, title: "A Sombra dos Deuses", author: "John Gwynne", publisher: "Trama", pages: 576, genre: "Fantasia", series: "Saga Bloodsworn", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81bqTipxCPL._AC_UF1000,1000_QL80_.jpg", synopsis: "Um século após os deuses se exterminarem, seus ossos erguem montanhas e seus descendentes são escravizados. Três destinos se entrelaçam: Orka, a guerreira que queria paz mas foi atacada; Varg, o ex-escravo que busca vingança entre mercenários; e Elvar, que persegue a glória e descobre seu preço. Fantasia nórdica brutal elogiada por Robin Hobb.", tags: ["fantasia épica", "mitologia nórdica", "pós-Ragnarök", "3 POVs", "guerra e vingança", "deuses mortos", "dark fantasy"] },
+            { id: 10, title: "Um Estranho Sonhador", author: "Laini Taylor", publisher: "Universo dos Livros", pages: 480, genre: "Fantasia", series: "Estranha o Sonhador", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81uxiFkiJvL._AC_UF1000,1000_QL80_.jpg", synopsis: "Lazlo Estranho é um bibliotecário órfão obcecado pela cidade mítica de Lamento, que há 200 anos desapareceu do mundo. Quando uma expedição parte em busca dela, Lazlo finalmente encontra respostas — e uma deusa de pele azul que aparece em seus sonhos. NYT best-seller e finalista do National Book Award.", tags: ["fantasia", "cidade perdida", "sonhos e magia", "deuses", "romance", "escrita lírica"] },
+            { id: 11, title: "A Rebelde do Deserto", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 312, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/A1e0TuprdCL._UF1000,1000_QL80_.jpg", synopsis: "Amani Al'Hiza é pobre, órfã, mulher — tudo o que o deserto de Miraji condena. Mas ela é uma atiradora infalível. Ao fugir de um casamento forçado com um forasteiro misterioso, é lançada numa rebelião contra o sultão, entre djinnis reais, poder e o destino de um povo. Mitologia árabe + faroeste em uma das trilogias mais originais do YA.", tags: ["fantasia YA", "mitologia árabe", "faroeste", "djinnis", "protagonista feminina", "crítica social", "trilogia completa"] },
+            { id: 12, title: "A Traidora do Trono", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 384, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 2, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91HhIrpcQuL._AC_UF1000,1000_QL80_.jpg", synopsis: "Amani agora está no coração da rebelião contra o sultão. Continuação épica de A Rebelde do Deserto. Entre a lealdade à sua terra e o amor que encontrou nas dunas.", tags: ["fantasia", "rebelião", "conflitos políticos", "mitologia árabe"] },
+            { id: 13, title: "A Heroína da Alvorada", author: "Alwyn Hamilton", publisher: "Seguinte", pages: 344, genre: "Fantasia", series: "A Rebelde do Deserto", volume: 3, isSeries: true, totalVolumes: 3, coverUrl: "https://images-na.ssl-images-amazon.com/images/I/A13Nj5VetZL._AC_UL900_SR615,900_.jpg", synopsis: "A conclusão épica da jornada de Amani Al'Hiza no deserto de Miraji. O destino do deserto e de todos os djinnis está em jogo na batalha final.", tags: ["fantasia", "conclusão", "épico", "ação e romance"] },
+            { id: 14, title: "Nevernight", author: "Jay Kristoff", publisher: "Plataforma 21", pages: 540, genre: "Fantasia", series: "As Crônicas da Quasinoite", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://images.tcdn.com.br/img/img_prod/971248/nevernight_a_sombra_do_corvo_nova_edicao_1105_1_8381b37499c94f4a111422d575270974.jpg", synopsis: "Mia Corvere viu a família ser destruída ainda criança. Aos 16, começa o treinamento para se tornar uma assassina da Igreja Vermelha — único caminho para a vingança. Em um mundo com três sóis onde a escuridão total ocorre apenas a cada dois anos, Mia comanda as sombras. Fantasia adulta sombria com narrador sarcástico e notas de rodapé únicas.", tags: ["fantasia adulta sombria", "escola de assassinos", "vingança", "magia das sombras", "política e intrigas", "narrador único", "dark fantasy", "spicy"] },
+            { id: 17, title: "A Guerra da Papoula", author: "R.F. Kuang", publisher: "HarperCollins", pages: 528, genre: "Fantasia", series: "A Guerra da Papoula", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/613YunBw8yL._AC_UF1000,1000_QL80_.jpg", synopsis: "Rin é uma órfã de pele escura que luta para entrar na mais respeitada academia militar do Império Nikara. Ao conseguir, descobre poderes xamânicos através do uso do ópio. Baseado na história da China do século XX, o livro aborda colonialismo, guerra, atrocidades e a natureza destrutiva do poder. Indicado para maiores de 18 anos.", tags: ["fantasia épica", "baseado na história da China", "xamanismo e ópio", "academia militar", "guerra", "conteúdo pesado", "+18"] },
+            { id: 18, title: "A Cidade de Bronze", author: "S.A. Chakraborty", publisher: "Morro Branco", pages: 608, genre: "Fantasia", series: "Trilogia de Daevabad", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91JQ7RcYcrL._UF1000,1000_QL80_.jpg", synopsis: "Nahri é uma golpista sobrevivendo nas ruas do Cairo do século XVIII. Sem querer, convoca Dara, um poderoso guerreiro djinn, e descobre que está ligada ao mundo mágico por seu sangue. Juntos fogem até Daevabad, a lendária Cidade de Bronze — onde tribos djinns travam conflitos centenários. Fantasia inspirada na mitologia islâmica e persa, com dois POVs e forte crítica social.", tags: ["fantasia épica", "mitologia islâmica/persa", "djinns", "Cairo século XVIII", "intrigas políticas", "dual POV", "crítica social"] },
+            { id: 19, title: "Mistborn: O Império Final", author: "Brandon Sanderson", publisher: "Trama", pages: 672, genre: "Fantasia", series: "Mistborn", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91U6rc7u0yL._AC_UF1000,1000_QL80_.jpg", synopsis: "Em um mundo de cinzas e névoa onde o Senhor Supremo governa há mil anos, um grupo de ladrões plota a maior revolução da história. Vin, uma ladra das ruas, descobre poderes raros de alomância — a magia de queimar metais para obter habilidades. Com the lendário Kelsier, ela precisará destruir um sistema que parece eterno. Sistema de magia único e mundialmente aclamado.", tags: ["fantasia épica", "Cosmere", "alomância — sistema de metais", "revolução", "castas oprimidas", "heist mágico", "trilogia completa"] },
+            { id: 20, title: "O Caminho dos Reis", author: "Brandon Sanderson", publisher: "Trama", pages: 1056, genre: "Fantasia", series: "Os Relatos da Guerra das Tempestades", volume: 1, isSeries: true, totalVolumes: 10, coverUrl: "https://m.media-amazon.com/images/I/91gtaGEonIL._UF1000,1000_QL80_.jpg", synopsis: "Em Roshar, um mundo devastado por tempestades mágicas, múltiplos personagens convergem para um conflito épico. Kaladin, um escravo que foi soldado; Shallan, uma acadêmica com poderes secretos; Dalinar, un general assombrado por visões. A saga mais ambiciosa do Cosmere — e um dos livros mais bem avaliados de todos os tempos no Goodreads.", tags: ["fantasia épica", "Cosmere", "múltiplos POVs", "sistema de magia: Elos de Luz", "guerra e política", "construção de mundo excepcional", "calhamaço +1000p"] },
+            { id: 21, title: "Foundryside", author: "Robert Jackson Bennett", publisher: "Morro Branco", pages: 640, genre: "Fantasia", series: "Os Fundadores", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/81KV69mVmQL.jpg", synopsis: "Em Tevanne, a magia é industrializada: inscrições em objetos os fazem 'acreditar' in coisas diferentes, alterando a realidade. Sancia é uma ladra com habilidade única de ler inscrições — e acaba roubando um artefato com power imensurável, que pode reescrever a própria realidade. Recomendado por Brandon Sanderson. Descrito como 'cyberpunk preso em roupas de fantasia épica'.", tags: ["fantasia épica", "magia industrializada", "elementos cyberpunk", "heist", "crítica ao capitalismo", "protagonista ladra"] },
+            { id: 22, title: "Divinos Rivais", author: "Rebecca Ross", publisher: "Alt", pages: 368, genre: "Romantasy", series: "Letters of Enchantment", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81UkZV9mfEL.jpg", synopsis: "Os deuses voltaram à guerra e o mundo está em conflito. Iris Winnow, 18 anos, é jornalista e escreve cartas para o irmão desaparecido na frente de batalha — que misteriosamente vão parar nas mãos de Roman Kitt, seu rival no jornal. Uma conexão anônima que os une e os leva até a linha de frente. Enemies to lovers com cartas mágicas e vibes steampunk.", tags: ["romantasy", "enemies to lovers", "cartas mágicas", "jornalistas rivais", "deuses em guerra", "steampunk"] },
+            { id: 23, title: "Alchemised", author: "SenLinYu", publisher: "Planeta Minotauro", pages: 954, genre: "Romantasy", coverUrl: "https://m.media-amazon.com/images/I/91G2hnAVQgL._AC_UF1000,1000_QL80_.jpg", synopsis: "Helena Marino era uma alquimista promissora até ver seus aliados serem assassinados e perder seus poderes. Agora é prisioneira de guerra em Paladia, governada por necromantes. Mantida em cativeiro, é ligada a Ferron — um homem frio, sem emoção e com segredos profundos. Origem fanfic de Harry Potter, 1 milhão de cópias em semanas, adaptação cinematográfica pela Legendary Entertainment.", tags: ["romantasy", "dark fantasy", "alquimia e necromância", "prisioneira de guerra", "slow burn", "memories perdidas", "fenômeno TikTok"] },
+            { id: 24, title: "Nona Casa", author: "Leigh Bardugo", publisher: "Planeta Minotauro", pages: 442, genre: "Romantasy", series: "Trilogia Alex Stern", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/7190YwrFfuS.jpg", synopsis: "Galaxy 'Alex' Stern enxerga fantasmas desde sempre. Única sobrevivente de um massacre misterioso, recebe uma bolsa integral para Yale com a condição: monitorar as sociedades secretas da universidade, que praticam magia real. Stephen King: 'impossível de largar'. Fantasia adulta com mistério, magia negra e crítica ao privilégio. Adaptação em desenvolvimento pela Amazon Studios.", tags: ["fantasia adulta", "sociedades secretas", "Yale e magia negra", "protagonista vê fantasmas", "mistério e investigação", "conteúdo pesado"] },
+            { id: 25, title: "Quicksilver", author: "Callie Hart", publisher: "Rocco", pages: 560, genre: "Romantasy", series: "Magia e Alquimia", volume: 1, isSeries: true, totalVolumes: 5, coverUrl: "https://m.media-amazon.com/images/I/71PJVodvO-L.jpg", synopsis: "Saeris Fane é uma ladra com o power proibido de manipular metais, sobrevivendo em Zilvaren — cidade castigada por dois sóis onde água é mais rara que ouro. Ao reabrir sem querer um portal entre mundos, é transportada para Yvelia, reino gelado dos feéricos, e ligada ao guerreiro Kingfisher: belo, frio e cheio de segredos. Enemies to lovers com spice e plot twist arrebatador.", tags: ["romantasy", "feéricos", "alquimia e metais", "portal entre mundos", "enemies to lovers", "spicy", "plot twist"] },
+            { id: 26, title: "O Livro de Azrael", author: "Amber V. Nicole", publisher: "Independente", pages: 640, genre: "Romantasy", series: "Deuses e Monstros", volume: 1, isSeries: true, totalVolumes: 3, coverUrl: "https://m.media-amazon.com/images/I/91hl43KH-QL.jpg", synopsis: "Há mil anos, Dianna fez um pacto com um monstro para salvar a irmã. Agora serve a Kaden e é enviada para roubar uma relíquia das mãos do exército de Samkiel — o Arauto do Fim, um deus recluso que negou a coroa após a Guerra dos Deuses. Dianna e Samkiel são forçados a trabalhar juntos para salvar todos os mundos. Enemies to lovers, slow burn, dark fantasy com duplos POVs.", tags: ["dark romantasy", "deuses e imortais", "enemies to lovers", "slow burn", "dual POV", "pacto com monstro", "heroína moralmente cinza"] },
+            { id: 27, title: "A Paciente Silenciosa", author: "Alex Michaelides", publisher: "Record", pages: 350, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/91R8S52UP6L._AC_UF1000,1000_QL80_.jpg", synopsis: "Alicia Berenson matou o marido com cinco tiros e nunca mais disse uma palavra. O psicoterapeuta Theo Faber está determinado a fazê-la falar — mas a verdade que ela esconde pode ser mais perigosa do que ele imagina.", tags: ["thriller psicológico", "narrador não confiável", "plot twist", "psiquiatria", "crime não resolvido", "silêncio como arma", "dual POV"] },
+            { id: 28, title: "O Massacre da Família Hope", author: "Riley Sager", publisher: "Intrínseca", pages: 400, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/81asVXUBKkL._UF1000,1000_QL80_.jpg", synopsis: "Em 1929, toda a família Hope foi assassinada — só a filha sobreviveu. Décadas depois, uma cuidadora é designada para a idosa Lenora, que só se comunica através de uma máquina de escrever. Inspirado no caso real de Lizzie Borden.", tags: ["suspense gótico", "crime histórico", "mansão assombrada", "narrador não confiável", "plot twist", "passado e presente", "baseado em fato real"] },
+            { id: 29, title: "Nada Disso é Verdade", author: "Lisa Jewell", publisher: "Intrínseca", pages: 352, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/81+NaEnPEtL._AC_UF1000,1000_QL80_.jpg", synopsis: "Uma podcaster aceita transformar a vida de uma estranha desconhecida em episódio. Antes que perceba, a mulher invade sua casa — e sua vida. Quando ela desaparece, Alix descobre que se tornou o tema do próprio podcast.", tags: ["thriller psicológico", "true crime", "obsessão", "podcast", "stalking", "narrador não confiável", "família em perigo"] },
+            { id: 30, title: "Pactos Mortais", author: "Steve Cavanagh", publisher: "HarperCollins", pages: 336, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/71F87OecVmL._AC_UF1000,1000_QL80_.jpg", synopsis: "Duas estranhas em Nova York descobrem que têm o mesmo desejo: se vingar dos homens que destruíram suas famílias. O pacto? Eu mato o seu, você mata o meu. O plano perfeito — até que tudo desmorona.", tags: ["vingança", "thriller psicológico", "múltiplas perspectivas", "plot twist", "crime planejado", "triângulo de segredos"] },
+            { id: 31, title: "Com Amor, Mamãe", author: "Iliana Xander", publisher: "Independente", pages: 336, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/71DA+TIIuFL.jpg", synopsis: "Após a morte misteriosa da mãe — uma escritora famosa de thrillers —, Mackenzie começa a receber cartas assinadas 'Com amor, mamãe'. O que ela descobre sobre o passado da família é perturbador demais para ser ficção.", tags: ["thriller psicológico", "segredos de família", "cartas misteriosas", "morte suspeita", "mãe e filha", "investigação", "vingança"] },
+            { id: 32, title: "Tudo em Família", author: "John Marrs", publisher: "DarkSide Books", pages: 352, genre: "Thriller", coverUrl: "https://m.media-amazon.com/images/I/81kHv-wBb3L._AC_UF1000,1000_QL80_.jpg", synopsis: "Mia e Finn compram uma casa abandonada para recomeçar a vida. Durante a reforma, encontram uma frase escrita com letra infantil sob as camadas de papel de parede: 'EU VOU SALVAR ELAS DO SÓTÃO'. O passado da casa não ficará enterrado.", tags: ["thriller doméstico", "horror psicológico", "segredos do passado", "casa com história", "múltiplas perspectivas", "passado e presente", "obsessão familiar"] },
+            { id: 33, title: "Oceano entre Nós", author: "Tahereh Mafi", publisher: "Universo dos Livros", pages: 304, genre: "Romance Contemporâneo", coverUrl: "https://m.media-amazon.com/images/I/71MYkfZvNPS._UF1000,1000_QL80_.jpg", synopsis: "Shirin é uma garota muçulmana de 16 anos que carrega o peso do preconceito pós-11/setembro. Cansada de lutar sozinha, ela constrói muros — até que Ocean James aparece como a primeira pessoa que realmente quer conhecê-la. Baseado na vida da autora.", tags: ["romance YA", "slow burn", "xenofobia", "islamofobia", "11/setembro", "identidade cultural", "amor improvável", "baseado em fato real"] },
+            { id: 34, title: "Uma Questão de Química", author: "Bonnie Garmus", publisher: "Arqueiro", pages: 384, genre: "Romance Contemporâneo", coverUrl: "https://m.media-amazon.com/images/I/71-JwZqx+mL._AC_UF1000,1000_QL80_.jpg", synopsis: "Elizabeth Zott é uma química brilhante nos anos 1960 que enfrenta um scientific world dominado por homens. Por um capricho do destino, ela se torna a maior estrela de um programa de culinária — e ensina bem mais do que receitas. Adaptado para série com Brie Larson.", tags: ["ficção histórica", "feminismo", "romance", "anos 1960", "mulher na ciência", "mãe solo", "humor", "adaptado para série"] },
+            { id: 35, title: "Conversas entre Amigos", author: "Sally Rooney", publisher: "Companhia das Letras", pages: 320, genre: "Romance Contemporâneo", coverUrl: "https://m.media-amazon.com/images/I/717zKKQ5UkL.jpg", synopsis: "Frances e Bobbi são ex-namoradas e melhores amigas. Quando conhecem um casal mais velho — a fotógrafa Melissa e o ator Nick — as quatro vidas se entrelaçam em relações de poder, desejo e traição. Primeiro romance de Sally Rooney. Adaptado para série BBC.", tags: ["romance literário", "traição", "relação extraconjugal", "relations de poder", "juventude millennial", "bisexualidade", "política e classe", "adaptado para série"] },
+            { id: 36, title: "Terra Partida", author: "Clare Leslie Hall", publisher: "Intrínseca", pages: 320, genre: "Romance Contemporâneo", coverUrl: "https://m.media-amazon.com/images/I/9150j9tc+6L._AC_UF1000,1000_QL80_.jpg", synopsis: "Beth vive tranquilamente no interior da Inglaterra — até que o amor da sua juventude volta à cidade com um filho que lembra o dela, que morreu. A atração proibida reaviva segredos que seu casamento dependia de manter enterrados, e as consequências são mortais.", tags: ["triângulo amoroso", "primeiro amor", "luto", "segredos de casamento", "vida no campo", "escolhas impossíveis", "passado que volta"] },
+            { id: 37, title: "Binding 13", author: "Chloe Walsh", publisher: "Bloom Brasil", pages: 704, genre: "Romance Contemporâneo", series: "Os Garotos de Tommen", volume: 1, isSeries: true, totalVolumes: 4, coverUrl: "https://m.media-amazon.com/images/I/81qgQ2eFh3L._AC_UF1000,1000_QL80_.jpg", synopsis: "Johnny é a estrela do rúgbi irlandês com uma lesão secreta. Shannon é a nova aluna que só quer sobreviver ao colégio. Um encontro improvável os une — mas o passado de Shannon é mais pesado do que qualquer campo de jogo. Fenômeno no TikTok.", tags: ["slow burn", "garoto popular × garota excluída", "romance esportivo", "dual POV", "violência doméstica", "bullying", "trauma", "irlanda", "friends to lovers"] },
+            { id: 38, title: "Despertar da Chama Eterna", author: "Penn Cole", publisher: "Arqueiro", pages: 384, genre: "Fantasia", series: "Chama Eterna", volume: 1, isSeries: true, totalVolumes: 4, coverUrl: "https://m.media-amazon.com/images/I/8160XsjSJoL.jpg", synopsis: "Diem Bellator é curandeira num mundo governado por Descendentes dos deuses. O desaparecimento da mãe a lança no world sombrio da realeza, onde o príncipe Luther a observa e uma aliança mortal a recruta para uma guerra civil. Romance lento de ódio ao amor.", tags: ["romantasy", "enemies to lovers", "slow burn", "intrigas políticas", "sistema de magia", "realeza", "deuses e mortais", "toque proibido"] },
+            { id: 39, title: "Uma Janela Sombria", author: "Rachel Gillig", publisher: "Alt", pages: 424, genre: "Romantasy", series: "O Rei Pastor", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81UUGTUvPKL.jpg", synopsis: "Elspeth sobreviveu à febre mágica com a ajuda de um monstro preso em sua mente — o Pesadelo. Para salvar o reino de Blunder, ela e o misterioso sobrinho do rei precisam reunir as doze Cartas da Providência, enquanto o Pesadelo ameaça devorar sua alma.", tags: ["dark fantasy", "fantasia gótica", "sistema de magia em cartas", "monstro interno", "enemies to lovers", "slow burn", "duologia", "found family"] },
+            { id: 40, title: "Duas Coroas Retorcidas", author: "Rachel Gillig", publisher: "Alt", pages: 448, genre: "Romantasy", series: "O Rei Pastor", volume: 2, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/91I5pEHHpNL.jpg", synopsis: "O Pesadelo tomou a cabeça de Elspeth. Não se sabe mais o que é menina e o que é monstro. Mas só ele sabe onde encontrar a última Carta da Providência — a chave para salvar o reino. A conclusão épica da duologia.", tags: ["dark fantasy", "fantasia gótica", "dual POV", "múltiplos POVs", "conclusão de duologia", "política fantástica", "romance intenso", "redenção"] },
+            { id: 41, title: "Magia Oculta (Metal Slinger)", author: "Rachel Schneider", publisher: "Independente", pages: 520, genre: "Fantasia", series: "Fogo e Metal", volume: 1, isSeries: true, totalVolumes: 2, coverUrl: "https://m.media-amazon.com/images/I/81K7kIHIr4L._UF1000,1000_QL80_.jpg", synopsis: "Brynn é uma guarda que vive exilada no mar. Quando parte para o Mercado anual dos inimigos do seu povo, un conflito com o soldado Acker ameaça um tratado de paz centenário — e revela um world de magia que ela não sabia que existia. Plot twist final explosivo.", tags: ["romantasy", "enemies to lovers", "slow burn", "fated mates", "proximidade forçada", "magia oculta", "plot twist explosivo", "duologia"] }
         ];
 
         const SECONDARY_DEMO_BOOKS = [
@@ -973,15 +973,15 @@
                 author: "Equipe Biblioteca",
                 publisher: "Teste Interno",
                 pages: 240,
-                genre: "Romance ContemporÃ¢neo",
+                genre: "Romance Contemporâneo",
                 isBrazilianAuthor: true,
                 coverUrl: "https://m.media-amazon.com/images/I/71MYkfZvNPS._UF1000,1000_QL80_.jpg",
-                synopsis: "Livro criado automaticamente para testar a funÃ§Ã£o de copiar para o perfil da conta logada.",
+                synopsis: "Livro criado automaticamente para testar a função de copiar para o perfil da conta logada.",
                 tags: ["teste", "perfil", "importacao"]
             }
         ];
 
-        // Array vazia - todos os livros serÃ£o carregados do banco de dados
+        // Array vazia - todos os livros serão carregados do banco de dados
         const INITIAL_BOOKS = [];
 
         function AddBookModal({ onClose, onSave, initialBook }) {
@@ -1084,13 +1084,13 @@
             };
 
             const GENERIC_TAG_BLOCKLIST = new Set([
-                'fiction', 'ficcao', 'ficÃ§Ã£o', 'romance', 'livro', 'book', 'novel', 'literatura',
-                'autor', 'autora', 'escritor', 'escritora', 'volume', 'serie', 'sÃ©rie', 'drama'
+                'fiction', 'ficcao', 'ficção', 'romance', 'livro', 'book', 'novel', 'literatura',
+                'autor', 'autora', 'escritor', 'escritora', 'volume', 'serie', 'série', 'drama'
             ]);
 
             const TAG_STOPWORDS = new Set([
                 'a', 'o', 'as', 'os', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'no', 'na', 'nos', 'nas',
-                'um', 'uma', 'para', 'por', 'com', 'sem', 'ao', 'aos', 'Ã ', 'Ã s', 'the', 'of', 'and'
+                'um', 'uma', 'para', 'por', 'com', 'sem', 'ao', 'aos', 'à', 'às', 'the', 'of', 'and'
             ]);
 
             const buildNoiseTokenSet = (title = '', author = '') => {
@@ -1125,7 +1125,7 @@
             const makeLeanSynopsis = (value = '') => {
                 const text = stripHtml(value);
                 if (!text) return '';
-                const spoilerCue = /\b(final|finalmente|revela|revelado|revelaÃ§Ã£o|descobre|descoberta|assassino|culpado|identidade|morre|morte de|desmascara|verdade por trÃ¡s)\b/i;
+                const spoilerCue = /\b(final|finalmente|revela|revelado|revelação|descobre|descoberta|assassino|culpado|identidade|morre|morte de|desmascara|verdade por trás)\b/i;
                 const sentences = text
                     .split(/(?<=[.!?])\s+/)
                     .map(part => part.trim())
@@ -1137,23 +1137,23 @@
             const inferTropeTags = (categories = [], synopsis = '', genre = '') => {
                 const pool = `${(categories || []).join(' ')} ${synopsis || ''} ${genre || ''}`.toLowerCase();
                 const checks = [
-                    [/triangulo amoroso|triÃ¢ngulo amoroso|love triangle/, 'triÃ¢ngulo amoroso'],
+                    [/triangulo amoroso|triângulo amoroso|love triangle/, 'triângulo amoroso'],
                     [/plot twist|reviravolta/, 'plot twist'],
-                    [/narrador nao confiavel|narrador nÃ£o confiÃ¡vel|narrador misterioso/, 'narrador misterioso'],
+                    [/narrador nao confiavel|narrador não confiável|narrador misterioso/, 'narrador misterioso'],
                     [/enemies to lovers/, 'enemies to lovers'],
                     [/friends to lovers/, 'friends to lovers'],
                     [/slow burn/, 'slow burn'],
-                    [/crime|investigacao|investigaÃ§Ã£o|detetive|serial killer/, 'mistÃ©rio investigativo'],
-                    [/suspense|thriller/, 'suspense psicolÃ³gico'],
+                    [/crime|investigacao|investigação|detetive|serial killer/, 'mistério investigativo'],
+                    [/suspense|thriller/, 'suspense psicológico'],
                     [/podcast|true crime/, 'true crime'],
                     [/dark fantasy|fantasia sombria/, 'fantasia sombria'],
                     [/romantasy/, 'romantasy'],
                     [/distopia|dystopia/, 'distopia'],
-                    [/ficcao cientifica|ficÃ§Ã£o cientÃ­fica|science fiction|sci-fi/, 'ficÃ§Ã£o cientÃ­fica'],
-                    [/familia|famÃ­lia|segredos de familia|segredos de famÃ­lia/, 'segredos de famÃ­lia'],
-                    [/passado|trauma|luto/, 'passado traumÃ¡tico'],
-                    [/realeza|corte|principe|prÃ­ncipe/, 'intriga de corte'],
-                    [/magia|feitic|feitiÃ§|bruxa|deus|deuses/, 'sistema de magia']
+                    [/ficcao cientifica|ficção científica|science fiction|sci-fi/, 'ficção científica'],
+                    [/familia|família|segredos de familia|segredos de família/, 'segredos de família'],
+                    [/passado|trauma|luto/, 'passado traumático'],
+                    [/realeza|corte|principe|príncipe/, 'intriga de corte'],
+                    [/magia|feitic|feitiç|bruxa|deus|deuses/, 'sistema de magia']
                 ];
                 const out = [];
                 checks.forEach(([pattern, label]) => {
@@ -1166,25 +1166,25 @@
             const inferGenreFromSignals = (categories = [], synopsis = '') => {
                 const pool = `${(categories || []).join(' ')} ${synopsis || ''}`.toLowerCase();
                 if (/romantasy/.test(pool)) return 'Romantasy';
-                if (/thriller|suspense|crime|misterio|mistÃ©rio|psicologico|psicolÃ³gico/.test(pool)) return 'Thriller';
+                if (/thriller|suspense|crime|misterio|mistério|psicologico|psicológico/.test(pool)) return 'Thriller';
                 if (/distopia|dystopia/.test(pool)) return 'Distopia';
-                if (/ficcao cientifica|ficÃ§Ã£o cientÃ­fica|science fiction|sci-fi/.test(pool)) return 'FicÃ§Ã£o CientÃ­fica';
-                if (/romance|love story|contemporaneo|contemporÃ¢neo/.test(pool)) return 'Romance ContemporÃ¢neo';
-                if (/fantasia|fantasy|magia|reino|dragao|dragÃ£o/.test(pool)) return 'Fantasia';
-                if (/literario|literÃ¡rio|literatura|literary/.test(pool)) return 'FicÃ§Ã£o LiterÃ¡ria';
+                if (/ficcao cientifica|ficção científica|science fiction|sci-fi/.test(pool)) return 'Ficção Científica';
+                if (/romance|love story|contemporaneo|contemporâneo/.test(pool)) return 'Romance Contemporâneo';
+                if (/fantasia|fantasy|magia|reino|dragao|dragão/.test(pool)) return 'Fantasia';
+                if (/literario|literário|literatura|literary/.test(pool)) return 'Ficção Literária';
                 return '';
             };
 
             const sectionLabelFromGenre = (genre = '') => {
                 const g = String(genre || '');
-                if (g === 'Thriller') return 'Thriller & Suspense PsicolÃ³gico';
-                if (g === 'Romance ContemporÃ¢neo') return 'Romance ContemporÃ¢neo';
-                if (g === 'Fantasia' || g === 'Romantasy' || g === 'FicÃ§Ã£o CientÃ­fica' || g === 'Distopia') return 'Fantasia';
-                if (g === 'FicÃ§Ã£o LiterÃ¡ria') return 'FicÃ§Ã£o LiterÃ¡ria';
+                if (g === 'Thriller') return 'Thriller & Suspense Psicológico';
+                if (g === 'Romance Contemporâneo') return 'Romance Contemporâneo';
+                if (g === 'Fantasia' || g === 'Romantasy' || g === 'Ficção Científica' || g === 'Distopia') return 'Fantasia';
+                if (g === 'Ficção Literária') return 'Ficção Literária';
                 return 'Literatura Geral';
             };
 
-            // â”€â”€ Open Library â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Open Library ─────────────────────────────────────────
             const olNormalize = (doc) => {
                 const isbns = doc.isbn || [];
                 const isbn13 = isbns.find(i => i.length === 13);
@@ -1222,7 +1222,7 @@
                 finally { clearTimeout(timeout); }
             };
 
-            // â”€â”€ Google Books â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Google Books ──────────────────────────────────────────
             const gbNormalize = (vol) => {
                 const info = vol.volumeInfo || {};
                 const ids = info.industryIdentifiers || [];
@@ -1263,7 +1263,7 @@
                 finally { clearTimeout(timeout); }
             };
 
-            // â”€â”€ Deduplicate + score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Deduplicate + score ───────────────────────────────────
             const scoreBook = (r) => {
                 let s = 0;
                 if (r.isbn13 || r.isbn10) s++;
@@ -1297,7 +1297,7 @@
                 return [...seen.values()];
             };
 
-            // â”€â”€ Search handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Search handler ────────────────────────────────────────
             const handleBookSearch = async () => {
                 const q = bookSearchQuery.trim();
                 if (!q) return;
@@ -1316,13 +1316,13 @@
                     if (!merged.length) setSearchError(`Nenhum resultado para "${q}".`);
                     else setBookSearchResults(merged);
                 } catch {
-                    setSearchError('Erro ao buscar. Verifique sua conexÃ£o.');
+                    setSearchError('Erro ao buscar. Verifique sua conexão.');
                 } finally {
                     setIsSearching(false);
                 }
             };
 
-            // â”€â”€ Helpers para enriquecimento â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Helpers para enriquecimento ───────────────────────────
             const applyProfileToForm = (p, result) => {
                 const resolvedGenre = GENRES.includes(p.genre) ? p.genre
                     : inferGenreFromSignals(result.rawCategories, p.synopsis || result.synopsis || '')
@@ -1349,7 +1349,7 @@
 
             // Chama Anthropic diretamente do browser (fallback para GitHub Pages)
             const enrichBrowser = async (result, apiKey) => {
-                const prompt = `VocÃª Ã© um especialista em literatura. Analise os dados brutos e retorne JSON enriquecido.\nResponda APENAS JSON vÃ¡lido, sem markdown.\n"synopsis": PT-BR, 3-5 frases sem spoilers.\n"genre": exatamente um de: Fantasia|Romantasy|FicÃ§Ã£o CientÃ­fica|Thriller|Romance ContemporÃ¢neo|FicÃ§Ã£o LiterÃ¡ria|Distopia\n"tags": array 4-8 strings (tropos e atmosfera)\n"publisher": editora brasileira se possÃ­vel\n"isSeries": boolean, "series": string, "volume": number`;
+                const prompt = `Você é um especialista em literatura. Analise os dados brutos e retorne JSON enriquecido.\nResponda APENAS JSON válido, sem markdown.\n"synopsis": PT-BR, 3-5 frases sem spoilers.\n"genre": exatamente um de: Fantasia|Romantasy|Ficção Científica|Thriller|Romance Contemporâneo|Ficção Literária|Distopia\n"tags": array 4-8 strings (tropos e atmosfera)\n"publisher": editora brasileira se possível\n"isSeries": boolean, "series": string, "volume": number`;
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 20000);
                 try {
@@ -1379,14 +1379,14 @@
                     const data = await res.json();
                     const text = data?.content?.[0]?.text || '';
                     const match = text.match(/\{[\s\S]*\}/);
-                    if (!match) throw new Error('Resposta invÃ¡lida');
+                    if (!match) throw new Error('Resposta inválida');
                     return JSON.parse(match[0]);
                 } finally {
                     clearTimeout(timeout);
                 }
             };
 
-            // â”€â”€ Apply result (tenta servidor â†’ fallback browser) â”€â”€â”€â”€â”€â”€
+            // ── Apply result (tenta servidor → fallback browser) ──────
             const applyBookResult = async (result) => {
                 setBookSearchResults([]);
                 setSearchError('');
@@ -1415,7 +1415,7 @@
                                 return;
                             }
                         }
-                    } catch (_) { /* servidor indisponÃ­vel â€” tenta browser */ }
+                    } catch (_) { /* servidor indisponível — tenta browser */ }
 
                     // 2) Fallback: chama Anthropic direto do browser (GitHub Pages)
                     if (!serverOk && localApiKey) {
@@ -1476,7 +1476,7 @@
                         const uploaded = await withUiTimeout(
                             uploadEpubToCloud(bookId, epubFile, epubPath),
                             30000,
-                            'Upload sem resposta. Verifique o bucket do Supabase e a conexÃ£o.'
+                            'Upload sem resposta. Verifique o bucket do Supabase e a conexão.'
                         );
                         epubUrl = uploaded.url;
                         epubFileName = uploaded.fileName;
@@ -1486,7 +1486,7 @@
                         setEpubMessage("EPUB enviado com sucesso.");
                     } catch (error) {
                         console.error(error);
-                        setEpubMessage(error?.message || "NÃ£o foi possÃ­vel enviar o EPUB. Verifique login, bucket e polÃ­ticas do Supabase.");
+                        setEpubMessage(error?.message || "Não foi possível enviar o EPUB. Verifique login, bucket e políticas do Supabase.");
                         return;
                     } finally {
                         setIsUploadingEpub(false);
@@ -1567,7 +1567,7 @@
                             <div className="flex gap-2">
                                 <input
                                     className="flex-1 pl-4 pr-4 py-2.5 border border-gray-200 bg-white text-gray-900 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#14B8A6]/30 focus:border-[#14B8A6] transition-all"
-                                    placeholder="Digite o tÃ­tulo do livro..."
+                                    placeholder="Digite o título do livro..."
                                     value={bookSearchQuery}
                                     onChange={(e) => setBookSearchQuery(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleBookSearch())}
@@ -1594,7 +1594,7 @@
                                 </div>
                             )}
                             {searchError && <p className="mt-2 text-xs text-red-500">{searchError}</p>}
-                            {claudeError && <p className="mt-2 text-xs text-amber-600">IA indisponÃ­vel ({claudeError}) â€” dados brutos aplicados.</p>}
+                            {claudeError && <p className="mt-2 text-xs text-amber-600">IA indisponível ({claudeError}) — dados brutos aplicados.</p>}
                             {bookSearchResults.length > 0 && (
                                 <div className="mt-3 space-y-2">
                                     <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black">Selecione o resultado</p>
@@ -1613,9 +1613,9 @@
                                                 </div>
                                             )}
                                             <div className="min-w-0">
-                                                <p className="text-sm font-semibold text-[#1E3A5F] leading-tight truncate">{result.title || 'Sem tÃ­tulo'}</p>
-                                                <p className="text-xs text-gray-500 truncate">{result.author || 'Autor nÃ£o informado'}</p>
-                                                <p className="text-[11px] text-gray-400 mt-0.5">{result.publisher || ''}{result.publisher && result.pages ? ' Â· ' : ''}{result.pages ? `${result.pages} pÃ¡gs` : ''}</p>
+                                                <p className="text-sm font-semibold text-[#1E3A5F] leading-tight truncate">{result.title || 'Sem título'}</p>
+                                                <p className="text-xs text-gray-500 truncate">{result.author || 'Autor não informado'}</p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">{result.publisher || ''}{result.publisher && result.pages ? ' · ' : ''}{result.pages ? `${result.pages} págs` : ''}</p>
                                             </div>
                                         </button>
                                     ))}
@@ -1624,18 +1624,18 @@
                         </div>
 
                         <div className="mb-5">
-                            <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-gray-400 border-t border-gray-100 pt-3 mb-2">PrÃ©via do CatÃ¡logo</p>
+                            <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-gray-400 border-t border-gray-100 pt-3 mb-2">Prévia do Catálogo</p>
                             <div className="bg-white  border border-gray-100  rounded-2xl p-4">
                                 <div className="flex items-start justify-between gap-3 mb-2">
                                     <div>
-                                        <p className="text-[15px] font-medium text-[#111827] leading-tight">{form.title || 'TÃ­tulo da Obra'}</p>
-                                        <p className="text-xs text-gray-500 mt-1">{form.author || 'Autor'} Â· {form.publisher || 'Editora'} Â· {form.pages || '0'} pÃ¡ginas</p>
+                                        <p className="text-[15px] font-medium text-[#111827] leading-tight">{form.title || 'Título da Obra'}</p>
+                                        <p className="text-xs text-gray-500 mt-1">{form.author || 'Autor'} · {form.publisher || 'Editora'} · {form.pages || '0'} páginas</p>
                                     </div>
                                     {(form.isSeries && form.series) && (
-                                        <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-[#FAEEDA] text-[#633806] whitespace-nowrap">vol. {form.volume || '?'} â€” {form.series}</span>
+                                        <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-[#FAEEDA] text-[#633806] whitespace-nowrap">vol. {form.volume || '?'} — {form.series}</span>
                                     )}
                                 </div>
-                                <p className="text-[13px] text-gray-600  leading-relaxed mb-3">{form.synopsis || 'A sinopse aparecerÃ¡ aqui quando o assistente preencher a ficha.'}</p>
+                                <p className="text-[13px] text-gray-600  leading-relaxed mb-3">{form.synopsis || 'A sinopse aparecerá aqui quando o assistente preencher a ficha.'}</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {previewTags.length > 0 ? previewTags.map((tag) => (
                                         <span key={tag} className="text-[11px] font-medium px-2 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-600">{tag}</span>
@@ -1643,26 +1643,26 @@
                                         <span className="text-[11px] text-gray-400">Sem palavras-chave ainda.</span>
                                     )}
                                 </div>
-                                <p className="mt-2 text-[10px] uppercase tracking-wider text-gray-400">SeÃ§Ã£o: {previewSection}</p>
+                                <p className="mt-2 text-[10px] uppercase tracking-wider text-gray-400">Seção: {previewSection}</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="TÃ­tulo *" value={form.title} onChange={(e) => setField('title', e.target.value)} required />
+                            <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Título *" value={form.title} onChange={(e) => setField('title', e.target.value)} required />
                             <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Autor *" value={form.author} onChange={(e) => setField('author', e.target.value)} required />
                             <select className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl" value={form.genre} onChange={(e) => setField('genre', e.target.value)}>
                                 {selectableGenres.map(g => <option key={g} value={g}>{g}</option>)}
                             </select>
                             <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Nova categoria (opcional)" value={customGenre} onChange={(e) => setCustomGenre(e.target.value)} />
                             <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Editora" value={form.publisher} onChange={(e) => setField('publisher', e.target.value)} />
-                            <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="PÃ¡ginas" type="number" min="0" value={form.pages} onChange={(e) => setField('pages', e.target.value)} />
+                            <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Páginas" type="number" min="0" value={form.pages} onChange={(e) => setField('pages', e.target.value)} />
                             <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="URL da capa" value={form.coverUrl} onChange={(e) => setField('coverUrl', e.target.value)} />
                             <label className="md:col-span-2 flex items-center gap-2 text-sm text-gray-600 ">
-                                <input type="checkbox" checked={form.isSeries} onChange={(e) => setField('isSeries', e.target.checked)} /> Faz parte de sÃ©rie
+                                <input type="checkbox" checked={form.isSeries} onChange={(e) => setField('isSeries', e.target.checked)} /> Faz parte de série
                             </label>
                             {form.isSeries && (
                                 <>
-                                    <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Nome da sÃ©rie" value={form.series} onChange={(e) => setField('series', e.target.value)} />
+                                    <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Nome da série" value={form.series} onChange={(e) => setField('series', e.target.value)} />
                                     <div className="grid grid-cols-2 gap-2">
                                         <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Volume" type="number" min="1" value={form.volume} onChange={(e) => setField('volume', e.target.value)} />
                                         <input className="px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Total de volumes" type="number" min="2" value={form.totalVolumes} onChange={(e) => setField('totalVolumes', e.target.value)} />
@@ -1671,7 +1671,7 @@
                             )}
                         </div>
                         <textarea className="mt-4 w-full px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " rows="4" placeholder="Sinopse" value={form.synopsis} onChange={(e) => setField('synopsis', e.target.value)} />
-                        <input className="mt-4 w-full px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Tags separadas por vÃ­rgula" value={form.tags} onChange={(e) => setField('tags', e.target.value)} />
+                        <input className="mt-4 w-full px-4 py-3 border border-gray-200  bg-white  text-gray-900  rounded-xl " placeholder="Tags separadas por vírgula" value={form.tags} onChange={(e) => setField('tags', e.target.value)} />
                         <div className="mt-4 p-4 border border-gray-200  rounded-xl bg-gray-50 ">
                             <p className="text-[11px] uppercase tracking-widest text-gray-500 font-black mb-2">Arquivo do Livro (EPUB)</p>
                             <input
@@ -1681,13 +1681,13 @@
                                     try {
                                         const file = e.target.files?.[0];
                                         if (file) {
-                                            // Apenas guarda arquivo, nÃ£o lÃª
+                                            // Apenas guarda arquivo, não lê
                                             setEpubFile(file);
-                                            setEpubMessage(`âœ… ${file.name} selecionado (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                                            setEpubMessage(`✅ ${file.name} selecionado (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
                                         }
                                     } catch (err) {
                                         console.error('Erro ao selecionar arquivo:', err);
-                                        setEpubMessage(`âŒ Erro: ${err.message}`);
+                                        setEpubMessage(`❌ Erro: ${err.message}`);
                                     }
                                 }}
                                 className="w-full text-sm"
@@ -1700,7 +1700,7 @@
                         </div>
                         <div className="mt-6 flex gap-3 justify-end">
                             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200  text-gray-500  font-semibold">Cancelar</button>
-                            <button type="submit" disabled={isUploadingEpub} className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold disabled:opacity-60">{isUploadingEpub ? 'Enviando EPUB...' : (initialBook ? 'Salvar AlteraÃ§Ãµes' : '+ Adicionar livro ao catÃ¡logo')}</button>
+                            <button type="submit" disabled={isUploadingEpub} className="px-5 py-2.5 rounded-xl bg-[#14B8A6] text-white font-semibold disabled:opacity-60">{isUploadingEpub ? 'Enviando EPUB...' : (initialBook ? 'Salvar Alterações' : '+ Adicionar livro ao catálogo')}</button>
                         </div>
                     </form>
                 </div>
@@ -1821,7 +1821,7 @@
             );
         }
 
-        // â”€â”€â”€ Telegram View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ─── Telegram View ────────────────────────────────────────────────────────
         function TelegramView({ onImportBook, notifyUser, catalogBooks = [], profileId }) {
             const WORKER_URL = ''; // usa /api/telegram-download (Vercel)
 
@@ -1872,7 +1872,7 @@
                     const data = await r.json();
                     if (!data.success) throw new Error(data.error || 'Falha no download');
                     const guessTitle = file.fileName.replace(/\.epub$/i, '').replace(/[_-]+/g, ' ').trim();
-                    // Associa ao livro existente: igualdade exata ou tÃ­tulo do catÃ¡logo contido no nome do arquivo
+                    // Associa ao livro existente: igualdade exata ou título do catálogo contido no nome do arquivo
                     const normalize = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
                     const normFile = normalize(guessTitle);
                     const match = catalogBooks.find(b => {
@@ -1889,8 +1889,8 @@
                     });
                     setImported(p => ({ ...p, [file.messageId]: true }));
                     const msg = match
-                        ? `EPUB vinculado a "${match.title}" no catÃ¡logo!`
-                        : `"${guessTitle}" adicionada ao catÃ¡logo!`;
+                        ? `EPUB vinculado a "${match.title}" no catálogo!`
+                        : `"${guessTitle}" adicionada ao catálogo!`;
                     notifyUser(msg, 'success', 'EPUB salvo no Supabase');
                 } catch (err) {
                     notifyUser('Erro ao importar: ' + err.message, 'error');
@@ -1935,7 +1935,7 @@
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                                 <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border" style={{ background: 'rgba(42,171,238,0.08)', color: '#2AABEE', borderColor: 'rgba(42,171,238,0.25)' }}>EPUB</span>
                                 <span className="text-[11px] text-gray-400">{file.sizeLabel}</span>
-                                {date && <span className="text-[11px] text-gray-400">Â· {date}</span>}
+                                {date && <span className="text-[11px] text-gray-400">· {date}</span>}
                             </div>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
@@ -2010,14 +2010,14 @@
                                 <svg className="w-10 h-10" style={{ color: '#2AABEE', opacity: 0.4 }} viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.96 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
                             </div>
                             <p className="text-sm text-gray-400 font-medium">Digite algo para buscar no grupo</p>
-                            <p className="text-xs text-gray-300 dark:text-gray-600">Apenas arquivos .epub serÃ£o exibidos</p>
+                            <p className="text-xs text-gray-300 dark:text-gray-600">Apenas arquivos .epub serão exibidos</p>
                         </div>
                     )}
                 </div>
             );
         }
 
-        // â”€â”€â”€ Dashboard View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ─── Dashboard View ───────────────────────────────────────────────────────
         function DashboardView({ books, readStatus, downloadStatus, readingOrder, userRatings, readTimestamps, readingGoal, setReadingGoal, showGoalInput, setShowGoalInput, goalInputVal, setGoalInputVal, getCoverUrl }) {
             const totalBooks = books.length;
             const readBooks = books.filter(b => readStatus[b.id] === 'read');
@@ -2028,18 +2028,18 @@
             // Genre breakdown
             const genreCounts = {};
             books.forEach(b => {
-                const g = b.genre || 'Sem gÃ©nero';
+                const g = b.genre || 'Sem género';
                 genreCounts[g] = (genreCounts[g] || 0) + 1;
             });
             const genreEntries = Object.entries(genreCounts).sort((a,b) => b[1]-a[1]).slice(0,6);
             const GENRE_BAR_COLORS = {
                 'Fantasia':              '#6EE7B7', // emerald-300
                 'Romantasy':             '#67E8F9', // cyan-300
-                'FicÃ§Ã£o CientÃ­fica':     '#93C5FD', // blue-300
+                'Ficção Científica':     '#93C5FD', // blue-300
                 'Thriller':             '#5EEAD4', // teal-300
-                'FicÃ§Ã£o LiterÃ¡ria':      '#86EFAC', // green-300
+                'Ficção Literária':      '#86EFAC', // green-300
                 'Distopia':              '#C4B5FD', // violet-300
-                'Romance ContemporÃ¢neo': '#FCD34D', // amber-300
+                'Romance Contemporâneo': '#FCD34D', // amber-300
             };
             const getGenreBarColor = (genre) => GENRE_BAR_COLORS[genre] || '#CBD5E1';
 
@@ -2102,14 +2102,14 @@
 
                     {/* Middle row: Genre + Goal */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Genre breakdown â€” horizontal layout per design system */}
+                        {/* Genre breakdown — horizontal layout per design system */}
                         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-sm font-bold text-[#1E3A5F]">GÃ©neros favoritos</h3>
+                                <h3 className="text-sm font-bold text-[#1E3A5F]">Géneros favoritos</h3>
                                 <span className="text-[11px] font-semibold text-[#14B8A6] cursor-pointer">Ver tudo</span>
                             </div>
                             {genreEntries.length === 0 ? (
-                                <p className="text-xs text-gray-400">Nenhum gÃ©nero registado.</p>
+                                <p className="text-xs text-gray-400">Nenhum género registado.</p>
                             ) : (
                                 <div className="flex flex-col gap-[11px]">
                                     {genreEntries.map(([genre, count]) => (
@@ -2144,11 +2144,11 @@
                                                 onClick={() => { const v = parseInt(goalInputVal); if(v>0){ setReadingGoal(v); setShowGoalInput(false); setGoalInputVal(''); }}}
                                                 className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-semibold rounded-xl hover:bg-[#0D9488] transition-colors"
                                             >Definir</button>
-                                            <button onClick={() => setShowGoalInput(false)} className="px-3 py-2 text-gray-400 hover:text-gray-600 text-sm rounded-xl border border-gray-200">âœ•</button>
+                                            <button onClick={() => setShowGoalInput(false)} className="px-3 py-2 text-gray-400 hover:text-gray-600 text-sm rounded-xl border border-gray-200">✕</button>
                                         </div>
                                     ) : (
                                         <>
-                                            <p className="text-xs text-gray-400 text-center">Ainda nÃ£o definiste uma meta anual.</p>
+                                            <p className="text-xs text-gray-400 text-center">Ainda não definiste uma meta anual.</p>
                                             <button onClick={() => setShowGoalInput(true)} className="px-4 py-2 bg-[#14B8A6] text-white text-xs font-semibold rounded-xl hover:bg-[#0D9488] transition-colors">Definir meta</button>
                                         </>
                                     )}
@@ -2158,7 +2158,7 @@
                                     {goalDone && (
                                         <div className="inline-flex items-center gap-1.5 bg-[#10B981] text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-4 self-start">
                                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                            Meta concluÃ­da!
+                                            Meta concluída!
                                         </div>
                                     )}
                                     <p className="text-[11px] text-gray-400 mb-4">{new Date().getFullYear()}</p>
@@ -2180,12 +2180,12 @@
                         </div>
                     </div>
 
-                    {/* Recently read â€” list format per design system */}
+                    {/* Recently read — list format per design system */}
                     {recentlyRead.length > 0 && (
                         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-sm font-bold text-[#1E3A5F]">Lidos recentemente</h3>
-                                <span className="text-[11px] font-semibold text-[#14B8A6] cursor-pointer">Ver histÃ³rico</span>
+                                <span className="text-[11px] font-semibold text-[#14B8A6] cursor-pointer">Ver histórico</span>
                             </div>
                             <div className="flex flex-col gap-3.5">
                                 {recentlyRead.map(b => {
@@ -2219,10 +2219,10 @@
                         </div>
                     )}
 
-                    {/* Reading history timeline â€” card style per design system */}
+                    {/* Reading history timeline — card style per design system */}
                     {historyEntries.length > 0 && (
                         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                            <h3 className="text-sm font-bold text-[#1E3A5F] mb-4">HistÃ³rico de leituras</h3>
+                            <h3 className="text-sm font-bold text-[#1E3A5F] mb-4">Histórico de leituras</h3>
                             <div className="flex flex-col">
                                 {historyEntries.map(({ book: b, ts }, i) => {
                                     const d = new Date(ts);
@@ -2271,8 +2271,8 @@
                     {historyEntries.length === 0 && recentlyRead.length === 0 && (
                         <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm flex flex-col items-center gap-3">
                             <svg className="w-12 h-12 text-gray-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                            <p className="text-sm text-gray-400 font-medium">Ainda nÃ£o leste nenhum livro.</p>
-                            <p className="text-xs text-gray-300">Marca livros como lidos para veres o teu histÃ³rico aqui.</p>
+                            <p className="text-sm text-gray-400 font-medium">Ainda não leste nenhum livro.</p>
+                            <p className="text-xs text-gray-300">Marca livros como lidos para veres o teu histórico aqui.</p>
                         </div>
                     )}
                 </div>
@@ -2280,7 +2280,7 @@
         }
 
 
-        // â”€â”€â”€ Send to Kindle Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ─── Send to Kindle Button ────────────────────────────────────────────────
         function SendToKindleButton({ epubUrl, fileName, messageId, chatId, profileId }) {
             const [sending, setSending] = React.useState(false);
             const [sent, setSent]       = React.useState(false);
@@ -2366,7 +2366,7 @@
                             </div>
                             <p className="text-xs text-gray-400 truncate">{book.author}</p>
                             <div className="mt-2 flex flex-wrap gap-1">
-                                <span className={`inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border text-center leading-tight ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre === 'Romance ContemporÃ¢neo' ? <>Romance<br/>ContemporÃ¢neo</> : book.genre}</span>
+                                <span className={`inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border text-center leading-tight ${styles.bg} ${styles.text} ${styles.border}`}>{book.genre === 'Romance Contemporâneo' ? <>Romance<br/>Contemporâneo</> : book.genre}</span>
                                 {isMultiVolumeSeries && (
                                     <span className="inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200">
                                         {seriesLabel}
@@ -2447,8 +2447,8 @@
                                 onClick={(e) => { e.stopPropagation(); onGenreClick(book.genre); }}
                                 className="self-stretch flex items-center text-[8px] font-semibold uppercase tracking-wider px-2 py-1 rounded-lg bg-gray-100  text-gray-400  cursor-pointer hover:bg-gray-200  hover:text-gray-500 transition-all leading-tight"
                             >
-                                {book.genre === 'Romance ContemporÃ¢neo'
-                                    ? <span className="text-center leading-tight">Romance<br/>ContemporÃ¢neo</span>
+                                {book.genre === 'Romance Contemporâneo'
+                                    ? <span className="text-center leading-tight">Romance<br/>Contemporâneo</span>
                                     : book.genre}
                             </span>
                             <div className="flex items-center gap-1">
@@ -2539,7 +2539,7 @@
             const handleDeleteEpub = async () => {
                 try {
                     await deleteEpubFromCloud(ownEpubPath);
-                    setUploadMessage("âœ… EPUB removido com sucesso");
+                    setUploadMessage("✅ EPUB removido com sucesso");
                     registerTimeout(() => {
                         if (!isMountedRef.current) return;
                         onDeleteEpub(book.id);
@@ -2547,7 +2547,7 @@
                     }, 500);
                 } catch (err) {
                     console.error('Erro ao deletar EPUB:', err);
-                    setUploadMessage("âŒ Erro ao deletar EPUB");
+                    setUploadMessage("❌ Erro ao deletar EPUB");
                 }
             };
 
@@ -2611,7 +2611,7 @@
                     });
 
                     if (!isMountedRef.current) return;
-                    setUploadMessage(`âœ… EPUB importado do Telegram: ${data.fileName || file.fileName}`);
+                    setUploadMessage(`✅ EPUB importado do Telegram: ${data.fileName || file.fileName}`);
                     setShowTelegramSearch(false);
                     setTelegramSearched(false);
                     setTelegramResults([]);
@@ -2631,7 +2631,7 @@
                     <div className="absolute inset-0 bg-[#0F2240]/70 backdrop-blur-md" onClick={onClose} />
                     <div className="relative bg-white  w-full max-w-4xl max-h-[92vh] overflow-y-auto sm:rounded-[40px] rounded-t-[32px] shadow-2xl flex flex-col animate-slide-up z-10">
                         <div className="flex justify-between items-center px-6 md:px-10 py-5 border-b border-gray-50  sticky top-0 bg-white/95  backdrop-blur-md z-20">
-                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 ">Ficha TÃ©cnica</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 ">Ficha Técnica</span>
                             <button onClick={onClose} className="p-2.5 rounded-full hover:bg-gray-100  text-gray-400 transition-all hover:rotate-90"><Icon name="x" /></button>
                         </div>
                         <div className="px-6 py-8 md:px-14 md:py-16">
@@ -2639,12 +2639,12 @@
                                 <div className="w-full md:w-80 shrink-0">
                                     <div className="relative">
                                         <div className="aspect-[3/4.2] rounded-[32px] shadow-2xl overflow-hidden bg-gray-50  border-[10px] border-white  ring-1 ring-gray-100  transition-transform duration-500">
-                                            <img src={coverUrl} alt={book.title} className="w-full h-full object-cover" onError={(e) => { e.target.src='https://via.placeholder.com/300x450?text=IndisponÃ­vel'; }} />
+                                            <img src={coverUrl} alt={book.title} className="w-full h-full object-cover" onError={(e) => { e.target.src='https://via.placeholder.com/300x450?text=Indisponível'; }} />
                                         </div>
                                     </div>
                                     <div className="mt-6 flex flex-col gap-3">
                                         <button onClick={onToggleQueue} className={`w-full py-4 px-6 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all border-2 ${isInQueue ? 'bg-amber-50 text-amber-600 border-amber-200 shadow-sm' : 'bg-white  text-gray-400  border-gray-100  hover:border-teal-200 hover:text-teal-600'}`}>
-                                            <Icon name="list" className="w-4 h-4" /> {isInQueue ? 'Na Lista de Leitura' : 'Adicionar Ã  Lista de Leitura'}
+                                            <Icon name="list" className="w-4 h-4" /> {isInQueue ? 'Na Lista de Leitura' : 'Adicionar à Lista de Leitura'}
                                         </button>
                                         <div className="flex gap-2">
                                             <button onClick={onToggleRead} className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all border ${isRead ? 'bg-[#1E3A5F] text-white border-[#1E3A5F] shadow-md shadow-[#1E3A5F]/20' : 'bg-gray-50  text-gray-400  border-gray-100  hover:bg-gray-100 '}`}>
@@ -2666,8 +2666,8 @@
                                                 {!!ownEpubPath && isViewingOwnProfile && (
                                                     <button
                                                         onClick={() => setIsConfirmingDeleteEpub(prev => !prev)}
-                                                        aria-label={isConfirmingDeleteEpub ? 'Cancelar exclusÃ£o do EPUB' : 'Excluir EPUB'}
-                                                        title={isConfirmingDeleteEpub ? 'Cancelar exclusÃ£o do EPUB' : 'Excluir EPUB'}
+                                                        aria-label={isConfirmingDeleteEpub ? 'Cancelar exclusão do EPUB' : 'Excluir EPUB'}
+                                                        title={isConfirmingDeleteEpub ? 'Cancelar exclusão do EPUB' : 'Excluir EPUB'}
                                                         className={`shrink-0 px-4 rounded-xl flex items-center justify-center transition-all border ${isConfirmingDeleteEpub ? 'bg-red-600 text-white border-red-600 hover:bg-red-700' : 'bg-white text-red-400 border-emerald-200 hover:bg-red-50 hover:border-red-200 hover:text-red-600'}`}
                                                     >
                                                         <Icon name="trash" className="w-4 h-4" />
@@ -2692,7 +2692,7 @@
                                         )}
                                         {!!ownEpubPath && !!effectiveEpub?.epubUrl && isViewingOwnProfile && isConfirmingDeleteEpub && (
                                             <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 animate-fade-in">
-                                                <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2 text-center">Confirmar exclusÃ£o do EPUB?</p>
+                                                <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mb-2 text-center">Confirmar exclusão do EPUB?</p>
                                                 <div className="flex gap-2">
                                                     <button
                                                         onClick={handleDeleteEpub}
@@ -2736,15 +2736,15 @@
                                                             await withUiTimeout(
                                                                 onUploadEpub(file),
                                                                 30000,
-                                                                'Upload sem resposta. Verifique bucket, polÃ­ticas e conexÃ£o do Supabase.'
+                                                                'Upload sem resposta. Verifique bucket, políticas e conexão do Supabase.'
                                                             );
                                                             if (isMountedRef.current) {
-                                                                setUploadMessage(`âœ… EPUB enviado: ${file.name}`);
+                                                                setUploadMessage(`✅ EPUB enviado: ${file.name}`);
                                                             }
                                                         } catch (error) {
                                                             console.error(error);
                                                             if (isMountedRef.current) {
-                                                                setUploadMessage(`âŒ ${error?.message || 'Falha ao enviar EPUB.'}`);
+                                                                setUploadMessage(`❌ ${error?.message || 'Falha ao enviar EPUB.'}`);
                                                             }
                                                         } finally {
                                                             if (isMountedRef.current) {
@@ -2772,7 +2772,7 @@
                                                             <input
                                                                 value={telegramQuery}
                                                                 onChange={(e) => setTelegramQuery(e.target.value)}
-                                                                placeholder="Buscar por tÃ­tulo no Telegram"
+                                                                placeholder="Buscar por título no Telegram"
                                                                 className="flex-1 px-3 py-2 rounded-xl border border-[#2AABEE]/25 bg-white text-[11px] text-gray-900 outline-none focus:ring-2 focus:ring-[#2AABEE]/20"
                                                             />
                                                             <button
@@ -2831,7 +2831,7 @@
                                                     <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-3">Tem a certeza?</p>
                                                     <div className="flex gap-2 w-full">
                                                         <button onClick={onDelete} className="flex-1 py-2 bg-red-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-sm">Sim</button>
-                                                        <button onClick={() => setIsConfirmingDelete(false)} className="flex-1 py-2 bg-white text-gray-400 border border-gray-200 rounded-lg text-[10px] font-bold uppercase tracking-widest">NÃ£o</button>
+                                                        <button onClick={() => setIsConfirmingDelete(false)} className="flex-1 py-2 bg-white text-gray-400 border border-gray-200 rounded-lg text-[10px] font-bold uppercase tracking-widest">Não</button>
                                                     </div>
                                                 </div>
                                             )}
@@ -2839,10 +2839,10 @@
                                             )}
                                         </div>
                                         <div className="mt-4 pt-4 border-t border-gray-100  text-left">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">ComentÃ¡rios dos Perfis</p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Comentários dos Perfis</p>
                                             <div className="max-h-40 overflow-y-auto pr-1 space-y-2 mb-2">
                                                 {bookComments.length === 0 ? (
-                                                    <p className="text-[11px] text-gray-400 leading-relaxed">Nenhum comentÃ¡rio ainda. Deixe o primeiro comentÃ¡rio deste livro.</p>
+                                                    <p className="text-[11px] text-gray-400 leading-relaxed">Nenhum comentário ainda. Deixe o primeiro comentário deste livro.</p>
                                                 ) : (
                                                     bookComments.map((comment) => (
                                                         <div key={comment.id} className="rounded-xl border border-gray-100  bg-gray-50  px-2.5 py-2">
@@ -2901,7 +2901,7 @@
                                         <p className="text-xl text-gray-400 italic font-serif">por {book.author}</p>
                                         {onRate && (
                                             <div className="flex items-center gap-1 mt-3">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300 mr-1">AvaliaÃ§Ã£o</span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300 mr-1">Avaliação</span>
                                                 {[1,2,3,4,5].map(n => (
                                                     <button key={n} type="button" onClick={() => onRate(n === userRating ? 0 : n)} className="transition-transform hover:scale-125 active:scale-95 p-0.5">
                                                         <svg width="18" height="18" viewBox="0 0 24 24" fill={n <= userRating ? '#F59E0B' : 'none'} stroke={n <= userRating ? '#F59E0B' : '#D1D5DB'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -2913,9 +2913,9 @@
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mb-12 text-sm">
                                         <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Editora</span><span className="font-bold text-[#1E3A5F]">{book.publisher || "Independente"}</span></div>
-                                        <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">PÃ¡ginas</span><span className="font-bold text-[#1E3A5F]">{book.pages}p</span></div>
+                                        <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Páginas</span><span className="font-bold text-[#1E3A5F]">{book.pages}p</span></div>
                                         {isMultiVolumeSeries && (
-                                            <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">SÃ©rie</span><span className="font-bold text-[#1E3A5F]">{book.series || seriesLabel}</span></div>
+                                            <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Série</span><span className="font-bold text-[#1E3A5F]">{book.series || seriesLabel}</span></div>
                                         )}
                                         {isMultiVolumeSeries && (
                                             <div className="flex flex-col gap-1"><span className="text-[10px] text-gray-300 uppercase font-black tracking-widest">Volume</span><span className="font-bold text-[#1E3A5F]">Vol. {book.volume || 1} de {book.totalVolumes}</span></div>
@@ -2969,8 +2969,8 @@
         const BOOK_SORT_OPTIONS = [
             { value: 'added-desc', label: 'Mais recentes' },
             { value: 'alpha-asc', label: 'A-Z' },
-            { value: 'genre-asc', label: 'GÃªnero' },
-            { value: 'pages-desc', label: 'Mais pÃ¡ginas' },
+            { value: 'genre-asc', label: 'Gênero' },
+            { value: 'pages-desc', label: 'Mais páginas' },
             { value: 'rating-desc', label: 'Melhor avaliados' }
         ];
 
@@ -3188,7 +3188,7 @@
                 }
             }, [chatPartnerOptions, selectedChatPartnerId]);
 
-            // Atualiza o tÃ­tulo do browser com o perfil ativo
+            // Atualiza o título do browser com o perfil ativo
             useEffect(() => {
                 document.title = `Biblioteca | ${currentProfile.label}`;
             }, [currentProfile.label]);
@@ -3280,7 +3280,7 @@
                     oscillator.stop(context.currentTime + 0.13);
                     registerTimeout(() => context.close().catch(() => {}), 180);
                 } catch {
-                    // Falha silenciosa: audio nÃ£o Ã© crÃ­tico.
+                    // Falha silenciosa: audio não é crítico.
                 }
             }, [registerTimeout]);
 
@@ -3334,7 +3334,7 @@
                 const notification = {
                     id: `notif-${now}-${Math.random().toString(36).slice(2, 8)}`,
                     type: type || 'geral',
-                    text: text || 'Nova notificaÃ§Ã£o',
+                    text: text || 'Nova notificação',
                     bookId: bookId || null,
                     bookKey: bookKey || null,
                     fromProfileId: fromId,
@@ -3377,7 +3377,7 @@
                     return;
                 }
                 
-                // Se nÃ£o encontrou, tenta no outro perfil
+                // Se não encontrou, tenta no outro perfil
                 const fallbackProfileIds = [
                     notification.fromProfileId,
                     ...accessibleProfileIds.filter(id => id !== activeProfile)
@@ -3461,7 +3461,7 @@
                     // Aceita tanto um objeto livro quanto um ID
                     const isBookObject = bookOrId !== null && bookOrId !== undefined && typeof bookOrId === 'object' && !Array.isArray(bookOrId);
                     const bookId = isBookObject ? bookOrId.id : bookOrId;
-                    console.log('[Comments] Adicionando comentÃ¡rio:', { bookId, textLength: cleanText.length });
+                    console.log('[Comments] Adicionando comentário:', { bookId, textLength: cleanText.length });
                     if (!cleanText) {
                         console.warn('[Comments] Texto vazio, abortando');
                         return;
@@ -3478,14 +3478,14 @@
                         createdAt: Date.now()
                     };
 
-                    console.log('[Comments] Novo comentÃ¡rio:', newComment);
+                    console.log('[Comments] Novo comentário:', newComment);
                     setCommentsByBook(prev => {
                         const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
                         const updated = {
                             ...prev,
                             [bookKey]: [...currentComments, newComment]
                         };
-                        console.log('[Comments] Estado atualizado para', bookKey, 'com', currentComments.length + 1, 'comentÃ¡rios');
+                        console.log('[Comments] Estado atualizado para', bookKey, 'com', currentComments.length + 1, 'comentários');
                         return updated;
                     });
                     if (myProfileId) {
@@ -3495,7 +3495,7 @@
                         recipientIds.forEach((recipientId) => {
                             const recipientProfile = PROFILE_OPTIONS.find(p => p.id === recipientId);
                             if (!recipientProfile) return;
-                            console.log('[Comments] Notificando', recipientProfile.label, 'sobre comentÃ¡rio');
+                            console.log('[Comments] Notificando', recipientProfile.label, 'sobre comentário');
                             pushNotification({
                                 toProfileId: recipientProfile.id,
                                 type: 'comment',
@@ -3505,16 +3505,16 @@
                             });
                         });
                     }
-                    notifyUser(`ComentÃ¡rio adicionado em ${bookTitle}`, 'success');
+                    notifyUser(`Comentário adicionado em ${bookTitle}`, 'success');
                 } catch (err) {
-                    console.error('[Comments] Erro ao adicionar comentÃ¡rio:', err);
-                    notifyUser('Erro ao salvar comentÃ¡rio: ' + err.message, 'error');
+                    console.error('[Comments] Erro ao adicionar comentário:', err);
+                    notifyUser('Erro ao salvar comentário: ' + err.message, 'error');
                 }
             }, [activeProfile, myProfileId, loggedUserProfile, currentProfile.label, customBooks, pushNotification]);
 
             const deleteBookComment = useCallback((bookKey, commentId) => {
                 try {
-                    console.log('[Comments] Deletando comentÃ¡rio:', { bookKey, commentId });
+                    console.log('[Comments] Deletando comentário:', { bookKey, commentId });
                     setCommentsByBook(prev => {
                         const currentComments = Array.isArray(prev[bookKey]) ? prev[bookKey] : [];
                         const filtered = currentComments.filter(comment => comment.id !== commentId);
@@ -3524,14 +3524,14 @@
                             console.log('[Comments] Livro', bookKey, 'removido (no more comments)');
                         } else {
                             next[bookKey] = filtered;
-                            console.log('[Comments] ComentÃ¡rio', commentId, 'removido. Restam', filtered.length, 'comentÃ¡rios');
+                            console.log('[Comments] Comentário', commentId, 'removido. Restam', filtered.length, 'comentários');
                         }
                         return next;
                     });
-                    notifyUser('ComentÃ¡rio removido', 'success');
+                    notifyUser('Comentário removido', 'success');
                 } catch (err) {
-                    console.error('[Comments] Erro ao deletar comentÃ¡rio:', err);
-                    notifyUser('Erro ao deletar comentÃ¡rio: ' + err.message, 'error');
+                    console.error('[Comments] Erro ao deletar comentário:', err);
+                    notifyUser('Erro ao deletar comentário: ' + err.message, 'error');
                 }
             }, []);
 
@@ -3554,14 +3554,14 @@
                 });
                 setChatInput('');
                 notifyUser(`Conversa com ${chatOtherProfile?.label || 'o perfil selecionado'} limpa apenas para ${chatCurrentProfile.label}.`, 'success');
-                logActivity(`Limpou o histÃ³rico do chat com ${chatOtherProfile?.label || 'o perfil selecionado'} apenas para ${chatCurrentProfile.label}.`, 'chat');
+                logActivity(`Limpou o histórico do chat com ${chatOtherProfile?.label || 'o perfil selecionado'} apenas para ${chatCurrentProfile.label}.`, 'chat');
             }, [viewerProfileId, chatCurrentProfile.label, chatOtherProfile?.label, logActivity, isMessageInCurrentConversation]);
 
             useEffect(() => {
                 localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfile);
                 isProfileSwitchingRef.current = true;
                 setShowProfileMenu(false);
-                // Reseta estados para forÃ§ar reload limpo ao trocar perfil
+                // Reseta estados para forçar reload limpo ao trocar perfil
                 setIsInitialized(false);
                 setCustomBooks([]);
                 setReadStatus({});
@@ -3612,7 +3612,7 @@
                 }
             }, [user]);
 
-            // Monitora estado de autenticaÃ§Ã£o
+            // Monitora estado de autenticação
             useEffect(() => {
                 if (!window.auth) {
                     setAuthLoading(false);
@@ -3624,9 +3624,9 @@
                         setUser(null);
                         setAuthLoading(false);
                         window.signOut(window.auth).catch((error) => {
-                            console.error('Erro ao remover acesso de utilizador nÃ£o autorizado:', error);
+                            console.error('Erro ao remover acesso de utilizador não autorizado:', error);
                         });
-                        notifyUser('Este email nÃ£o tem permissÃ£o para acessar esta biblioteca.', 'error');
+                        notifyUser('Este email não tem permissão para acessar esta biblioteca.', 'error');
                         return;
                     }
 
@@ -3668,7 +3668,7 @@
                     try {
                         await flushPendingCloudSync();
                     } catch (error) {
-                        console.warn('Falha ao sincronizar pendÃªncias locais:', error);
+                        console.warn('Falha ao sincronizar pendências locais:', error);
                     }
                 };
 
@@ -3714,7 +3714,7 @@
                 };
             }, [user]);
 
-            // Listener em tempo real para dados compartilhados â€” recebe updates da outra usuÃ¡ria
+            // Listener em tempo real para dados compartilhados — recebe updates da outra usuária
             useEffect(() => {
                 if (!user || !window.db || !window.onSnapshot) return;
                 console.log('[Realtime] Iniciando listeners de dados compartilhados');
@@ -3736,7 +3736,7 @@
                     if (!snap.exists()) return;
                     const data = snap.data()?.data;
                     if (!data || typeof data !== 'object') return;
-                    console.log('[Realtime] ComentÃ¡rios atualizados remotamente');
+                    console.log('[Realtime] Comentários atualizados remotamente');
                     commentsFromCloudRef.current = true;
                     setCommentsByBook(data);
                     setCommentsInitialized(true);
@@ -3746,7 +3746,7 @@
                     if (!snap.exists()) return;
                     const data = snap.data()?.data;
                     if (!Array.isArray(data)) return;
-                    console.log('[Realtime] NotificaÃ§Ãµes atualizadas remotamente:', data.length, 'itens');
+                    console.log('[Realtime] Notificações atualizadas remotamente:', data.length, 'itens');
                     notificationsFromCloudRef.current = true;
                     setNotifications(data);
                     setNotificationsInitialized(true);
@@ -3771,10 +3771,10 @@
             useEffect(() => {
                 if (!user || !commentsInitialized) return;
                 if (commentsFromCloudRef.current) { commentsFromCloudRef.current = false; return; }
-                console.log('[Comments] Salvando comentÃ¡rios de', Object.keys(commentsByBook).length, 'livros');
+                console.log('[Comments] Salvando comentários de', Object.keys(commentsByBook).length, 'livros');
                 saveToCloud(COMMENTS_STORAGE_KEY, commentsByBook).catch((err) => {
-                    console.error('[Comments] Erro ao salvar comentÃ¡rios:', err);
-                    notifyUser('Erro ao salvar comentÃ¡rio: ' + err.message, 'warning');
+                    console.error('[Comments] Erro ao salvar comentários:', err);
+                    notifyUser('Erro ao salvar comentário: ' + err.message, 'warning');
                 });
             }, [commentsByBook, user, commentsInitialized]);
 
@@ -3809,7 +3809,7 @@
                     if (typeof parsed.filterRead === 'boolean') setFilterRead(parsed.filterRead);
                     if (typeof parsed.filterDownloaded === 'boolean') setFilterDownloaded(parsed.filterDownloaded);
                 } catch {
-                    // PreferÃªncias invÃ¡lidas sÃ£o ignoradas.
+                    // Preferências inválidas são ignoradas.
                 }
             }, [profilePreferencesKey]);
 
@@ -3906,7 +3906,7 @@
 
                 const cleanSearchTitle = (title = '') =>
                     title
-                        .replace(/\b(edicao|ediÃ§Ã£o|capa dura|brochura|colecao|coleÃ§Ã£o|comemorativa|box)\b.*$/i, '')
+                        .replace(/\b(edicao|edição|capa dura|brochura|colecao|coleção|comemorativa|box)\b.*$/i, '')
                         .replace(/[:\-].*$/g, '')
                         .trim();
 
@@ -3919,8 +3919,8 @@
                     return Math.abs(hash);
                 };
 
-                const PT_BR_PUBLISHER_PATTERN = /(companhia das letras|intrinseca|intrÃ­nseca|arqueiro|record|rocco|seguinte|aleph|suma|trama|morro branco|darkside|bertrand brasil|harpercollins|galera|planeta|paralela|globo|principis)/i;
-                const PT_BR_TEXT_PATTERN = /\b(de|da|do|dos|das|que|uma|para|com|sem|livro|romance|ficcao|ficÃ§Ã£o|edicao|ediÃ§Ã£o|serie|sÃ©rie|brasil|brasileiro)\b/i;
+                const PT_BR_PUBLISHER_PATTERN = /(companhia das letras|intrinseca|intrínseca|arqueiro|record|rocco|seguinte|aleph|suma|trama|morro branco|darkside|bertrand brasil|harpercollins|galera|planeta|paralela|globo|principis)/i;
+                const PT_BR_TEXT_PATTERN = /\b(de|da|do|dos|das|que|uma|para|com|sem|livro|romance|ficcao|ficção|edicao|edição|serie|série|brasil|brasileiro)\b/i;
                 const ENGLISH_TEXT_PATTERN = /\b(the|and|with|book|series|edition|volume|a\s|an\s|for\s|from\s|of\s)\b/i;
                 const isPortugueseLanguage = (language = '') => /^pt(-|$)/i.test(String(language || '').trim());
                 const extractPublishedYear = (publishedDate = '') => {
@@ -3964,19 +3964,19 @@
                 const GLOBAL_FALLBACK_CURATION = [
                     { title: '1984', author: 'George Orwell', genre: 'Distopia', publisher: 'Companhia das Letras', coverUrl: 'https://m.media-amazon.com/images/I/71kxa1-0mfL.jpg' },
                     { title: 'Admiravel Mundo Novo', author: 'Aldous Huxley', genre: 'Distopia', publisher: 'Biblioteca Azul', coverUrl: 'https://m.media-amazon.com/images/I/81zN7udGRUL.jpg' },
-                    { title: 'Duna', author: 'Frank Herbert', genre: 'FicÃ§Ã£o CientÃ­fica', publisher: 'Aleph', coverUrl: 'https://m.media-amazon.com/images/I/91A2ojA8-6L.jpg' },
-                    { title: 'Projeto Hail Mary', author: 'Andy Weir', genre: 'FicÃ§Ã£o CientÃ­fica', publisher: 'Arqueiro', coverUrl: 'https://m.media-amazon.com/images/I/81fI0hY9y6L.jpg' },
-                    { title: 'Neuromancer', author: 'William Gibson', genre: 'FicÃ§Ã£o CientÃ­fica', publisher: 'Aleph', coverUrl: 'https://m.media-amazon.com/images/I/81zmA8xMr-L.jpg' },
+                    { title: 'Duna', author: 'Frank Herbert', genre: 'Ficção Científica', publisher: 'Aleph', coverUrl: 'https://m.media-amazon.com/images/I/91A2ojA8-6L.jpg' },
+                    { title: 'Projeto Hail Mary', author: 'Andy Weir', genre: 'Ficção Científica', publisher: 'Arqueiro', coverUrl: 'https://m.media-amazon.com/images/I/81fI0hY9y6L.jpg' },
+                    { title: 'Neuromancer', author: 'William Gibson', genre: 'Ficção Científica', publisher: 'Aleph', coverUrl: 'https://m.media-amazon.com/images/I/81zmA8xMr-L.jpg' },
                     { title: 'Assassinato no Expresso do Oriente', author: 'Agatha Christie', genre: 'Thriller', publisher: 'HarperCollins', coverUrl: 'https://m.media-amazon.com/images/I/81ew8x6BfPL.jpg' },
                     { title: 'A Garota no Trem', author: 'Paula Hawkins', genre: 'Thriller', publisher: 'Record', coverUrl: 'https://m.media-amazon.com/images/I/81AFocW+xwL.jpg' },
                     { title: 'Garota Exemplar', author: 'Gillian Flynn', genre: 'Thriller', publisher: 'Intrinseca', coverUrl: 'https://m.media-amazon.com/images/I/81VStYnDGrL.jpg' },
-                    { title: 'A Biblioteca da Meia-Noite', author: 'Matt Haig', genre: 'FicÃ§Ã£o LiterÃ¡ria', publisher: 'Bertrand Brasil', coverUrl: 'https://m.media-amazon.com/images/I/71ls-I6A5KL.jpg' },
-                    { title: 'A Vida Invisivel de Addie LaRue', author: 'V.E. Schwab', genre: 'FicÃ§Ã£o LiterÃ¡ria', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/71oeGkR9Q+L.jpg' },
-                    { title: 'Pachinko', author: 'Min Jin Lee', genre: 'FicÃ§Ã£o LiterÃ¡ria', publisher: 'Intrinseca', coverUrl: 'https://m.media-amazon.com/images/I/91a4fTRm4fL.jpg' },
-                    { title: 'A Song of Achilles', author: 'Madeline Miller', genre: 'FicÃ§Ã£o LiterÃ¡ria', publisher: 'Bloomsbury', coverUrl: 'https://m.media-amazon.com/images/I/91fR2x6I3nL.jpg' },
-                    { title: 'Orgulho e Preconceito', author: 'Jane Austen', genre: 'Romance ContemporÃ¢neo', publisher: 'Principis', coverUrl: 'https://m.media-amazon.com/images/I/81aZ6yP8LUL.jpg' },
-                    { title: 'E assim que acaba', author: 'Colleen Hoover', genre: 'Romance ContemporÃ¢neo', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/91r5G8RxqfL.jpg' },
-                    { title: 'Pessoas Normais', author: 'Sally Rooney', genre: 'Romance ContemporÃ¢neo', publisher: 'Companhia das Letras', coverUrl: 'https://m.media-amazon.com/images/I/71otnTfW9CL.jpg' },
+                    { title: 'A Biblioteca da Meia-Noite', author: 'Matt Haig', genre: 'Ficção Literária', publisher: 'Bertrand Brasil', coverUrl: 'https://m.media-amazon.com/images/I/71ls-I6A5KL.jpg' },
+                    { title: 'A Vida Invisivel de Addie LaRue', author: 'V.E. Schwab', genre: 'Ficção Literária', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/71oeGkR9Q+L.jpg' },
+                    { title: 'Pachinko', author: 'Min Jin Lee', genre: 'Ficção Literária', publisher: 'Intrinseca', coverUrl: 'https://m.media-amazon.com/images/I/91a4fTRm4fL.jpg' },
+                    { title: 'A Song of Achilles', author: 'Madeline Miller', genre: 'Ficção Literária', publisher: 'Bloomsbury', coverUrl: 'https://m.media-amazon.com/images/I/91fR2x6I3nL.jpg' },
+                    { title: 'Orgulho e Preconceito', author: 'Jane Austen', genre: 'Romance Contemporâneo', publisher: 'Principis', coverUrl: 'https://m.media-amazon.com/images/I/81aZ6yP8LUL.jpg' },
+                    { title: 'E assim que acaba', author: 'Colleen Hoover', genre: 'Romance Contemporâneo', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/91r5G8RxqfL.jpg' },
+                    { title: 'Pessoas Normais', author: 'Sally Rooney', genre: 'Romance Contemporâneo', publisher: 'Companhia das Letras', coverUrl: 'https://m.media-amazon.com/images/I/71otnTfW9CL.jpg' },
                     { title: 'Quarta Asa', author: 'Rebecca Yarros', genre: 'Romantasy', publisher: 'Planeta Minotauro', coverUrl: 'https://m.media-amazon.com/images/I/81M8xQnwxvL.jpg' },
                     { title: 'A Serpente e as Asas Feitas de Noite', author: 'Carissa Broadbent', genre: 'Romantasy', publisher: 'Planeta Minotauro', coverUrl: 'https://m.media-amazon.com/images/I/81N4B4Q2JxL.jpg' },
                     { title: 'De Sangue e Cinzas', author: 'Jennifer L. Armentrout', genre: 'Romantasy', publisher: 'Galera', coverUrl: 'https://m.media-amazon.com/images/I/81tmkVf6EFL.jpg' },
@@ -4157,7 +4157,7 @@
                         const volume = item?.volumeInfo || {};
                         if (!isLikelyPtBrVolume(volume)) return null;
                         const title = (volume.title || '').trim();
-                        const author = (volume.authors || [])[0] || 'Autor nÃ£o informado';
+                        const author = (volume.authors || [])[0] || 'Autor não informado';
                         if (!title || NON_BOOK_PATTERN.test(title)) return null;
 
                         const isbn = ((volume.industryIdentifiers || []).find(id => id?.identifier)?.identifier || '').trim();
@@ -4187,7 +4187,7 @@
                             ptBrConfidence: getPtBrConfidence(volume),
                             coverUrl: cover,
                             coverCandidates: uniqueCoverCandidates,
-                            description: volume.description || 'Sem descriÃ§Ã£o disponÃ­vel.',
+                            description: volume.description || 'Sem descrição disponível.',
                             referenceUrl: `https://www.google.com/search?q=${encodeURIComponent(`${title} ${author} livro`)}`
                         };
                     }).filter(Boolean);
@@ -4203,7 +4203,7 @@
                             return null;
                         }
 
-                        const author = (volume.authors || [])[0] || 'Autor nÃ£o informado';
+                        const author = (volume.authors || [])[0] || 'Autor não informado';
                         const openLibrary = await fetchOpenLibrarySignals(volume.title || candidate.title, author);
                         const isbn = ((volume.industryIdentifiers || []).find(id => id?.identifier)?.identifier || candidate?.isbn || '').trim();
                         const candidateCoverUrls = Array.isArray(candidate?.coverCandidates) ? candidate.coverCandidates : [];
@@ -4222,7 +4222,7 @@
                             .filter(Boolean);
                         const uniqueCoverCandidates = [...new Set(coverCandidates)];
                         const coverUrl = uniqueCoverCandidates[0] || '';
-                        if (!coverUrl || !author || author === 'Autor nÃ£o informado') {
+                        if (!coverUrl || !author || author === 'Autor não informado') {
                             return null;
                         }
 
@@ -4260,7 +4260,7 @@
                             curationScore: computeCurationScore({ gbAvg: gbAverageRating, gbCount: gbRatingsCount, olAvg: olAverageRating, olCount: olRatingsCount, wants: olWantsCount, editions: olEditionCount, publishedDate: volume.publishedDate || '' }),
                             coverUrl: coverUrl || openLibrary?.coverUrl || '',
                             coverCandidates: uniqueCoverCandidates,
-                            description: volume.description || 'Sem descriÃ§Ã£o disponÃ­vel.',
+                            description: volume.description || 'Sem descrição disponível.',
                             referenceUrl: openLibrary?.referenceUrl || `https://www.google.com/search?q=${encodeURIComponent(`${volume.title || candidate.title} ${author} livro`)}`
                         };
                     } catch {
@@ -4318,7 +4318,7 @@
                                 setAmazonHighlights(localFallback);
                                 setAmazonHighlightsError('');
                             } else {
-                                setAmazonHighlightsError('NÃ£o foi possÃ­vel carregar a curadoria de livros agora. Tente novamente em instantes.');
+                                setAmazonHighlightsError('Não foi possível carregar a curadoria de livros agora. Tente novamente em instantes.');
                             }
                         }
                     } finally {
@@ -4382,7 +4382,7 @@
             const handlePasswordReset = async () => {
                 const email = loginEmail.trim().toLowerCase();
                 if (!email) {
-                    notifyUser('Digite seu email para receber o link de redefiniÃ§Ã£o.', 'warning');
+                    notifyUser('Digite seu email para receber o link de redefinição.', 'warning');
                     return;
                 }
 
@@ -4393,31 +4393,31 @@
                     registerTimeout(() => setCanRequestReset(true), 60000);
                     notifyUser('Link enviado. Use apenas o e-mail mais recente para redefinir a senha.', 'success');
                 } catch (error) {
-                    console.error('Erro ao enviar redefiniÃ§Ã£o de senha:', error);
+                    console.error('Erro ao enviar redefinição de senha:', error);
                     const code = error?.code || 'erro-desconhecido';
                     if (code === 'auth/user-not-found' || code === 'auth/invalid-email') {
-                        notifyUser('Email nÃ£o encontrado ou invÃ¡lido.', 'error');
+                        notifyUser('Email não encontrado ou inválido.', 'error');
                         return;
                     }
                     if (code === 'auth/too-many-requests') {
                         notifyUser('Muitas tentativas. Aguarde alguns minutos e tente de novo.', 'warning');
                         return;
                     }
-                    notifyUser('NÃ£o foi possÃ­vel enviar o link de redefiniÃ§Ã£o agora.', 'error');
+                    notifyUser('Não foi possível enviar o link de redefinição agora.', 'error');
                 } finally {
                     setIsSendingReset(false);
                 }
             };
 
-            // Carregamento inicial e SanitizaÃ§Ã£o
+            // Carregamento inicial e Sanitização
             useEffect(() => {
-                if (!user) return; // SÃ³ carrega dados se estiver logado
+                if (!user) return; // Só carrega dados se estiver logado
 
                 setIsInitialized(false);
                 let cancelled = false;
 
                 const loadData = async () => {
-                    // Quando vocÃª visita outro perfil, sempre carrega do Firestore para garantir dados frescos
+                    // Quando você visita outro perfil, sempre carrega do Firestore para garantir dados frescos
                     const isVisitingOtherProfile = !!myProfileId && activeProfile !== myProfileId;
                     
                     // Resolve o UID do perfil visitado para leitura cross-profile
@@ -4438,26 +4438,65 @@
                         ? (await readCloudSnapshotForUid(profileKeys.covers, targetUid, {})).data
                         : await loadFromCloud(profileKeys.covers, {});
                     
-                    // Se visitando outro perfil, lÃª direto do Firestore do perfil alvo usando seu UID
-                    let cb = (isVisitingOtherProfile && targetUid)
-                        ? (await readCloudSnapshotForUid(profileKeys.custom, targetUid, [])).data
-                        : await loadFromCloud(profileKeys.custom, []);
+                    // Carrega livros customizados com verificação precisa de existência no cloud
+                    // para evitar sobrescrever dados reais com livros de demonstração em falhas de rede.
+                    let cb;
+                    let customCloudDocExists = false;
+
+                    if (isVisitingOtherProfile) {
+                        if (targetUid) {
+                            const snap = await readCloudSnapshotForUid(profileKeys.custom, targetUid, []);
+                            cb = snap.data;
+                            customCloudDocExists = snap.exists;
+                        } else {
+                            // UID do perfil visitado não encontrado → catálogo vazio, sem demo books
+                            cb = [];
+                            customCloudDocExists = false;
+                        }
+                    } else {
+                        // Perfil próprio: usa readCloudSnapshot diretamente para saber se o doc existe,
+                        // evitando que demo books sobrescrevam dados reais quando o Firestore falha temporariamente.
+                        try {
+                            const cloudSnap = await readCloudSnapshot(profileKeys.custom, []);
+                            const localSnap = getLocalSnapshot(profileKeys.custom, []);
+                            customCloudDocExists = cloudSnap.exists;
+
+                            if (localSnap.exists && localSnap.timestampMs > (cloudSnap.timestampMs || 0)) {
+                                cb = localSnap.data;
+                                markPendingSyncKey(profileKeys.custom, true);
+                            } else if (cloudSnap.exists) {
+                                cb = cloudSnap.data;
+                                setLocalSnapshot(profileKeys.custom, cb, cloudSnap.timestampMs || Date.now());
+                                markPendingSyncKey(profileKeys.custom, false);
+                            } else if (localSnap.exists) {
+                                cb = localSnap.data;
+                                markPendingSyncKey(profileKeys.custom, true);
+                            } else {
+                                cb = [];
+                            }
+                        } catch {
+                            const localSnap = getLocalSnapshot(profileKeys.custom, []);
+                            cb = localSnap.exists ? localSnap.data : [];
+                            customCloudDocExists = false;
+                        }
+                    }
+
                     let rem = [];
                     const q = (isVisitingOtherProfile && targetUid)
                         ? (await readCloudSnapshotForUid(profileKeys.queue, targetUid, [])).data
                         : await loadFromCloud(profileKeys.queue, []);
-                    
-                    // Se nÃ£o hÃ¡ livros no banco, carrega SEED_BOOKS sÃ³ para o perfil principal (Gianny)
+
+                    // Fallback quando não há livros no banco de dados
                     if (!cb || cb.length === 0) {
-                        if (activeProfile === 'perfil-1') {
-                            // Recupera catÃ¡logo legado da Gianny (antes da separaÃ§Ã£o por perfis), se existir
+                        if (activeProfile === 'perfil-1' && !isVisitingOtherProfile) {
+                            // Recupera catálogo legado da Gianny (antes da separação por perfis), se existir
                             const legacyCustomCandidates = ['libdb-custom-v1', 'libdb-custom'];
                             let recoveredLegacy = [];
                             for (const legacyKey of legacyCustomCandidates) {
                                 const legacyBooks = await loadFromCloud(legacyKey, []);
                                 if (Array.isArray(legacyBooks) && legacyBooks.length > 0) {
                                     recoveredLegacy = dedupeBooksByIdentity(legacyBooks);
-                                    console.log('ðŸ“š CatÃ¡logo legado da Gianny recuperado da chave:', legacyKey);
+                                    console.log('📚 Catálogo legado da Gianny recuperado da chave:', legacyKey);
                                     break;
                                 }
                             }
@@ -4468,15 +4507,22 @@
                                 localStorage.setItem(profileKeys.custom, JSON.stringify(cb));
                             } else {
                                 cb = dedupeBooksByIdentity(SEED_BOOKS);
-                                console.log('ðŸ“š Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
+                                console.log('📚 Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
                             }
-                        } else {
+                        } else if (!isVisitingOtherProfile && !customCloudDocExists) {
+                            // Perfil secundário sem histórico algum (doc não existe no cloud nem no local)
+                            // → carrega livro inicial apenas na primeira vez, sem risco de sobrescrever dados reais
                             cb = dedupeBooksByIdentity(SECONDARY_DEMO_BOOKS);
-                            console.log('ðŸ“š Carregando livro de demonstraÃ§Ã£o para o perfil da Laisa.');
+                            console.log('📚 Carregando livro inicial para novo perfil (' + activeProfile + ').');
+                        } else {
+                            // Visitando perfil sem UID mapeado, ou perfil próprio com cloud temporariamente
+                            // indisponível e sem dados locais → catálogo vazio para não corromper dados reais
+                            cb = [];
+                            console.log('📚 Catálogo vazio para', activeProfile, isVisitingOtherProfile ? '(visitando sem UID)' : '(cloud indisponível)');
                         }
                     } else {
                         cb = dedupeBooksByIdentity(cb);
-                        console.log('ðŸ“š Exibindo ' + cb.length + ' livros do banco de dados...');
+                        console.log('📚 Exibindo ' + cb.length + ' livros do banco de dados...');
                     }
 
                     if (cancelled) return;
@@ -4502,7 +4548,8 @@
                 user,
                 isProfileSwitchingRef,
                 profileKeys,
-                payload: persistencePayload
+                payload: persistencePayload,
+                isViewingOtherProfile
             });
 
             // Mapa de EPUBs compartilhados dos perfis conectados por identidade (t??tulo||autor)
@@ -4602,7 +4649,7 @@
                 setRemoteEpubAvailability(availability);
             }, [customBooks, otherProfileEpubMap]);
 
-            // Retorna a epubUrl efetiva de um livro (prÃ³pria ou do outro perfil)
+            // Retorna a epubUrl efetiva de um livro (própria ou do outro perfil)
             const getEffectiveEpub = useCallback((book) => {
                 if (book.epubUrl) return { epubUrl: book.epubUrl, epubFileName: book.epubFileName };
                 const other = otherProfileEpubMap[getBookKey(book)];
@@ -4611,7 +4658,7 @@
             }, [otherProfileEpubMap]);
 
             const allBooksCombined = useMemo(() => {
-                // Todos os livros agora vÃªm do banco de dados (customBooks)
+                // Todos os livros agora vêm do banco de dados (customBooks)
                 return customBooks;
             }, [customBooks]);
 
@@ -4626,16 +4673,16 @@
             }, [logActivity]);
 
             const addAmazonHighlightToCatalog = useCallback((item) => {
-                if (!ensureOwnProfileWrite('VocÃª nÃ£o pode adicionar livros diretamente na biblioteca do outro perfil.')) return;
+                if (!ensureOwnProfileWrite('Você não pode adicionar livros diretamente na biblioteca do outro perfil.')) return;
                 if (!item?.title || !item?.author) {
-                    notifyUser('NÃ£o foi possÃ­vel adicionar este livro agora.', 'warning');
+                    notifyUser('Não foi possível adicionar este livro agora.', 'warning');
                     return;
                 }
 
                 const alreadyExists = customBooks.some(book => booksMatch(book, item));
 
                 if (alreadyExists) {
-                    notifyUser('Esse livro jÃ¡ existe no catÃ¡logo deste perfil.', 'warning');
+                    notifyUser('Esse livro já existe no catálogo deste perfil.', 'warning');
                     return;
                 }
 
@@ -4669,8 +4716,8 @@
                 setCustomBooks(prev => dedupeBooksByIdentity([newBook, ...prev]));
                 setViewMode('grid');
                 setActiveGenre('Todos');
-                notifyUser('Livro adicionado ao catÃ¡logo com sucesso.', 'success');
-                logActivity(`Adicionou ${newBook.title} via sugestÃµes Em Alta.`, 'catalog');
+                notifyUser('Livro adicionado ao catálogo com sucesso.', 'success');
+                logActivity(`Adicionou ${newBook.title} via sugestões Em Alta.`, 'catalog');
             }, [ensureOwnProfileWrite, customBooks, activeProfile, logActivity]);
 
             const handleEditBook = useCallback((updatedBook) => {
@@ -4760,7 +4807,7 @@
                 if (!ensureOwnProfileWrite()) return;
                 const isNextDownloaded = !downloadStatus[book.id];
                 setDownloadStatus(prev => ({ ...prev, [book.id]: isNextDownloaded }));
-                notifyUser(isNextDownloaded ? `${book.title} baixado` : `${book.title} removido dos baixados`, isNextDownloaded ? 'success' : 'info', isNextDownloaded ? 'DisponÃ­vel no EPUB Viewer' : '');
+                notifyUser(isNextDownloaded ? `${book.title} baixado` : `${book.title} removido dos baixados`, isNextDownloaded ? 'success' : 'info', isNextDownloaded ? 'Disponível no EPUB Viewer' : '');
                 logActivity(`${isNextDownloaded ? 'Marcou' : 'Desmarcou'} ${book.title} como baixado.`, 'status');
             }, [ensureOwnProfileWrite, downloadStatus, logActivity]);
 
@@ -4768,7 +4815,7 @@
                 if (!ensureOwnProfileWrite()) return;
                 const inQueue = readingOrder.includes(book.id);
                 setReadingOrder(prev => inQueue ? prev.filter(x => x !== book.id) : [...prev, book.id]);
-                notifyUser(inQueue ? `${book.title} removido da lista` : `${book.title} adicionado Ã  lista de leitura`, inQueue ? 'info' : 'success', !inQueue ? `PosiÃ§Ã£o #${readingOrder.length + 1} na fila` : '');
+                notifyUser(inQueue ? `${book.title} removido da lista` : `${book.title} adicionado à lista de leitura`, inQueue ? 'info' : 'success', !inQueue ? `Posição #${readingOrder.length + 1} na fila` : '');
                 logActivity(`${inQueue ? 'Removeu' : 'Adicionou'} ${book.title} ${inQueue ? 'da' : 'na'} fila.`, 'queue');
             }, [ensureOwnProfileWrite, readingOrder, logActivity]);
 
@@ -4792,7 +4839,7 @@
                             b.id === existingBookId ? { ...b, ...telegramEpubFields } : b
                         ));
                     } else {
-                        // Livro base â€” cria entrada em customBooks com o epub vinculado
+                        // Livro base — cria entrada em customBooks com o epub vinculado
                         setCustomBooks(prev => [...prev, {
                             id: existingBookId,
                             title,
@@ -4806,11 +4853,11 @@
                     ));
                     setDownloadStatus(prev => ({ ...prev, [existingBookId]: true }));
                 } else {
-                    // Livro novo: cria entrada bÃ¡sica imediatamente
+                    // Livro novo: cria entrada básica imediatamente
                     const newId = 'tg_' + Date.now();
                     const baseBook = {
                         id       : newId,
-                        title    : title || fileName || 'Sem tÃ­tulo',
+                        title    : title || fileName || 'Sem título',
                         author   : '',
                         genre    : '',
                         coverUrl : '',
@@ -4825,7 +4872,7 @@
                     ));
                     setDownloadStatus(prev => ({ ...prev, [newId]: true }));
 
-                    // Enriquecimento automÃ¡tico com Claude em background
+                    // Enriquecimento automático com Claude em background
                     (async () => {
                         try {
                             const authHeaders = await (window.getAuthHeaders?.() ?? {});
@@ -4854,9 +4901,9 @@
                                     enrichedByAI: true,
                                 } : b
                             ));
-                            notifyUser(`Ficha de "${p.title || baseBook.title}" enriquecida com IA`, 'success', 'Sinopse, gÃªnero e tags preenchidos');
+                            notifyUser(`Ficha de "${p.title || baseBook.title}" enriquecida com IA`, 'success', 'Sinopse, gênero e tags preenchidos');
                         } catch {
-                            // Falha silenciosa â€” dados brutos do arquivo ficam intactos
+                            // Falha silenciosa — dados brutos do arquivo ficam intactos
                         }
                     })();
                 }
@@ -4966,13 +5013,13 @@
 
             const ensureOwnProfileWrite = useCallback((message) => {
                 if (isViewingOwnProfile) return true;
-                notifyUser(message || 'VocÃª sÃ³ pode editar a sua prÃ³pria biblioteca.', 'warning');
+                notifyUser(message || 'Você só pode editar a sua própria biblioteca.', 'warning');
                 return false;
             }, [isViewingOwnProfile]);
 
             const importBookToMyProfile = useCallback(async (sourceBook) => {
                 if (!myProfileId || !user) {
-                    notifyUser('NÃ£o foi possÃ­vel identificar o perfil da conta logada.', 'error');
+                    notifyUser('Não foi possível identificar o perfil da conta logada.', 'error');
                     return;
                 }
                 const myKeys = getProfileKeys(myProfileId);
@@ -4980,7 +5027,7 @@
                 const alreadyExists = myBooks.some((b) => booksMatch(b, sourceBook));
 
                 if (alreadyExists) {
-                    notifyUser('Esse livro jÃ¡ existe no seu perfil.', 'warning');
+                    notifyUser('Esse livro já existe no seu perfil.', 'warning');
                     return;
                 }
 
@@ -4994,12 +5041,12 @@
                 await saveToCloud(myKeys.custom, updatedMyBooks);
                 localStorage.setItem(myKeys.custom, JSON.stringify(updatedMyBooks));
 
-                // Notifica o perfil dono do catÃ¡logo de origem que houve importaÃ§Ã£o.
+                // Notifica o perfil dono do catálogo de origem que houve importação.
                 pushNotification({
                     toProfileId: activeProfile,
                     type: 'import',
                     bookId: sourceBook.id,
-                    text: `${loggedUserProfile?.label || 'Outro perfil'} importou ${sourceBook.title || 'um livro'} do seu catÃ¡logo`
+                    text: `${loggedUserProfile?.label || 'Outro perfil'} importou ${sourceBook.title || 'um livro'} do seu catálogo`
                 });
 
                 notifyUser(`Livro adicionado ao perfil ${loggedUserProfile?.label || 'atual'}.`, 'success');
@@ -5047,7 +5094,7 @@
                     )}
                     <header className="bg-[#0F2240] text-white pt-16 md:pt-24 pb-10 md:pb-12 px-4 sm:px-6 relative z-50 text-center md:text-left overflow-visible">
                         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                            {/* Gradient â€“ igual ao login.html */}
+                            {/* Gradient – igual ao login.html */}
                             <div style={{position:'absolute',inset:0,background: getProfileHeaderTheme(activeProfile).overlay}}></div>
                             {/* Noise */}
                             <div style={{position:'absolute',inset:0,opacity:0.028,mixBlendMode:'soft-light',backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",backgroundSize:'200px 200px'}}></div>
@@ -5062,7 +5109,7 @@
                             <div className="logo-container mt-4 md:mt-10 md:ml-6 lg:ml-10">
                                 <img
                                     src={getProfileHeaderLogoSrc(activeProfile)}
-                                    alt="Biblioteca do AmanhÃ£"
+                                    alt="Biblioteca do Amanhã"
                                     className="animate-fade-in h-[80px] md:h-[86px] w-auto object-contain"
                                     crossOrigin="anonymous"
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/320x100/1E3A5F/FFFFFF?text=Biblioteca+do+Amanh%C3%A3'; }}
@@ -5158,7 +5205,7 @@
                                         <Icon name="layers" className="w-3.5 h-3.5" /> Dashboard
                                     </button>
                                     <button onClick={() => setViewMode('grid')} className={`shrink-0 flex-1 xl:flex-none flex items-center justify-center gap-2 px-3 sm:px-6 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'grid' ? 'bg-white  text-[#1E3A5F]  shadow-sm' : 'text-gray-400 '}`}>
-                                        <Icon name="grid" className="w-3.5 h-3.5" /> CatÃ¡logo
+                                        <Icon name="grid" className="w-3.5 h-3.5" /> Catálogo
                                     </button>
                                     <button onClick={() => setViewMode('queue')} className={`shrink-0 flex-1 xl:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all whitespace-nowrap ${viewMode === 'queue' ? 'bg-[#14B8A6] text-white shadow-sm' : 'text-gray-400 '}`}>
                                         <Icon name="list" className="w-3.5 h-3.5" /> Minha Fila
@@ -5181,7 +5228,7 @@
                                             onChange={(e) => setBookSortMode(e.target.value)}
                                             disabled={viewMode !== 'grid'}
                                             className="w-full xl:w-auto px-3 py-2.5 rounded-xl text-xs font-semibold border border-gray-100  bg-white  text-gray-500  focus:outline-none focus:ring-2 focus:ring-[#14B8A6]/20 disabled:opacity-50"
-                                            title="OrdenaÃ§Ã£o do catÃ¡logo"
+                                            title="Ordenação do catálogo"
                                         >
                                             {BOOK_SORT_OPTIONS.map((option) => (
                                                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -5199,7 +5246,7 @@
                                             }}
                                             onAnimationEnd={() => setBellRing(false)}
                                             className={`group relative flex-1 xl:flex-none px-3 py-2.5 rounded-xl text-xs font-bold transition-all border active:scale-95 ${bellRing ? 'notif-btn-pop' : ''} ${(notificationUnreadCount > 0 && !notificationsOpen) ? 'bg-violet-50  text-violet-700  border-violet-200  shadow-sm shadow-violet-100/70 hover:bg-violet-100 hover:border-violet-300 hover:shadow-violet-200/70' : 'bg-white  text-gray-500  border-gray-100  hover:bg-violet-50  hover:border-violet-200 hover:text-violet-600 hover:shadow-sm hover:shadow-violet-100/50'}`}
-                                            title="NotificaÃ§Ãµes"
+                                            title="Notificações"
                                         >
                                             <Icon name="bell" className={`w-4 h-4 transition-transform${bellRing ? ' bell-ring' : ' group-hover:rotate-12'}`} />
                                             {(notificationUnreadCount > 0 && !notificationsOpen) && (
@@ -5218,14 +5265,14 @@
                                         {notificationsOpen && (
                                             <div className="absolute right-0 mt-2 w-[min(300px,calc(100vw-2rem))] max-h-[360px] overflow-y-auto rounded-2xl border border-gray-100  bg-white  shadow-xl z-50">
                                                 <div className="px-3.5 py-2.5 border-b border-gray-100  flex items-center justify-between">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#1E3A5F] ">NotificaÃ§Ãµes</p>
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#1E3A5F] ">Notificações</p>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] text-gray-400 font-semibold">{notificationUnreadCount} novas</span>
                                                         <button
                                                             type="button"
                                                             onClick={clearAllNotifications}
                                                             className="text-[10px] font-black uppercase tracking-wide text-red-400 hover:text-red-500 transition-colors"
-                                                            title="Apagar todas as notificaÃ§Ãµes"
+                                                            title="Apagar todas as notificações"
                                                         >
                                                             Apagar tudo
                                                         </button>
@@ -5233,7 +5280,7 @@
                                                 </div>
                                                 <div className="p-2 space-y-1.5">
                                                     {sortedNotifications.length === 0 ? (
-                                                        <p className="text-[11px] text-gray-400 px-2 py-3">Nenhuma notificaÃ§Ã£o por enquanto.</p>
+                                                        <p className="text-[11px] text-gray-400 px-2 py-3">Nenhuma notificação por enquanto.</p>
                                                     ) : (
                                                         sortedNotifications.slice(0, 30).map((notification) => {
                                                             const isUnread = notification.toProfileId === myProfileId && !notification.readBy?.[myProfileId];
@@ -5253,7 +5300,7 @@
                                                                             type="button"
                                                                             onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
                                                                             className="shrink-0 p-1 rounded-md text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors"
-                                                                            title="Apagar notificaÃ§Ã£o"
+                                                                            title="Apagar notificação"
                                                                         >
                                                                             <Icon name="x" className="w-3.5 h-3.5" />
                                                                         </button>
@@ -5307,7 +5354,7 @@
                             <div className="max-w-6xl mx-auto">
                                 <div className="mb-6 rounded-2xl border border-[#1E3A5F]/10  bg-[#1E3A5F]/[0.03]  p-4 md:p-5">
                                     <h3 className="text-[12px] md:text-sm font-black uppercase tracking-widest text-[#1E3A5F] ">Livros Em Alta no Geral</h3>
-                                    <p className="text-xs text-gray-500  mt-2">Curadoria baseada em recomendaÃ§Ã£o e avaliaÃ§Ã£o (Google Books + Open Library), alinhada aos gÃªneros do perfil: {profileGenres.length ? profileGenres.join(', ') : 'sem gÃªneros cadastrados ainda'}.</p>
+                                    <p className="text-xs text-gray-500  mt-2">Curadoria baseada em recomendação e avaliação (Google Books + Open Library), alinhada aos gêneros do perfil: {profileGenres.length ? profileGenres.join(', ') : 'sem gêneros cadastrados ainda'}.</p>
                                 </div>
 
                                 {isLoadingAmazonHighlights ? (
@@ -5315,7 +5362,7 @@
                                 ) : amazonHighlightsError ? (
                                     <div className="py-16 text-center text-sm text-red-400">{amazonHighlightsError}</div>
                                 ) : amazonHighlights.length === 0 ? (
-                                    <div className="py-16 text-center text-sm text-gray-500 ">Nenhuma sugestÃ£o encontrada no momento.</div>
+                                    <div className="py-16 text-center text-sm text-gray-500 ">Nenhuma sugestão encontrada no momento.</div>
                                 ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
                                         {amazonHighlights.map((item) => (
@@ -5401,7 +5448,7 @@
                                         {showInsertBefore && (
                                             <div className="dnd-ghost-placeholder">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
-                                                Solte aqui â€” posiÃ§Ã£o {dragInsertIndex + 1}
+                                                Solte aqui — posição {dragInsertIndex + 1}
                                             </div>
                                         )}
                                         <BookCard 
@@ -5462,7 +5509,7 @@
                             {viewMode === 'queue' && dragSrcIndex !== null && dragInsertIndex === sortedFilteredBooks.length && dragSrcIndex !== sortedFilteredBooks.length - 1 && (
                                 <div className="dnd-ghost-placeholder">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
-                                    Solte aqui â€” Ãºltima posiÃ§Ã£o
+                                    Solte aqui — última posição
                                 </div>
                             )}
                             {viewMode === 'grid' && sortedFilteredBooks.length === 0 && (searchQuery || filterRead || filterDownloaded) && (
@@ -5521,7 +5568,7 @@
                                 ));
                                 // Salva no Firestore imediatamente
                                 saveToCloud(profileKeys.custom, updatedBooks);
-                                // Sincroniza remoÃ§Ã£o do EPUB no outro perfil
+                                // Sincroniza remoção do EPUB no outro perfil
                                 if (deletedBook) syncEpubToOtherProfile(deletedBook, clearEpub);
                             }}
                             onDelete={() => { if (!ensureOwnProfileWrite()) return; deleteBookFromCatalog(selectedBook.id); }}
@@ -5606,7 +5653,7 @@
                                 <div ref={chatMessagesContainerRef} className="flex-1 overflow-y-auto px-3 py-3 bg-[#F8F9FB]  space-y-2">
                                     {visibleChatMessages.length === 0 ? (
                                         <div className="h-full flex items-center justify-center text-center text-xs text-gray-400 px-6">
-                                            Envie a primeira mensagem para comeÃ§ar a conversa entre os perfis.
+                                            Envie a primeira mensagem para começar a conversa entre os perfis.
                                         </div>
                                     ) : (
                                         visibleChatMessages.map((msg, idx) => {
@@ -5617,7 +5664,7 @@
                                                     {firstUnreadChatIndex > -1 && idx === firstUnreadChatIndex && (
                                                         <div className="flex items-center gap-2 py-1">
                                                             <div className="h-px flex-1 bg-violet-200" />
-                                                            <span className="text-[9px] font-black uppercase tracking-wider text-violet-500">NÃ£o lidas</span>
+                                                            <span className="text-[9px] font-black uppercase tracking-wider text-violet-500">Não lidas</span>
                                                             <div className="h-px flex-1 bg-violet-200" />
                                                         </div>
                                                     )}
@@ -5685,7 +5732,7 @@
                     </div>
 
                     <footer className="max-w-7xl mx-auto px-4 sm:px-6 pb-12 border-t border-gray-100  text-center pt-8">
-                        <p className="text-gray-400  text-[10px] tracking-widest uppercase font-black">Biblioteca do AmanhÃ£ &copy; 2024</p>
+                        <p className="text-gray-400  text-[10px] tracking-widest uppercase font-black">Biblioteca do Amanhã &copy; 2024</p>
                     </footer>
                     </>
                     )}
