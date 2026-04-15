@@ -1,17 +1,17 @@
-/**
- * api/send-to-kindle.js — Vercel Serverless Function
+﻿/**
+ * api/send-to-kindle.js â€” Vercel Serverless Function
  * Envia um EPUB por email para o Kindle via Gmail SMTP.
  *
  * POST /api/send-to-kindle
- * Body (opção A — livro já importado): { epubUrl, fileName }
- * Body (opção B — direto do Telegram):  { messageId, chatId, fileName }
+ * Body (opÃ§Ã£o A â€” livro jÃ¡ importado): { epubUrl, fileName }
+ * Body (opÃ§Ã£o B â€” direto do Telegram):  { messageId, chatId, fileName }
  *
- * Variáveis de ambiente (Vercel):
- *   GMAIL_USER         — seu email Gmail (ex: gianny@gmail.com)
- *   GMAIL_APP_PASSWORD — App Password gerada no Google (não é a senha normal)
- *   KINDLE_EMAIL       — giannydornelas@kindle.com (já definido no código)
+ * VariÃ¡veis de ambiente (Vercel):
+ *   GMAIL_USER         â€” seu email Gmail (ex: gianny@gmail.com)
+ *   GMAIL_APP_PASSWORD â€” App Password gerada no Google (nÃ£o Ã© a senha normal)
+ *   KINDLE_EMAIL       â€” giannydornelas@kindle.com (jÃ¡ definido no cÃ³digo)
  *
- *   Para o Telegram (opção B):
+ *   Para o Telegram (opÃ§Ã£o B):
  *   TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION, TELEGRAM_CHAT_ID
  */
 
@@ -21,8 +21,9 @@ import { StringSession } from 'telegram/sessions/index.js';
 import { setCors, requireAuth } from './_auth.js';
 
 const KINDLE_EMAILS = {
-  'gianny': 'giannydornelas_6k8aBz@kindle.com',
-  'laisa':  'laisamgb_lssotg@kindle.com',
+  'perfil-1': 'giannydornelas_6k8aBz@kindle.com',
+  'perfil-2': 'laisamgb_lssotg@kindle.com',
+  'perfil-3': 'mariaclaraegias@gmail.com',
 };
 
 async function downloadFromUrl(url) {
@@ -41,7 +42,7 @@ async function downloadFromTelegram(messageId, chatId) {
   try {
     await client.connect();
     const [message] = await client.getMessages(chatId || process.env.TELEGRAM_CHAT_ID, { ids: [messageId] });
-    if (!message) throw new Error('Mensagem não encontrada no Telegram.');
+    if (!message) throw new Error('Mensagem nÃ£o encontrada no Telegram.');
     const buffer = await client.downloadMedia(message, { workers: 1 });
     if (!buffer || buffer.length === 0) throw new Error('Download retornou vazio.');
     return buffer;
@@ -60,18 +61,17 @@ export default async function handler(req, res) {
 
   const { epubUrl, messageId, chatId, fileName, profileId } = req.body;
 
-  if (!fileName) return res.status(400).json({ error: 'fileName é obrigatório.' });
-  if (!epubUrl && !messageId) return res.status(400).json({ error: 'Forneça epubUrl ou messageId.' });
+  if (!fileName) return res.status(400).json({ error: 'fileName Ã© obrigatÃ³rio.' });
+  if (!epubUrl && !messageId) return res.status(400).json({ error: 'ForneÃ§a epubUrl ou messageId.' });
 
   const gmailUser = process.env.GMAIL_USER;
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
 
   if (!gmailUser || !gmailPass) {
-    return res.status(500).json({ error: 'GMAIL_USER ou GMAIL_APP_PASSWORD não configurados.' });
+    return res.status(500).json({ error: 'GMAIL_USER ou GMAIL_APP_PASSWORD nÃ£o configurados.' });
   }
 
-  const kindleEmail = KINDLE_EMAILS[profileId] || KINDLE_EMAILS['gianny'];
-
+  const kindleEmail = KINDLE_EMAILS[profileId] || KINDLE_EMAILS['perfil-1'];
   try {
     const buffer   = epubUrl
       ? await downloadFromUrl(epubUrl)
@@ -85,10 +85,10 @@ export default async function handler(req, res) {
     });
 
     await transporter.sendMail({
-      from        : `"Biblioteca do Amanhã" <${gmailUser}>`,
+      from        : `"Biblioteca do AmanhÃ£" <${gmailUser}>`,
       to          : kindleEmail,
       subject     : safeName.replace('.epub', ''),
-      text        : `Livro enviado pela Biblioteca do Amanhã: ${safeName}`,
+      text        : `Livro enviado pela Biblioteca do AmanhÃ£: ${safeName}`,
       attachments : [{ filename: safeName, content: buffer }],
     });
 
@@ -99,3 +99,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
+
