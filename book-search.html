@@ -252,20 +252,31 @@ function normalizeOpenLibraryDoc(doc) {
 
 async function searchOpenLibrary(title, author) {
   const queries = [];
+  const fullTitle = title;
+  const shortTitle = title.split(/[\s,:]+/).slice(0, 3).join(' ');
+  const firstWord = title.split(/[\s,:]+/)[0];
+
   if (author) {
-    queries.push({ title, author, limit: '10' });
-    queries.push({ q: `${title} ${author}`, limit: '10' });
+    queries.push({ title, author, limit: '12' });
+    queries.push({ q: `${title} ${author}`, limit: '12' });
+    queries.push({ q: `${shortTitle} ${author}`, limit: '10' });
+    queries.push({ title, author, sort: 'rating', limit: '10' });
   } else {
-    queries.push({ title, limit: '10' });
-    queries.push({ q: title, limit: '10' });
+    queries.push({ title, limit: '12' });
+    queries.push({ q: title, limit: '12' });
+    queries.push({ q: shortTitle, limit: '10' });
+    if (firstWord !== shortTitle && firstWord.length > 3) {
+      queries.push({ q: firstWord, limit: '10' });
+    }
   }
 
   const allResults = [];
   const seenTitles = new Set();
+  const seenKeys = new Set();
 
-  for (let i = 0; i < queries.length; i++) {
-    if (allResults.length >= 4) break;
-    const params = new URLSearchParams(queries[i]);
+  for (const q of queries) {
+    if (allResults.length >= 8) break;
+    const params = new URLSearchParams(q);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     try {
@@ -274,12 +285,12 @@ async function searchOpenLibrary(title, author) {
       const data = await res.json();
       for (const doc of (data.docs || [])) {
         const normalized = normalizeOpenLibraryDoc(doc);
-        const key = normalized.title.toLowerCase();
-        if (!seenTitles.has(key)) {
-          seenTitles.add(key);
+        const key = `${normalized.title.toLowerCase()}|${(normalized.allAuthors[0] || '').toLowerCase()}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
           allResults.push(normalized);
         }
-        if (allResults.length >= 10) break;
+        if (allResults.length >= 12) break;
       }
     } catch {
       continue;
@@ -287,7 +298,7 @@ async function searchOpenLibrary(title, author) {
       clearTimeout(timeout);
     }
   }
-  return allResults.slice(0, 10);
+  return allResults.slice(0, 12);
 }
 
 async function fetchByISBNOpenLibrary(isbn) {
@@ -391,7 +402,7 @@ async function searchGoogleBooks(title, author) {
 
   if (author) {
     queries.push(`intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`);
-    queries.push(`${encodeURIComponent(title + ' ' + author)}`);
+    queries.push(encodeURIComponent(title + ' ' + author));
   } else {
     queries.push(`intitle:${encodeURIComponent(title)}`);
     queries.push(encodeURIComponent(title));
@@ -399,14 +410,15 @@ async function searchGoogleBooks(title, author) {
 
   const allResults = [];
   const seenTitles = new Set();
+  const seenIds = new Set();
 
   for (const q of queries) {
-    if (allResults.length >= 4) break;
+    if (allResults.length >= 6) break;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     try {
       const res = await fetchWithProxy(
-        `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=10&orderBy=relevance&langRestrict=pt`,
+        `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=10&orderBy=relevance`,
         controller.signal
       );
       if (res.ok) {
@@ -414,8 +426,10 @@ async function searchGoogleBooks(title, author) {
         for (const item of (data.items || [])) {
           const normalized = normalizeGoogleBooksVolume(item);
           const key = normalized.title.toLowerCase();
-          if (!seenTitles.has(key)) {
+          const id = normalized.googleBooksId;
+          if (!seenTitles.has(key) && !seenIds.has(id)) {
             seenTitles.add(key);
+            seenIds.add(id);
             allResults.push(normalized);
           }
           if (allResults.length >= 10) break;
@@ -423,34 +437,6 @@ async function searchGoogleBooks(title, author) {
       }
     } catch {
       // try next query
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  if (allResults.length < 2) {
-    const qBroad = encodeURIComponent(title);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    try {
-      const res = await fetchWithProxy(
-        `https://www.googleapis.com/books/v1/volumes?q=${qBroad}&maxResults=10&orderBy=relevance`,
-        controller.signal
-      );
-      if (res.ok) {
-        const data = await res.json();
-        for (const item of (data.items || [])) {
-          const normalized = normalizeGoogleBooksVolume(item);
-          const key = normalized.title.toLowerCase();
-          if (!seenTitles.has(key)) {
-            seenTitles.add(key);
-            allResults.push(normalized);
-          }
-          if (allResults.length >= 10) break;
-        }
-      }
-    } catch {
-      // ignore
     } finally {
       clearTimeout(timeout);
     }
@@ -593,265 +579,6 @@ async function searchBooks(title, author) {
       return order[a.confidence] - order[b.confidence];
     })
     .slice(0, 12);
-}
-
-    const result = {
-      title: cleanTitle,
-      author,
-      allAuthors: [author],
-      publisher: '',
-      publishYear: null,
-      pages: pagesMatch ? parseInt(pagesMatch[1]) : null,
-      isbn13: isbnMatch && isbnMatch[1].length === 13 ? isbnMatch[1] : null,
-      isbn10: isbnMatch && isbnMatch[1].length === 10 ? isbnMatch[1] : null,
-      openLibraryId: null,
-      googleBooksId: null,
-      synopsis: null,
-      coverUrl,
-      coverFallbackUrl: null,
-      rawCategories,
-      suggestedGenre: genre,
-      suggestedTags: tags,
-      seriesDetected: series || null,
-      language: 'por',
-      sourceApi: 'amazon',
-      confidence: 'medium',
-    };
-    result.confidence = scoreConfidence(result);
-    return result;
-  } catch {
-    return null;
-  }
-}
-
-async function searchAmazon(title, author) {
-  const query = author ? `${title} ${author}` : title;
-  const url = `https://www.amazon.com.br/s?k=${encodeURIComponent(query)}&rh=n%3A67407480011&s=relevance`;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-
-  try {
-    const res = await fetchWithProxy(url, controller.signal);
-    if (!res.ok) return [];
-    const html = await res.text();
-
-    const results = [];
-    const itemRegex = /<div[^>]*data-component-type="s-search-result"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
-    let match;
-
-    while ((match = itemRegex.exec(html)) !== null && results.length < 6) {
-      const normalized = normalizeAmazonResult(match[1], html);
-      if (normalized && normalized.title) {
-        results.push(normalized);
-      }
-    }
-
-    if (results.length < 2) {
-      const altRegex = /<div[^>]*class="[^"]*s-result-item[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
-      while ((match = altRegex.exec(html)) !== null && results.length < 6) {
-        const normalized = normalizeAmazonResult(match[1], html);
-        if (normalized && normalized.title && !results.find(r => r.title === normalized.title)) {
-          results.push(normalized);
-        }
-      }
-    }
-
-    return results;
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// SKOOB SEARCH (plataforma brasileira)
-// ─────────────────────────────────────────────────────────────
-
-function normalizeSkoobResult(item) {
-  try {
-    const titleMatch = item.match(/<strong[^>]*class="[^"]*titulo[^"]*"[^>]*>([^<]+)<\/strong>/i);
-    const authorMatch = item.match(/<span[^>]*class="[^"]*autor[^"]*"[^>]*>([^<]+)<\/span>/i) || item.match(/href="\/autor[^"]*"[^>]*>([^<]+)</i);
-    const imgMatch = item.match(/<img[^>]+src="([^"]*skoob[^"]*)"[^>]*>/i) || item.match(/<img[^>]+data-src="([^"]*)"[^>]*>/i);
-    const pagesMatch = item.match(/(\d+)\s*págs?/i) || item.match(/(\d+)\s*pag/i);
-    const isbnMatch = item.match(/(?:ISBN)[\s:]*(\d{10,13})/i);
-
-    const rawTitle = titleMatch ? titleMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim() : '';
-    if (!rawTitle) return null;
-
-    const { cleanTitle, series } = detectSeriesFromTitle(rawTitle);
-    const author = authorMatch ? authorMatch[1].replace(/&amp;/g, '&').trim() : 'Autor desconhecido';
-    const rawCategories = [];
-    const genre = inferGenre(rawCategories, cleanTitle, '');
-    const tags = inferTags(rawCategories, '', genre);
-
-    let coverUrl = null;
-    if (imgMatch) {
-      coverUrl = imgMatch[1].replace(/&amp;/g, '&');
-      if (coverUrl.startsWith('//')) coverUrl = 'https:' + coverUrl;
-    }
-
-    const result = {
-      title: cleanTitle,
-      author,
-      allAuthors: [author],
-      publisher: '',
-      publishYear: null,
-      pages: pagesMatch ? parseInt(pagesMatch[1]) : null,
-      isbn13: isbnMatch && isbnMatch[1].length === 13 ? isbnMatch[1] : null,
-      isbn10: isbnMatch && isbnMatch[1].length === 10 ? isbnMatch[1] : null,
-      openLibraryId: null,
-      googleBooksId: null,
-      synopsis: null,
-      coverUrl,
-      coverFallbackUrl: null,
-      rawCategories,
-      suggestedGenre: genre,
-      suggestedTags: tags,
-      seriesDetected: series || null,
-      language: 'por',
-      sourceApi: 'skoob',
-      confidence: 'medium',
-    };
-    result.confidence = scoreConfidence(result);
-    return result;
-  } catch {
-    return null;
-  }
-}
-
-async function searchSkoob(title, author) {
-  const query = `${title} ${author}`.trim();
-  const url = `https://www.skoob.com.br/livro/lista/?q=${encodeURIComponent(query)}`;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-
-  try {
-    const res = await fetchWithProxy(url, controller.signal);
-    if (!res.ok) return [];
-    const html = await res.text();
-
-    const results = [];
-    const itemRegex = /<div[^>]*class="[^"]*lista-livros[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<div/i;
-    let match;
-
-    while ((match = itemRegex.exec(html)) !== null && results.length < 6) {
-      const normalized = normalizeSkoobResult(match[1]);
-      if (normalized && normalized.title) {
-        results.push(normalized);
-      }
-    }
-
-    return results;
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// GOOGLE FALLBACK SEARCH (busca geral via proxy)
-// ─────────────────────────────────────────────────────────────
-
-async function searchGoogleFallback(title, author) {
-  const query = author ? `${title} ${author}` : title;
-  const url = `https://www.google.com/search?q=${encodeURIComponent(query + ' livro')}&hl=pt-BR&cr=countryBR`;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-
-  try {
-    const res = await fetchWithProxy(url, controller.signal);
-    if (!res.ok) return [];
-    const html = await res.text();
-
-    const results = [];
-    const titleRegex = /<h3[^>]*>([^<]+)<\/h3>/gi;
-    const linkRegex = /<a[^>]+href="(\/url\?q=([^"&]+))"[^>]*>/gi;
-    let match;
-    const titles = [];
-    const links = [];
-
-    while ((match = titleRegex.exec(html)) !== null) {
-      const t = match[1].replace(/<[^>]+>/g, '').trim();
-      if (t && t.length > 3) titles.push(t);
-    }
-    while ((match = linkRegex.exec(html)) !== null) {
-      const l = decodeURIComponent(match[2]);
-      if (l && !l.includes('google.com') && !l.includes('gstatic.com')) links.push(l);
-    }
-
-    for (let i = 0; i < Math.min(titles.length, 5); i++) {
-      if (results.length >= 4) break;
-      const t = titles[i];
-      const { cleanTitle, series } = detectSeriesFromTitle(t);
-      if (cleanTitle.length > 2) {
-        results.push({
-          title: cleanTitle,
-          author: 'Autor desconhecido',
-          allAuthors: ['Autor desconhecido'],
-          publisher: '',
-          publishYear: null,
-          pages: null,
-          isbn13: null,
-          isbn10: null,
-          openLibraryId: null,
-          googleBooksId: null,
-          synopsis: null,
-          coverUrl: null,
-          coverFallbackUrl: null,
-          rawCategories: [],
-          suggestedGenre: 'unknown',
-          suggestedTags: [],
-          seriesDetected: series || null,
-          language: 'pt',
-          sourceApi: 'google-fallback',
-          confidence: 'low',
-        });
-      }
-    }
-
-    return results;
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// BOOK SEARCH SERVICE (orchestrator)
-// ─────────────────────────────────────────────────────────────
-
-async function searchBooks(title, author) {
-  const [olResults, gbResults, amazonResults, skoobResults] = await Promise.all([
-    searchOpenLibrary(title, author),
-    searchGoogleBooks(title, author),
-    searchAmazon(title, author),
-    searchSkoob(title, author),
-  ]);
-
-  let all = [...gbResults, ...olResults, ...amazonResults, ...skoobResults];
-  let deduped = deduplicateResults(all);
-
-  if (deduped.length < 2) {
-    const [olFallback, gbFallback] = await Promise.all([
-      searchOpenLibrary(title.split(' ').slice(0, 2).join(' '), author),
-      searchGoogleFallback(title, author),
-    ]);
-    all = [...deduped, ...olFallback, ...gbFallback];
-    deduped = deduplicateResults(all);
-  }
-
-  return deduped
-    .sort((a, b) => {
-      const order = { high: 0, medium: 1, low: 2 };
-      return order[a.confidence] - order[b.confidence];
-    })
-    .slice(0, 10);
 }
 
 async function searchBookByISBN(isbn) {
@@ -1415,7 +1142,7 @@ function App() {
       } else {
         const found = await searchBooks(query, author);
         if (found.length) setResults(found);
-        else setError(`Não encontramos "${query}". Tente o título em inglês ou adicione o autor.`);
+        else setError(`Não encontramos "${query}". Tente: título em inglês, adicionar o autor, ou buscar por ISBN.`);
       }
     } catch {
       setError('Erro inesperado ao buscar. Verifique sua conexão.');
