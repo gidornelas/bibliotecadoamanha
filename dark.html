@@ -4441,11 +4441,6 @@
                     });
                 };
             }, [user, getProfileKeys, myProfileId, activeProfile, accessibleProfileIds, isViewingOtherProfile, profileUids]);
-                return () => { 
-                    cancelled = true;
-                    if (unsubscribe) unsubscribe();
-                };
-            }, [otherProfile, user, getProfileKeys, myProfileId, activeProfile, PROFILE_OPTIONS, profileUids]);
 
             useEffect(() => {
                 const availability = {};
