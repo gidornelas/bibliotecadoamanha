@@ -5452,7 +5452,7 @@
                                             </div>
                                         )}
                                         <BookCard 
-                                    key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
+                                    key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id] || !!getEffectiveEpub(b)?.epubUrl}
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
                                     hasRemoteEpub={!!remoteEpubAvailability[b.id]}
                                     effectiveEpub={getEffectiveEpub(b)}
@@ -5530,7 +5530,7 @@
                     {selectedBook && (
                         <DetailModal 
                             book={selectedBook} onClose={() => setSelectedBook(null)} 
-                            isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id]} isInQueue={readingOrder.includes(selectedBook.id)}
+                            isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id] || !!getEffectiveEpub(selectedBook)?.epubUrl} isInQueue={readingOrder.includes(selectedBook.id)}
                             hasRemoteEpub={!!remoteEpubAvailability[selectedBook.id]}
                             effectiveEpub={getEffectiveEpub(selectedBook)}
                             coverUrl={getCoverUrl(selectedBook)} 
