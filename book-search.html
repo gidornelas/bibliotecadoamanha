@@ -179,28 +179,30 @@ function deduplicateResults(results) {
 const CORS_PROXIES = [
   (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
 ];
 
 async function fetchWithProxy(url, signal) {
+  const errors = [];
   for (const proxyFn of CORS_PROXIES) {
     try {
       const proxyUrl = proxyFn(url);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const sigAbort = signal ? () => controller.abort() : null;
-      if (signal) signal.addEventListener('abort', sigAbort);
-      try {
-        const res = await fetch(proxyUrl, { signal: controller.signal });
-        if (res.ok) return res;
-      } finally {
-        clearTimeout(timeout);
-        if (signal && sigAbort) signal.removeEventListener('abort', sigAbort);
-      }
-    } catch {
-      continue;
+      const res = await fetch(proxyUrl, { signal });
+      if (res.ok) return res;
+      errors.push(`proxy ${proxyFn(url).slice(0, 30)}: HTTP ${res.status}`);
+    } catch (e) {
+      errors.push(`proxy ${proxyFn(url).slice(0, 30)}: ${e.message}`);
     }
   }
-  return fetch(url, { signal });
+  try {
+    const res = await fetch(url, { signal });
+    if (res.ok) return res;
+    errors.push(`direct: HTTP ${res.status}`);
+  } catch (e) {
+    errors.push(`direct: ${e.message}`);
+  }
+  console.warn('[fetchWithProxy] all sources failed for', url, errors);
+  throw new Error('All sources failed');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -249,30 +251,43 @@ function normalizeOpenLibraryDoc(doc) {
 }
 
 async function searchOpenLibrary(title, author) {
-  const params = new URLSearchParams({ title, limit: '8' });
-  if (author) params.set('author', author);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-  const baseUrl = `https://openlibrary.org/search.json?${params}`;
-  try {
-    let res = await fetchWithProxy(baseUrl, controller.signal);
-    if (!res.ok) return [];
-    const data = await res.json();
-    const results = (data.docs || []).slice(0, 8).map(normalizeOpenLibraryDoc);
-    if (results.length < 2) {
-      const qParams = new URLSearchParams({ q: author ? `${title} ${author}` : title, limit: '8' });
-      const res2 = await fetchWithProxy(`https://openlibrary.org/search.json?${qParams}`, controller.signal);
-      if (res2.ok) {
-        const data2 = await res2.json();
-        return (data2.docs || []).slice(0, 8).map(normalizeOpenLibraryDoc);
-      }
-    }
-    return results;
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timeout);
+  const queries = [];
+  if (author) {
+    queries.push({ title, author, limit: '10' });
+    queries.push({ q: `${title} ${author}`, limit: '10' });
+  } else {
+    queries.push({ title, limit: '10' });
+    queries.push({ q: title, limit: '10' });
   }
+
+  const allResults = [];
+  const seenTitles = new Set();
+
+  for (let i = 0; i < queries.length; i++) {
+    if (allResults.length >= 4) break;
+    const params = new URLSearchParams(queries[i]);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    try {
+      const res = await fetchWithProxy(`https://openlibrary.org/search.json?${params}`, controller.signal);
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const doc of (data.docs || [])) {
+        const normalized = normalizeOpenLibraryDoc(doc);
+        const key = normalized.title.toLowerCase();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          allResults.push(normalized);
+        }
+        if (allResults.length >= 10) break;
+      }
+    } catch {
+      continue;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return allResults.slice(0, 10);
 }
 
 async function fetchByISBNOpenLibrary(isbn) {
@@ -372,35 +387,76 @@ function normalizeGoogleBooksVolume(vol) {
 }
 
 async function searchGoogleBooks(title, author) {
-  let q = `intitle:${encodeURIComponent(title)}`;
-  if (author) q += `+inauthor:${encodeURIComponent(author)}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-  try {
-    const res = await fetchWithProxy(
-      `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=8&orderBy=relevance`,
-      controller.signal
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    const results = (data.items || []).slice(0, 8).map(normalizeGoogleBooksVolume);
-    if (results.length < 2) {
-      const qFallback = encodeURIComponent(author ? `${title} ${author}` : title);
-      const res2 = await fetchWithProxy(
-        `https://www.googleapis.com/books/v1/volumes?q=${qFallback}&maxResults=8&orderBy=relevance`,
+  const queries = [];
+
+  if (author) {
+    queries.push(`intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`);
+    queries.push(`${encodeURIComponent(title + ' ' + author)}`);
+  } else {
+    queries.push(`intitle:${encodeURIComponent(title)}`);
+    queries.push(encodeURIComponent(title));
+  }
+
+  const allResults = [];
+  const seenTitles = new Set();
+
+  for (const q of queries) {
+    if (allResults.length >= 4) break;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    try {
+      const res = await fetchWithProxy(
+        `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=10&orderBy=relevance&langRestrict=pt`,
         controller.signal
       );
-      if (res2.ok) {
-        const data2 = await res2.json();
-        return (data2.items || []).slice(0, 8).map(normalizeGoogleBooksVolume);
+      if (res.ok) {
+        const data = await res.json();
+        for (const item of (data.items || [])) {
+          const normalized = normalizeGoogleBooksVolume(item);
+          const key = normalized.title.toLowerCase();
+          if (!seenTitles.has(key)) {
+            seenTitles.add(key);
+            allResults.push(normalized);
+          }
+          if (allResults.length >= 10) break;
+        }
       }
+    } catch {
+      // try next query
+    } finally {
+      clearTimeout(timeout);
     }
-    return results;
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timeout);
   }
+
+  if (allResults.length < 2) {
+    const qBroad = encodeURIComponent(title);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    try {
+      const res = await fetchWithProxy(
+        `https://www.googleapis.com/books/v1/volumes?q=${qBroad}&maxResults=10&orderBy=relevance`,
+        controller.signal
+      );
+      if (res.ok) {
+        const data = await res.json();
+        for (const item of (data.items || [])) {
+          const normalized = normalizeGoogleBooksVolume(item);
+          const key = normalized.title.toLowerCase();
+          if (!seenTitles.has(key)) {
+            seenTitles.add(key);
+            allResults.push(normalized);
+          }
+          if (allResults.length >= 10) break;
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return allResults.slice(0, 10);
 }
 
 async function fetchByISBNGoogle(isbn) {
@@ -424,37 +480,120 @@ async function fetchByISBNGoogle(isbn) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// AMAZON SEARCH (scraping via proxy)
+// OPEN LIBRARY WORKS API (detalhes/sinopse)
 // ─────────────────────────────────────────────────────────────
 
-function normalizeAmazonResult(item, html) {
+async function enrichFromOpenLibraryWorks(result) {
+  if (!result.openLibraryId && !result.isbn13 && !result.isbn10) return result;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const titleMatch = item.match(/<h2[^>]*><a[^>]*>([^<]+)<\/a>/) || item.match(/<span[^>]*id="[^"]*title[^"]*"[^>]*>([^<]+)</i);
-    const authorMatch = item.match(/<span[^>]*class="[^"]*author[^"]*"[^>]*>([^<]+)/i) || item.match(/<a[^>]*class="[^"]*author[^"]*"[^>]*>([^<]+)/i);
-    const priceMatch = item.match(/R\$\s*[\d.,]+/);
-    const ratingMatch = item.match(/(\d+[,.]?\d*)\s*<span[^>]*>\s*de\s*5/);
-    const pagesMatch = item.match(/(\d+)\s*páginas?/);
-    const isbnMatch = item.match(/(?:ISBN-10|ISBN\s*10)[\s:]*(\d{10})/i) || item.match(/(?:ISBN-13|ISBN\s*13)[\s:]*(\d{13})/i);
+    let url;
+    if (result.isbn13) {
+      url = `https://openlibrary.org/api/books?bibkeys=ISBN:${result.isbn13}&format=json&jscmd=data`;
+    } else if (result.isbn10) {
+      url = `https://openlibrary.org/api/books?bibkeys=ISBN:${result.isbn10}&format=json&jscmd=data`;
+    } else if (result.openLibraryId) {
+      url = `https://openlibrary.org${result.openLibraryId}.json`;
+    } else return result;
 
-    let coverMatch = item.match(/<img[^>]+src="([^"]+)"[^>]*(?:alt|data-a-image-source)/i);
-    if (!coverMatch) coverMatch = item.match(/<img[^>]+data-a-dynamic-image[^>]*"([^"]+)"/i);
-    if (!coverMatch) coverMatch = item.match(/<img[^>]+src="([^"]*amazon[^"]*)"[^>]*>/i);
+    const res = await fetchWithProxy(url, controller.signal);
+    if (!res.ok) return result;
+    const data = await res.json();
 
-    const rawTitle = titleMatch ? titleMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim() : '';
-    if (!rawTitle) return null;
-
-    const { cleanTitle, series } = detectSeriesFromTitle(rawTitle);
-    const author = authorMatch ? authorMatch[1].replace(/&amp;/g, '&').replace(/von\s*/i, '').trim() : 'Autor desconhecido';
-    const rawCategories = [];
-    const genre = inferGenre(rawCategories, cleanTitle, '');
-    const tags = inferTags(rawCategories, '', genre);
-
-    let coverUrl = null;
-    if (coverMatch) {
-      coverUrl = coverMatch[1].replace(/&amp;/g, '&');
-      if (coverUrl.startsWith('//')) coverUrl = 'https:' + coverUrl;
-      coverUrl = coverUrl.replace(/\._[^.]+_\.jpg/i, '.jpg').replace(/\._[^.]+_\.png/i, '.png');
+    if (result.isbn13 || result.isbn10) {
+      const key = result.isbn13 ? `ISBN:${result.isbn13}` : `ISBN:${result.isbn10}`;
+      const book = data[key];
+      if (book) {
+        if (!result.synopsis && book.description) {
+          result.synopsis = typeof book.description === 'string'
+            ? cleanSynopsis(book.description)
+            : book.description.value ? cleanSynopsis(book.description.value) : result.synopsis;
+        }
+        if (!result.pages && book.number_of_pages) result.pages = book.number_of_pages;
+        if (!result.publisher && book.publishers) {
+          result.publisher = (book.publishers || [])[0]?.name || '';
+        }
+        if (!result.coverUrl && book.cover) {
+          result.coverUrl = book.cover.large || book.cover.medium || null;
+        }
+        const subjects = (book.subjects || []).map(s => typeof s === 'string' ? s : s.name).slice(0, 10);
+        if (subjects.length > result.rawCategories.length) {
+          result.rawCategories = subjects;
+          result.suggestedGenre = inferGenre(subjects, result.title, result.synopsis || '');
+          result.suggestedTags = inferTags(subjects, result.synopsis || '', result.suggestedGenre);
+        }
+        result.confidence = scoreConfidence(result);
+      }
+    } else {
+      if (!result.synopsis && data.description) {
+        result.synopsis = typeof data.description === 'string'
+          ? cleanSynopsis(data.description)
+          : data.description.value ? cleanSynopsis(data.description.value) : result.synopsis;
+      }
+      if (!result.coverUrl && data.covers) {
+        result.coverUrl = `https://covers.openlibrary.org/b/id/${data.covers[0]}-L.jpg`;
+      }
+      result.confidence = scoreConfidence(result);
     }
+  } catch {
+    // enrichment failed, return as-is
+  } finally {
+    clearTimeout(timeout);
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────
+// BOOK SEARCH SERVICE (orchestrator)
+// ─────────────────────────────────────────────────────────────
+
+async function searchBooks(title, author) {
+  const [olResults, gbResults] = await Promise.all([
+    searchOpenLibrary(title, author),
+    searchGoogleBooks(title, author),
+  ]);
+
+  let all = [...gbResults, ...olResults];
+  let deduped = deduplicateResults(all);
+
+  if (deduped.length < 2) {
+    const shortTitle = title.split(/[\s,:]+/).slice(0, 3).join(' ');
+    const [olFallback, gbFallback] = await Promise.all([
+      searchOpenLibrary(shortTitle, author),
+      searchGoogleBooks(shortTitle, author),
+    ]);
+    all = [...deduped, ...gbFallback, ...olFallback];
+    deduped = deduplicateResults(all);
+  }
+
+  if (deduped.length < 2) {
+    const firstWord = title.split(/[\s,:]+/)[0];
+    if (firstWord.length > 3) {
+      const [olLast, gbLast] = await Promise.all([
+        searchOpenLibrary(firstWord, ''),
+        searchGoogleBooks(firstWord, ''),
+      ]);
+      all = [...deduped, ...gbLast, ...olLast];
+      deduped = deduplicateResults(all);
+    }
+  }
+
+  deduped = await Promise.all(
+    deduped.slice(0, 5).map(r =>
+      (!r.synopsis && (r.openLibraryId || r.isbn13 || r.isbn10))
+        ? enrichFromOpenLibraryWorks(r)
+        : Promise.resolve(r)
+    )
+  ).then(arr => [...deduped.slice(0, 5).map((_, i) => arr[i] || _), ...deduped.slice(5)]);
+
+  return deduped
+    .sort((a, b) => {
+      const order = { high: 0, medium: 1, low: 2 };
+      return order[a.confidence] - order[b.confidence];
+    })
+    .slice(0, 12);
+}
 
     const result = {
       title: cleanTitle,
@@ -720,8 +859,9 @@ async function searchBookByISBN(isbn) {
     fetchByISBNOpenLibrary(isbn),
     fetchByISBNGoogle(isbn),
   ]);
+  let result;
   if (ol && gb) {
-    const merged = {
+    result = {
       ...ol,
       synopsis:   ol.synopsis   || gb.synopsis,
       coverUrl:   ol.coverUrl   || gb.coverUrl,
@@ -731,12 +871,16 @@ async function searchBookByISBN(isbn) {
       googleBooksId: gb.googleBooksId,
       sourceApi: 'combined',
     };
-    merged.suggestedGenre = inferGenre(merged.rawCategories, merged.title, merged.synopsis || '');
-    merged.suggestedTags  = inferTags(merged.rawCategories, merged.synopsis || '', merged.suggestedGenre);
-    merged.confidence     = scoreConfidence(merged);
-    return merged;
+  } else {
+    result = ol || gb || null;
   }
-  return ol || gb || null;
+  if (result) {
+    result = await enrichFromOpenLibraryWorks(result);
+    result.suggestedGenre = inferGenre(result.rawCategories, result.title, result.synopsis || '');
+    result.suggestedTags  = inferTags(result.rawCategories, result.synopsis || '', result.suggestedGenre);
+    result.confidence     = scoreConfidence(result);
+  }
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1328,7 +1472,7 @@ function App() {
         {isLoading && (
           <div className="text-center py-8 animate-fade-in">
             <div className="w-6 h-6 border-2 border-[#14B8A6]/30 border-t-[#14B8A6] rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-gray-400">Buscando em Open Library e Google Books...</p>
+            <p className="text-sm text-gray-400">Buscando em Open Library e Google Books (múltiplas estratégias)...</p>
           </div>
         )}
 
