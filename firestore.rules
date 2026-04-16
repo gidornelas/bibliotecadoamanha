@@ -2,19 +2,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Perfis autorizados da biblioteca
+    function isAuthorized() {
+      return request.auth != null &&
+        request.auth.token.email in [
+          'giannydornelas@gmail.com',
+          'laisamgb@gmail.com',
+          'mariaclaraegias@gmail.com'
+        ];
+    }
+
     // Dados pessoais de cada usuária
     match /users/{userId}/{document=**} {
-      // Leitura: ambas podem ler dados de qualquer perfil (para visitação cruzada)
-      allow read: if request.auth != null &&
-        request.auth.token.email in ['giannydornelas@gmail.com', 'laisamgb@gmail.com'];
-      // Escrita: apenas a dona dos dados pode escrever
+      // Leitura: todas as perfis autorizadas podem ler (necessário para visitação cruzada
+      // e para cada usuária ler seus próprios dados)
+      allow read: if isAuthorized();
+      // Escrita: apenas a dona dos dados pode escrever nos seus próprios dados
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Dados compartilhados (chat, comentários, notificações) — acessíveis pelas duas
+    // Dados compartilhados (chat, comentários, notificações, profile-uids)
     match /shared/biblioteca-do-amanha/{document=**} {
-      allow read, write: if request.auth != null &&
-        request.auth.token.email in ['giannydornelas@gmail.com', 'laisamgb@gmail.com'];
+      allow read, write: if isAuthorized();
     }
   }
 }
