@@ -173,6 +173,37 @@ function deduplicateResults(results) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// CORS PROXY HELPER
+// ─────────────────────────────────────────────────────────────
+
+const CORS_PROXIES = [
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
+
+async function fetchWithProxy(url, signal) {
+  for (const proxyFn of CORS_PROXIES) {
+    try {
+      const proxyUrl = proxyFn(url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const sigAbort = signal ? () => controller.abort() : null;
+      if (signal) signal.addEventListener('abort', sigAbort);
+      try {
+        const res = await fetch(proxyUrl, { signal: controller.signal });
+        if (res.ok) return res;
+      } finally {
+        clearTimeout(timeout);
+        if (signal && sigAbort) signal.removeEventListener('abort', sigAbort);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return fetch(url, { signal });
+}
+
+// ─────────────────────────────────────────────────────────────
 // OPEN LIBRARY API
 // ─────────────────────────────────────────────────────────────
 
@@ -221,16 +252,16 @@ async function searchOpenLibrary(title, author) {
   const params = new URLSearchParams({ title, limit: '8' });
   if (author) params.set('author', author);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  const baseUrl = `https://openlibrary.org/search.json?${params}`;
   try {
-    const res = await fetch(`https://openlibrary.org/search.json?${params}`, { signal: controller.signal });
+    let res = await fetchWithProxy(baseUrl, controller.signal);
     if (!res.ok) return [];
     const data = await res.json();
     const results = (data.docs || []).slice(0, 8).map(normalizeOpenLibraryDoc);
-    // Fallback: busca por q (texto livre) se resultado stricto for pobre
     if (results.length < 2) {
       const qParams = new URLSearchParams({ q: author ? `${title} ${author}` : title, limit: '8' });
-      const res2 = await fetch(`https://openlibrary.org/search.json?${qParams}`, { signal: controller.signal });
+      const res2 = await fetchWithProxy(`https://openlibrary.org/search.json?${qParams}`, controller.signal);
       if (res2.ok) {
         const data2 = await res2.json();
         return (data2.docs || []).slice(0, 8).map(normalizeOpenLibraryDoc);
@@ -247,11 +278,11 @@ async function searchOpenLibrary(title, author) {
 async function fetchByISBNOpenLibrary(isbn) {
   const clean = isbn.replace(/[-\s]/g, '');
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(
+    const res = await fetchWithProxy(
       `https://openlibrary.org/api/books?bibkeys=ISBN:${clean}&format=json&jscmd=data`,
-      { signal: controller.signal }
+      controller.signal
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -344,21 +375,20 @@ async function searchGoogleBooks(title, author) {
   let q = `intitle:${encodeURIComponent(title)}`;
   if (author) q += `+inauthor:${encodeURIComponent(author)}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(
+    const res = await fetchWithProxy(
       `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=8&orderBy=relevance`,
-      { signal: controller.signal }
+      controller.signal
     );
     if (!res.ok) return [];
     const data = await res.json();
     const results = (data.items || []).slice(0, 8).map(normalizeGoogleBooksVolume);
-    // Fallback: query simples se resultado estrito for pobre
     if (results.length < 2) {
       const qFallback = encodeURIComponent(author ? `${title} ${author}` : title);
-      const res2 = await fetch(
+      const res2 = await fetchWithProxy(
         `https://www.googleapis.com/books/v1/volumes?q=${qFallback}&maxResults=8&orderBy=relevance`,
-        { signal: controller.signal }
+        controller.signal
       );
       if (res2.ok) {
         const data2 = await res2.json();
@@ -376,11 +406,11 @@ async function searchGoogleBooks(title, author) {
 async function fetchByISBNGoogle(isbn) {
   const clean = isbn.replace(/[-\s]/g, '');
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(
+    const res = await fetchWithProxy(
       `https://www.googleapis.com/books/v1/volumes?q=isbn:${clean}`,
-      { signal: controller.signal }
+      controller.signal
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -394,22 +424,126 @@ async function fetchByISBNGoogle(isbn) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// AMAZON SEARCH (scraping via proxy)
+// ─────────────────────────────────────────────────────────────
+
+function normalizeAmazonResult(item, html) {
+  try {
+    const titleMatch = item.match(/<h2[^>]*><a[^>]*>([^<]+)<\/a>/) || item.match(/<span[^>]*id="[^"]*title[^"]*"[^>]*>([^<]+)</i);
+    const authorMatch = item.match(/<span[^>]*class="[^"]*author[^"]*"[^>]*>([^<]+)/i) || item.match(/<a[^>]*class="[^"]*author[^"]*"[^>]*>([^<]+)/i);
+    const priceMatch = item.match(/R\$\s*[\d.,]+/);
+    const ratingMatch = item.match(/(\d+[,.]?\d*)\s*<span[^>]*>\s*de\s*5/);
+    const pagesMatch = item.match(/(\d+)\s*páginas?/);
+    const isbnMatch = item.match(/(?:ISBN-10|ISBN\s*10)[\s:]*(\d{10})/i) || item.match(/(?:ISBN-13|ISBN\s*13)[\s:]*(\d{13})/i);
+
+    let coverMatch = item.match(/<img[^>]+src="([^"]+)"[^>]*(?:alt|data-a-image-source)/i);
+    if (!coverMatch) coverMatch = item.match(/<img[^>]+data-a-dynamic-image[^>]*"([^"]+)"/i);
+    if (!coverMatch) coverMatch = item.match(/<img[^>]+src="([^"]*amazon[^"]*)"[^>]*>/i);
+
+    const rawTitle = titleMatch ? titleMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim() : '';
+    if (!rawTitle) return null;
+
+    const { cleanTitle, series } = detectSeriesFromTitle(rawTitle);
+    const author = authorMatch ? authorMatch[1].replace(/&amp;/g, '&').replace(/von\s*/i, '').trim() : 'Autor desconhecido';
+    const rawCategories = [];
+    const genre = inferGenre(rawCategories, cleanTitle, '');
+    const tags = inferTags(rawCategories, '', genre);
+
+    let coverUrl = null;
+    if (coverMatch) {
+      coverUrl = coverMatch[1].replace(/&amp;/g, '&');
+      if (coverUrl.startsWith('//')) coverUrl = 'https:' + coverUrl;
+      coverUrl = coverUrl.replace(/\._[^.]+_\.jpg/i, '.jpg').replace(/\._[^.]+_\.png/i, '.png');
+    }
+
+    const result = {
+      title: cleanTitle,
+      author,
+      allAuthors: [author],
+      publisher: '',
+      publishYear: null,
+      pages: pagesMatch ? parseInt(pagesMatch[1]) : null,
+      isbn13: isbnMatch && isbnMatch[1].length === 13 ? isbnMatch[1] : null,
+      isbn10: isbnMatch && isbnMatch[1].length === 10 ? isbnMatch[1] : null,
+      openLibraryId: null,
+      googleBooksId: null,
+      synopsis: null,
+      coverUrl,
+      coverFallbackUrl: null,
+      rawCategories,
+      suggestedGenre: genre,
+      suggestedTags: tags,
+      seriesDetected: series || null,
+      language: 'por',
+      sourceApi: 'amazon',
+      confidence: 'medium',
+    };
+    result.confidence = scoreConfidence(result);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+async function searchAmazon(title, author) {
+  const query = author ? `${title} ${author}` : title;
+  const url = `https://www.amazon.com.br/s?k=${encodeURIComponent(query)}&rh=n%3A67407480011&s=relevance`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const res = await fetchWithProxy(url, controller.signal);
+    if (!res.ok) return [];
+    const html = await res.text();
+
+    const results = [];
+    const itemRegex = /<div[^>]*data-component-type="s-search-result"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
+    let match;
+
+    while ((match = itemRegex.exec(html)) !== null && results.length < 6) {
+      const normalized = normalizeAmazonResult(match[1], html);
+      if (normalized && normalized.title) {
+        results.push(normalized);
+      }
+    }
+
+    if (results.length < 2) {
+      const altRegex = /<div[^>]*class="[^"]*s-result-item[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
+      while ((match = altRegex.exec(html)) !== null && results.length < 6) {
+        const normalized = normalizeAmazonResult(match[1], html);
+        if (normalized && normalized.title && !results.find(r => r.title === normalized.title)) {
+          results.push(normalized);
+        }
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // BOOK SEARCH SERVICE (orchestrator)
 // ─────────────────────────────────────────────────────────────
 
 async function searchBooks(title, author) {
-  const [olResults, gbResults] = await Promise.all([
+  const [olResults, gbResults, amazonResults] = await Promise.all([
     searchOpenLibrary(title, author),
     searchGoogleBooks(title, author),
+    searchAmazon(title, author),
   ]);
-  const all = [...gbResults, ...olResults];
+  const all = [...gbResults, ...olResults, ...amazonResults];
   const deduped = deduplicateResults(all);
   return deduped
     .sort((a, b) => {
       const order = { high: 0, medium: 1, low: 2 };
       return order[a.confidence] - order[b.confidence];
     })
-    .slice(0, 8);
+    .slice(0, 10);
 }
 
 async function searchBookByISBN(isbn) {
