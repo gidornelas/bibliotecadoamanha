@@ -832,9 +832,9 @@
             );
         }
 
-        function useProfilePersistence({ isInitialized, user, isProfileSwitchingRef, profileKeys, payload }) {
+        function useProfilePersistence({ isInitialized, user, isProfileSwitchingRef, profileKeys, payload, isViewingOtherProfile }) {
             useDebouncedEffect(() => {
-                if (!isInitialized || !user || isProfileSwitchingRef.current) return;
+                if (!isInitialized || !user || isProfileSwitchingRef.current || isViewingOtherProfile) return;
 
                 saveToCloud(profileKeys.read, payload.readStatus);
                 saveToCloud(profileKeys.download, payload.downloadStatus);
@@ -4252,18 +4252,54 @@
                         ? (await readCloudSnapshotForUid(profileKeys.covers, targetUid, {})).data
                         : await loadFromCloud(profileKeys.covers, {});
                     
-                    // Se visitando outro perfil, lê direto do Firestore do perfil alvo usando seu UID
-                    let cb = (isVisitingOtherProfile && targetUid)
-                        ? (await readCloudSnapshotForUid(profileKeys.custom, targetUid, [])).data
-                        : await loadFromCloud(profileKeys.custom, []);
+                    // Carrega livros customizados com verificação precisa de existência no cloud
+                    // para evitar sobrescrever dados reais com livros de demonstração em falhas de rede.
+                    let cb;
+                    let customCloudDocExists = false;
+
+                    if (isVisitingOtherProfile) {
+                        if (targetUid) {
+                            const snap = await readCloudSnapshotForUid(profileKeys.custom, targetUid, []);
+                            cb = snap.data;
+                            customCloudDocExists = snap.exists;
+                        } else {
+                            cb = [];
+                            customCloudDocExists = false;
+                        }
+                    } else {
+                        try {
+                            const cloudSnap = await readCloudSnapshot(profileKeys.custom, []);
+                            const localSnap = getLocalSnapshot(profileKeys.custom, []);
+                            customCloudDocExists = cloudSnap.exists;
+
+                            if (localSnap.exists && localSnap.timestampMs > (cloudSnap.timestampMs || 0)) {
+                                cb = localSnap.data;
+                                markPendingSyncKey(profileKeys.custom, true);
+                            } else if (cloudSnap.exists) {
+                                cb = cloudSnap.data;
+                                setLocalSnapshot(profileKeys.custom, cb, cloudSnap.timestampMs || Date.now());
+                                markPendingSyncKey(profileKeys.custom, false);
+                            } else if (localSnap.exists) {
+                                cb = localSnap.data;
+                                markPendingSyncKey(profileKeys.custom, true);
+                            } else {
+                                cb = [];
+                            }
+                        } catch {
+                            const localSnap = getLocalSnapshot(profileKeys.custom, []);
+                            cb = localSnap.exists ? localSnap.data : [];
+                            customCloudDocExists = false;
+                        }
+                    }
+
                     let rem = [];
                     const q = (isVisitingOtherProfile && targetUid)
                         ? (await readCloudSnapshotForUid(profileKeys.queue, targetUid, [])).data
                         : await loadFromCloud(profileKeys.queue, []);
-                    
-                    // Se não há livros no banco, carrega SEED_BOOKS só para o perfil principal (Gianny)
+
+                    // Fallback quando não há livros no banco de dados
                     if (!cb || cb.length === 0) {
-                        if (activeProfile === 'perfil-1') {
+                        if (activeProfile === 'perfil-1' && !isVisitingOtherProfile) {
                             // Recupera catálogo legado da Gianny (antes da separação por perfis), se existir
                             const legacyCustomCandidates = ['libdb-custom-v1', 'libdb-custom'];
                             let recoveredLegacy = [];
@@ -4271,7 +4307,7 @@
                                 const legacyBooks = await loadFromCloud(legacyKey, []);
                                 if (Array.isArray(legacyBooks) && legacyBooks.length > 0) {
                                     recoveredLegacy = dedupeBooksByIdentity(legacyBooks);
-                                    console.log('ðŸ“š Catálogo legado da Gianny recuperado da chave:', legacyKey);
+                                    console.log('📚 Catálogo legado da Gianny recuperado da chave:', legacyKey);
                                     break;
                                 }
                             }
@@ -4282,15 +4318,18 @@
                                 localStorage.setItem(profileKeys.custom, JSON.stringify(cb));
                             } else {
                                 cb = dedupeBooksByIdentity(SEED_BOOKS);
-                                console.log('ðŸ“š Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
+                                console.log('📚 Carregando ' + SEED_BOOKS.length + ' livros iniciais no banco de dados...');
                             }
-                        } else {
+                        } else if (!isVisitingOtherProfile && !customCloudDocExists) {
                             cb = dedupeBooksByIdentity(SECONDARY_DEMO_BOOKS);
-                            console.log('ðŸ“š Carregando livro de demonstração para o perfil da Laisa.');
+                            console.log('📚 Carregando livro inicial para novo perfil (' + activeProfile + ').');
+                        } else {
+                            cb = [];
+                            console.log('📚 Catálogo vazio para', activeProfile, isVisitingOtherProfile ? '(visitando sem UID)' : '(cloud indisponível)');
                         }
                     } else {
                         cb = dedupeBooksByIdentity(cb);
-                        console.log('ðŸ“š Exibindo ' + cb.length + ' livros do banco de dados...');
+                        console.log('📚 Exibindo ' + cb.length + ' livros do banco de dados...');
                     }
 
                     if (cancelled) return;
@@ -4315,6 +4354,11 @@
                 isInitialized,
                 user,
                 isProfileSwitchingRef,
+                profileKeys,
+                payload: persistencePayload,
+                isViewingOtherProfile
+            });
+
             const [otherProfileEpubMap, setOtherProfileEpubMap] = useState({});
 
             useEffect(() => {
@@ -5149,7 +5193,7 @@
                                             </div>
                                         )}
                                         <BookCard 
-                                    key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id]} 
+                                    key={b.id} book={b} isRead={readStatus[b.id]} isDownloaded={downloadStatus[b.id] || !!getEffectiveEpub(b)?.epubUrl}
                                     coverUrl={getCoverUrl(b)} onClick={() => setSelectedBook(b)}
                                     hasRemoteEpub={!!remoteEpubAvailability[b.id]}
                                     effectiveEpub={getEffectiveEpub(b)}
@@ -5227,7 +5271,7 @@
                     {selectedBook && (
                         <DetailModal 
                             book={selectedBook} onClose={() => setSelectedBook(null)} 
-                            isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id]} isInQueue={readingOrder.includes(selectedBook.id)}
+                            isRead={readStatus[selectedBook.id]} isDownloaded={downloadStatus[selectedBook.id] || !!getEffectiveEpub(selectedBook)?.epubUrl} isInQueue={readingOrder.includes(selectedBook.id)}
                             hasRemoteEpub={!!remoteEpubAvailability[selectedBook.id]}
                             effectiveEpub={getEffectiveEpub(selectedBook)}
                             coverUrl={getCoverUrl(selectedBook)} 
