@@ -14,3 +14,5 @@ pitch.html
 
 *storybook.log
 storybook-static
+temp-restore/
+backup-projeto-*.zip
