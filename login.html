@@ -774,14 +774,8 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
         import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyA6cx6vGuJHzohRyr-uda_gI7_MavD_OmU",
-            authDomain: "biblioteca-do-amanha.firebaseapp.com",
-            projectId: "biblioteca-do-amanha",
-            storageBucket: "biblioteca-do-amanha.firebasestorage.app",
-            messagingSenderId: "39485326387",
-            appId: "1:39485326387:web:84c1e13522efa7cbb1cf46"
-        };
+        // Import shared Firebase config
+        import { firebaseConfig } from './shared-config.js';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);

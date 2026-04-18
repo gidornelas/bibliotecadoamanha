@@ -18,108 +18,29 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Firebase -->
+
+    <!-- Firebase & Shared Config -->
     <script type="module">
-        // IMPORTANTE: Configure seu projeto Firebase em firebase-config.js
-        // e substitua as configurações abaixo pelas suas reais
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
         import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence, onSnapshot } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
         import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
 
-        // Configuração Firebase (SUBSTITUA PELAS SUAS CONFIGURAÇÕES REAIS)
-        const firebaseConfig = {
-            apiKey: "AIzaSyA6cx6vGuJHzohRyr-uda_gI7_MavD_OmU", // ← ALTERE AQUI
-            authDomain: "biblioteca-do-amanha.firebaseapp.com", // ← ALTERE AQUI
-            projectId: "biblioteca-do-amanha", // ← ALTERE AQUI
-            storageBucket: "biblioteca-do-amanha.firebasestorage.app", // ← ALTERE AQUI
-            messagingSenderId: "39485326387", // ← ALTERE AQUI
-            appId: "1:39485326387:web:84c1e13522efa7cbb1cf46" // ← ALTERE AQUI
-        };
+        // Import shared configuration
+        import { initializeFirebase, isSupabaseConfigReady, ensureSupabaseClient } from './shared-config.js';
 
-        const supabaseConfig = {
-            url: 'https://sasnmejcbjvoupxqicff.supabase.co', // ← ALTERE AQUI
-            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhc25tZWpjYmp2b3VweHFpY2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDAzMTQsImV4cCI6MjA5MDk3NjMxNH0.GF3AgdBMegRdYKP5bUMO7WwjfEDPbOHMzDHrQHoszts', // ← ALTERE AQUI
-            bucket: 'biblioteca-epubs' // ← CRIE ESTE BUCKET NO SUPABASE
-        };
+        // Initialize Firebase
+        initializeFirebase({
+            initializeApp, getFirestore, doc, getDoc, setDoc,
+            enableIndexedDbPersistence, onSnapshot, getAuth,
+            signInWithEmailAndPassword, sendPasswordResetEmail,
+            setPersistence, browserLocalPersistence, browserSessionPersistence,
+            signOut, onAuthStateChanged
+        });
 
-        window.supabaseConfig = supabaseConfig;
-        window.supabaseBucket = supabaseConfig.bucket;
-        window.supabaseClient = null;
-        // Configure a URL publica para o proxy de capas (Goodreads/Skoob) em producao.
-        // Exemplo: window.coverProxyBaseUrl = 'https://SEU-DOMINIO.com/api/cover';
-        window.coverProxyBaseUrl = window.coverProxyBaseUrl || 'https://biblioteca-do-amanha.vercel.app/api/cover';
-        window.getCoverProxyBases = () => {
-            const fromConfig = String(window.coverProxyBaseUrl || '')
-                .split(',')
-                .map(value => value.trim())
-                .filter(Boolean);
-
-            const sameOriginBase = (window.location?.origin && /^https?:/i.test(window.location.origin))
-                ? `${window.location.origin}/api/cover`
-                : '';
-
-            const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location?.hostname || '');
-            const localDevBase = isLocalHost ? 'http://localhost:8787/cover' : '';
-
-            return [...new Set([...fromConfig, sameOriginBase, localDevBase].filter(Boolean))];
-        };
-        window.supabaseConfigReady = Boolean(
-            supabaseConfig.url &&
-            !supabaseConfig.url.includes('SEU-PROJETO') &&
-            supabaseConfig.anonKey &&
-            !supabaseConfig.anonKey.includes('SUA_ANON_KEY')
-        );
-
-        window.ensureSupabaseClient = async () => {
-            if (window.supabaseClient) return window.supabaseClient;
-            if (!window.supabaseConfigReady) return null;
-
-            for (let i = 0; i < 20; i += 1) {
-                const supabaseLib = window.supabase || globalThis.supabase;
-                if (supabaseLib?.createClient) {
-                    window.supabaseClient = supabaseLib.createClient(supabaseConfig.url, supabaseConfig.anonKey);
-                    return window.supabaseClient;
-                }
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-
-            return null;
-        };
-
+        // Initialize Supabase
         try {
-            window.FirebaseApp = initializeApp(firebaseConfig);
-            window.db = getFirestore(window.FirebaseApp);
-            enableIndexedDbPersistence(window.db).catch((error) => {
-                console.warn('Persistência offline não ativada:', error.code);
-            });
-            window.auth = getAuth(window.FirebaseApp);
-            window.doc = doc;
-            window.getDoc = getDoc;
-            window.setDoc = setDoc;
-            window.onSnapshot = onSnapshot;
-            window.signInWithEmailAndPassword = signInWithEmailAndPassword;
-            window.sendPasswordResetEmail = sendPasswordResetEmail;
-            window.setPersistence = setPersistence;
-            window.browserLocalPersistence = browserLocalPersistence;
-            window.browserSessionPersistence = browserSessionPersistence;
-            window.signOut = signOut;
-            window.onAuthStateChanged = onAuthStateChanged;
-
-            // Helper: retorna headers com token Firebase para chamadas à API
-            window.getAuthHeaders = async function() {
-                const token = await window.auth?.currentUser?.getIdToken?.();
-                return token ? { 'Authorization': `Bearer ${token}` } : {};
-            };
-
-            console.log('✅ Firebase conectado com sucesso!');
-        } catch (error) {
-            console.warn('⚠️ Firebase não configurado. Usando apenas localStorage.', error);
-            window.db = null;
-        }
-
-        try {
-            if (window.supabaseConfigReady) {
-                window.ensureSupabaseClient()
+            if (isSupabaseConfigReady()) {
+                ensureSupabaseClient()
                     .then((client) => {
                         if (client) console.log('✅ Supabase Storage conectado com sucesso!');
                         else console.warn('⚠️ Supabase não carregou no navegador. Verifique a CDN ou extensões que bloqueiam scripts.');

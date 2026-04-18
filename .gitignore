@@ -4,11 +4,9 @@ dist/
 .vscode/
 tmp_*.jpg
 *.log
-index melhorias.html
 .agents/
 .claude/
 skills-lock.json
-pitch.html
 .env
 .env.*
 
@@ -16,3 +14,4 @@ pitch.html
 storybook-static
 temp-restore/
 backup-projeto-*.zip
+archive/

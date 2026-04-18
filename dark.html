@@ -18,113 +18,41 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Firebase -->
+
+    <!-- Firebase & Shared Config -->
     <script type="module">
-        // IMPORTANTE: Configure seu projeto Firebase em firebase-config.js
-        // e substitua as configurações abaixo pelas suas reais
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
         import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence, onSnapshot } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
         import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
 
-        // Configuração Firebase (SUBSTITUA PELAS SUAS CONFIGURAÃ‡Ã•ES REAIS)
-        const firebaseConfig = {
-            apiKey: "AIzaSyA6cx6vGuJHzohRyr-uda_gI7_MavD_OmU", // â† ALTERE AQUI
-            authDomain: "biblioteca-do-amanha.firebaseapp.com", // â† ALTERE AQUI
-            projectId: "biblioteca-do-amanha", // â† ALTERE AQUI
-            storageBucket: "biblioteca-do-amanha.firebasestorage.app", // â† ALTERE AQUI
-            messagingSenderId: "39485326387", // â† ALTERE AQUI
-            appId: "1:39485326387:web:84c1e13522efa7cbb1cf46" // â† ALTERE AQUI
-        };
+        // Import shared configuration
+        import { initializeFirebase, isSupabaseConfigReady, ensureSupabaseClient } from './shared-config.js';
 
-        const supabaseConfig = {
-            url: 'https://sasnmejcbjvoupxqicff.supabase.co', // â† ALTERE AQUI
-            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNhc25tZWpjYmp2b3VweHFpY2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDAzMTQsImV4cCI6MjA5MDk3NjMxNH0.GF3AgdBMegRdYKP5bUMO7WwjfEDPbOHMzDHrQHoszts', // â† ALTERE AQUI
-            bucket: 'biblioteca-epubs' // â† CRIE ESTE BUCKET NO SUPABASE
-        };
+        // Initialize Firebase
+        initializeFirebase({
+            initializeApp, getFirestore, doc, getDoc, setDoc,
+            enableIndexedDbPersistence, onSnapshot, getAuth,
+            signInWithEmailAndPassword, sendPasswordResetEmail,
+            setPersistence, browserLocalPersistence, browserSessionPersistence,
+            signOut, onAuthStateChanged
+        });
 
-        window.supabaseConfig = supabaseConfig;
-        window.supabaseBucket = supabaseConfig.bucket;
-        window.supabaseClient = null;
-        // Configure a URL publica para o proxy de capas (Goodreads/Skoob) em producao.
-        // Exemplo: window.coverProxyBaseUrl = 'https://SEU-DOMINIO.com/api/cover';
-        window.coverProxyBaseUrl = window.coverProxyBaseUrl || 'https://biblioteca-do-amanha.vercel.app/api/cover';
-        window.getCoverProxyBases = () => {
-            const fromConfig = String(window.coverProxyBaseUrl || '')
-                .split(',')
-                .map(value => value.trim())
-                .filter(Boolean);
-
-            const sameOriginBase = (window.location?.origin && /^https?:/i.test(window.location.origin))
-                ? `${window.location.origin}/api/cover`
-                : '';
-
-            const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location?.hostname || '');
-            const localDevBase = isLocalHost ? 'http://localhost:8787/cover' : '';
-
-            return [...new Set([...fromConfig, sameOriginBase, localDevBase].filter(Boolean))];
-        };
-        window.supabaseConfigReady = Boolean(
-            supabaseConfig.url &&
-            !supabaseConfig.url.includes('SEU-PROJETO') &&
-            supabaseConfig.anonKey &&
-            !supabaseConfig.anonKey.includes('SUA_ANON_KEY')
-        );
-
-        window.ensureSupabaseClient = async () => {
-            if (window.supabaseClient) return window.supabaseClient;
-            if (!window.supabaseConfigReady) return null;
-
-            for (let i = 0; i < 20; i += 1) {
-                const supabaseLib = window.supabase || globalThis.supabase;
-                if (supabaseLib?.createClient) {
-                    window.supabaseClient = supabaseLib.createClient(supabaseConfig.url, supabaseConfig.anonKey);
-                    return window.supabaseClient;
-                }
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-
-            return null;
-        };
-
+        // Initialize Supabase
         try {
-            window.FirebaseApp = initializeApp(firebaseConfig);
-            window.db = getFirestore(window.FirebaseApp);
-            enableIndexedDbPersistence(window.db).catch((error) => {
-                console.warn('Persistência offline não ativada:', error.code);
-            });
-            window.auth = getAuth(window.FirebaseApp);
-            window.doc = doc;
-            window.getDoc = getDoc;
-            window.setDoc = setDoc;
-            window.onSnapshot = onSnapshot;
-            window.signInWithEmailAndPassword = signInWithEmailAndPassword;
-            window.sendPasswordResetEmail = sendPasswordResetEmail;
-            window.setPersistence = setPersistence;
-            window.browserLocalPersistence = browserLocalPersistence;
-            window.browserSessionPersistence = browserSessionPersistence;
-            window.signOut = signOut;
-            window.onAuthStateChanged = onAuthStateChanged;
-            console.log('âœ… Firebase conectado com sucesso!');
-        } catch (error) {
-            console.warn('âš ️ Firebase não configurado. Usando apenas localStorage.', error);
-            window.db = null;
-        }
-
-        try {
-            if (window.supabaseConfigReady) {
-                window.ensureSupabaseClient()
+            if (isSupabaseConfigReady()) {
+                ensureSupabaseClient()
                     .then((client) => {
-                        if (client) console.log('âœ… Supabase Storage conectado com sucesso!');
-                        else console.warn('âš ️ Supabase não carregou no navegador. Verifique a CDN ou extensões que bloqueiam scripts.');
+                        if (client) console.log('✅ Supabase Storage conectado com sucesso!');
+                        else console.warn('⚠️ Supabase não carregou no navegador. Verifique a CDN ou extensões que bloqueiam scripts.');
                     })
                     .catch((error) => {
-                        console.warn('âš ️ Falha ao iniciar Supabase Storage.', error);
+                        console.warn('⚠️ Falha ao iniciar Supabase Storage.', error);
                     });
             } else {
-                console.warn('âš ️ Supabase não configurado. Preencha url e anon key para ativar uploads remotos.');
+                console.warn('⚠️ Supabase não configurado. Preencha url e anon key para ativar uploads remotos.');
             }
         } catch (error) {
-            console.warn('âš ️ Falha ao iniciar Supabase Storage.', error);
+            console.warn('⚠️ Falha ao iniciar Supabase Storage.', error);
         }
     </script>
     
@@ -324,7 +252,7 @@
             console.log = () => {};
         }
 
-        // --- 0. CONFIGURAÃ‡ÃƒO DO BANCO DE DADOS NA NUVEM ---
+        // --- 0. CONFIGURAÇÃO DO BANCO DE DADOS NA NUVEM ---
 
         const LOCAL_META_PREFIX = 'libdb-meta:';
         const LOCAL_PENDING_SYNC_KEY = 'libdb-pending-sync-keys-v1';
@@ -410,7 +338,7 @@
         // Retorna a referência Firestore correta: compartilhada ou pessoal
         const getCloudDocRef = (key) => {
             if (SHARED_KEYS.has(key)) {
-                // Path único para toda a biblioteca â€” acessível pelas duas usuárias
+                // Path único para toda a biblioteca — acessível pelas duas usuárias
                 return doc(window.db, 'shared', 'biblioteca-do-amanha', 'data', key);
             }
             const userId = window.auth?.currentUser?.uid || 'default-user';
@@ -670,7 +598,7 @@
             }
         };
 
-        // --- 1. CONFIGURAÃ‡Ã•ES E HELPERS (DEFINIDOS NO TOPO) ---
+        // --- 1. CONFIGURAÇÕES E HELPERS (DEFINIDOS NO TOPO) ---
 
         const APP_TOAST_EVENT = 'libdb:toast';
 
@@ -793,10 +721,10 @@
 
             // Matches design system: left 4px border + tinted bg + emoji icon
             const toneConfig = {
-                success: { emoji: 'âœ…', bg: 'rgba(236,253,245,.97)', borderColor: '#10B981', msgColor: '#065F46', subColor: '#059669' },
-                info:    { emoji: 'ðŸ“–', bg: 'rgba(255,255,255,.97)', borderColor: '#14B8A6', msgColor: '#1E3A5F', subColor: '#6B7280' },
-                warning: { emoji: 'âš ️', bg: 'rgba(255,251,235,.97)', borderColor: '#F59E0B', msgColor: '#92400E', subColor: '#B45309' },
-                error:   { emoji: 'âŒ', bg: 'rgba(254,242,242,.97)', borderColor: '#EF4444', msgColor: '#991B1B', subColor: '#B91C1C' },
+                success: { emoji: '✅', bg: 'rgba(236,253,245,.97)', borderColor: '#10B981', msgColor: '#065F46', subColor: '#059669' },
+                info:    { emoji: '📖', bg: 'rgba(255,255,255,.97)', borderColor: '#14B8A6', msgColor: '#1E3A5F', subColor: '#6B7280' },
+                warning: { emoji: '⚠️', bg: 'rgba(255,251,235,.97)', borderColor: '#F59E0B', msgColor: '#92400E', subColor: '#B45309' },
+                error:   { emoji: '❌', bg: 'rgba(254,242,242,.97)', borderColor: '#EF4444', msgColor: '#991B1B', subColor: '#B91C1C' },
             };
 
             return (
@@ -824,7 +752,7 @@
                                     className="flex-shrink-0 text-[14px] opacity-40 hover:opacity-100 transition-opacity leading-none mt-0.5"
                                     style={{ color: cfg.msgColor }}
                                     aria-label="Fechar"
-                                >âœ•</button>
+                                >✕</button>
                             </div>
                         );
                     })}
@@ -1665,11 +1593,11 @@
                                         if (file) {
                                             // Apenas guarda arquivo, não lê
                                             setEpubFile(file);
-                                            setEpubMessage(`âœ… ${file.name} selecionado (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                                            setEpubMessage(`✅ ${file.name} selecionado (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
                                         }
                                     } catch (err) {
                                         console.error('Erro ao selecionar arquivo:', err);
-                                        setEpubMessage(`âŒ Erro: ${err.message}`);
+                                        setEpubMessage(`❌ Erro: ${err.message}`);
                                     }
                                 }}
                                 className="w-full text-sm"
@@ -2116,7 +2044,7 @@
                                                 onClick={() => { const v = parseInt(goalInputVal); if(v>0){ setReadingGoal(v); setShowGoalInput(false); setGoalInputVal(''); }}}
                                                 className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-semibold rounded-xl hover:bg-[#0D9488] transition-colors"
                                             >Definir</button>
-                                            <button onClick={() => setShowGoalInput(false)} className="px-3 py-2 text-gray-400 hover:text-gray-600 text-sm rounded-xl border border-gray-200 dark:border-gray-600 dark:text-gray-500">âœ•</button>
+                                            <button onClick={() => setShowGoalInput(false)} className="px-3 py-2 text-gray-400 hover:text-gray-600 text-sm rounded-xl border border-gray-200 dark:border-gray-600 dark:text-gray-500">✕</button>
                                         </div>
                                     ) : (
                                         <>
@@ -2503,7 +2431,7 @@
             const handleDeleteEpub = async () => {
                 try {
                     await deleteEpubFromCloud(book.epubPath || book.epubKey);
-                    setUploadMessage("âœ… EPUB removido com sucesso");
+                    setUploadMessage("✅ EPUB removido com sucesso");
                     registerTimeout(() => {
                         if (!isMountedRef.current) return;
                         onDeleteEpub(book.id);
@@ -2511,7 +2439,7 @@
                     }, 500);
                 } catch (err) {
                     console.error('Erro ao deletar EPUB:', err);
-                    setUploadMessage("âŒ Erro ao deletar EPUB");
+                    setUploadMessage("❌ Erro ao deletar EPUB");
                 }
             };
 
@@ -2597,12 +2525,12 @@
                                                                 'Upload sem resposta. Verifique bucket, políticas e conexão do Supabase.'
                                                             );
                                                             if (isMountedRef.current) {
-                                                                setUploadMessage(`âœ… EPUB enviado: ${file.name}`);
+                                                                setUploadMessage(`✅ EPUB enviado: ${file.name}`);
                                                             }
                                                         } catch (error) {
                                                             console.error(error);
                                                             if (isMountedRef.current) {
-                                                                setUploadMessage(`âŒ ${error?.message || 'Falha ao enviar EPUB.'}`);
+                                                                setUploadMessage(`❌ ${error?.message || 'Falha ao enviar EPUB.'}`);
                                                             }
                                                         } finally {
                                                             if (isMountedRef.current) {
