@@ -698,7 +698,7 @@
                     <div class="card-grid-pattern"></div>
 
                     <!-- Logo & header -->
-                    <img src="https://i.imgur.com/ewWnZWm.png" alt="Biblioteca do Amanhã" class="logo-img">
+                    <img src="/assets/logo-biblioteca-do-amanha-completa.png" alt="Biblioteca do Amanhã" class="logo-img">
                     <p class="header-subtitle">Entre para acessar sua biblioteca</p>
 
                     <!-- Form -->
@@ -769,6 +769,23 @@
         </div>
     </div>
 
+    <script>
+        if (window.location.protocol === 'file:') {
+            window.addEventListener('DOMContentLoaded', () => {
+                const message = document.getElementById('loginMessage');
+                const submitBtn = document.getElementById('submitBtn');
+                if (message) {
+                    message.textContent = 'Para entrar localmente, abra pelo servidor: npm run dev e acesse http://127.0.0.1:5173/login.html';
+                    message.className = 'login-message error';
+                }
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.title = 'Abra pelo servidor local para carregar o Firebase.';
+                }
+            });
+        }
+    </script>
+
     <!-- Firebase -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
@@ -820,6 +837,19 @@
             el.textContent = '';
         }
 
+        function getFirebaseLoginErrorCode(error) {
+            return error?.code || error?.customData?._tokenResponse?.error?.message || error?.message || '';
+        }
+
+        function isInvalidLoginError(error) {
+            const code = String(getFirebaseLoginErrorCode(error)).toLowerCase();
+            return code.includes('invalid-login-credentials')
+                || code.includes('invalid_credential')
+                || code.includes('invalid-credential')
+                || code.includes('wrong-password')
+                || code.includes('user-not-found');
+        }
+
         // Login
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -839,13 +869,16 @@
             try {
                 await setPersistence(auth, rememberMe.checked ? browserLocalPersistence : browserSessionPersistence);
                 await signInWithEmailAndPassword(auth, email, password);
-                // onAuthStateChanged will redirect
+                // onAuthStateChanged redirects after Firebase confirms the session locally.
             } catch (error) {
-                const code = error?.code || '';
-                if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+                console.error('Erro no login:', error);
+                const code = String(getFirebaseLoginErrorCode(error)).toLowerCase();
+                if (isInvalidLoginError(error)) {
                     showMessage(loginMessage, 'Email ou senha incorretos.', 'error');
-                } else if (code === 'auth/too-many-requests') {
+                } else if (code.includes('too-many-requests')) {
                     showMessage(loginMessage, 'Muitas tentativas. Aguarde um pouco.', 'error');
+                } else if (code.includes('network-request-failed')) {
+                    showMessage(loginMessage, 'Falha de conexão. Verifique sua internet e tente novamente.', 'error');
                 } else {
                     showMessage(loginMessage, 'Erro ao entrar. Tente novamente.', 'error');
                 }
